@@ -433,11 +433,17 @@ const DEFAULT_CHILD_COSTS = {
   tuition:{public:18000,private:120000},          // 國小（6–11）學雜費/年
   tuition_junior:{public:8000,private:130000},    // 國中（12–14）學雜費/年（公立義務教育僅雜費代收）
   tuition_senior:{public:24000,private:80000},    // 高中職（15–17）學費＋雜費/年（全額，未扣補助）
-  subsidy_junior:0,                               // 國中 政府補助/年（多為義務教育免學費，雜費補助視縣市）
-  subsidy_senior:12000,                           // 高中職 政府補助/年（2024起公私立學費全免，私立補助較高可自行調高）
   cram:{none:0,medium:72000,intensive:156000},
   college_tuition:{none:0,public:62000,private:110000,abroad:1200000},
   college_living:{none:0,public:150000,private:150000,abroad:600000},
+  subsidy:{
+    birth:0,            // 懷孕與生產：生育給付＋生育獎勵金（一次性，出生當年抵birth成本）
+    monthly:5000,       // 養育照顧/成長津貼：育兒津貼、托育補助等（每月，長期）
+    monthly_from:0,     // 按月補助 起始年齡
+    monthly_to:4,       // 按月補助 結束年齡（含）→ 育兒津貼一般 0–未滿5歲，即 0–4
+    junior:0,           // 國中 教育補助/年（扣學雜費）
+    senior:12000,       // 高中職 教育補助/年（扣學雜費，2024起公私立學費全免）
+  },
 };
 const deepClone = o => JSON.parse(JSON.stringify(o));
 
@@ -548,10 +554,13 @@ function sanitizeChildCosts(o){
   const d=deepClone(DEFAULT_CHILD_COSTS); if(!o||typeof o!=='object') return d;
   const out=deepClone(d);
   out.birth_onetime = (o.birth_onetime!=null)?Number(o.birth_onetime):d.birth_onetime;
-  ['subsidy_junior','subsidy_senior'].forEach(k=>{ if(o[k]!=null) out[k]=Number(o[k]); });
   ['care','preschool','tuition','tuition_junior','tuition_senior','cram','college_tuition','college_living'].forEach(g=>{
     if(o[g]&&typeof o[g]==='object') Object.keys(d[g]).forEach(k=>{ if(o[g][k]!=null) out[g][k]=Number(o[g][k]); });
   });
+  out.subsidy={...d.subsidy};
+  if(o.subsidy && typeof o.subsidy==='object') Object.keys(d.subsidy).forEach(k=>{ if(o.subsidy[k]!=null) out.subsidy[k]=Number(o.subsidy[k]); });
+  if(o.subsidy_junior!=null) out.subsidy.junior=Number(o.subsidy_junior);   // 舊資料遷移
+  if(o.subsidy_senior!=null) out.subsidy.senior=Number(o.subsidy_senior);
   return out;
 }
 
@@ -652,17 +661,21 @@ function metrics(){
 function goalReturn(g){ const r=g.return_rate; return (r===null||r===undefined||r==='') ? (Number(state.settings.expected_return)||0) : (Number(r)||0); }
 
 // 每月達標所需投入：FV = 目標 - 起始金額終值；PMT = FV * r / ((1+r)^n - 1)
+// 週期型（cycle_years>0）：以「每個週期都要重新存滿目標」的穩態計算，年限改用週期、起始金額不重複抵用
 function requiredMonthly(goal){
   const r0 = goalReturn(goal);
-  const years = Math.max(0.0001, Number(goal.target_years)||0);
+  const cyc = Number(goal.cycle_years)||0;
+  const years = Math.max(0.0001, cyc>0 ? cyc : (Number(goal.target_years)||0));
   const rm = Math.pow(1+r0, 1/12) - 1;
   const n = years*12;
-  const startFV = Number(goal.start_amount||0)*Math.pow(1+r0, years);
+  const startFV = cyc>0 ? 0 : Number(goal.start_amount||0)*Math.pow(1+r0, years);
   const remaining = Math.max(0, Number(goal.target_amount||0) - startFV);
   if(remaining<=0) return 0;
   if(Math.abs(rm)<1e-9) return remaining/n;
   return remaining * rm / (Math.pow(1+rm,n)-1);
 }
+
+function goalCycleLabel(g){ const c=Number(g.cycle_years)||0; return c>0?` <span style="color:var(--muted);font-size:11px">·每${c}年</span>`:''; }
 
 // 逐年負債還款（依利率攤還，還清即停止）
 function debtScheduleAnnual(years){
@@ -821,10 +834,11 @@ const SCHEMAS = {
     {key:'name',label:'目標',type:'text',ph:'例：買房頭期'},
     {key:'target_amount',label:'目標金額',type:'money'},
     {key:'target_years',label:'年限',type:'number'},
+    {key:'cycle_years',label:'週期(年)',type:'number',ph:'空=一次'},
     {key:'start_amount',label:'已備金額',type:'money'},
     {key:'return_rate',label:'報酬率',type:'percent'},
     {key:'priority',label:'優先序',type:'number'},
-  ], def:{name:'',target_amount:0,target_years:5,start_amount:0,return_rate:null,priority:3}, grid:'1.2fr 1.1fr .6fr 1fr .65fr .6fr .9fr .8fr 40px', computed:true },
+  ], def:{name:'',target_amount:0,target_years:5,cycle_years:null,start_amount:0,return_rate:null,priority:3}, grid:'1.2fr 1.1fr .55fr .55fr 1fr .6fr .55fr .9fr .8fr 40px', computed:true },
 };
 
 function cellInput(key,r,c){
@@ -845,10 +859,11 @@ function cellInput(key,r,c){
   }
   if(c.type==='money'||c.type==='number'){
     const show=(v===null||v===undefined||v==='')?'':Number(v);
-    let lim='';
+    let lim=''; let step=(c.type==='money'?'1000':'1');
     if(c.key==='pay_day') lim='min="1" max="31" placeholder="—"';
     else if(c.key==='pay_month') lim='min="1" max="12" placeholder="—"';
-    return `<input class="num" type="number" step="${c.type==='money'?'1000':'1'}" ${da} value="${show}" ${lim}>`;
+    else if(c.key==='cycle_years'){ step='0.5'; lim='min="0" placeholder="空=一次"'; }
+    return `<input class="num" type="number" step="${step}" ${da} value="${show}" ${lim}>`;
   }
   return `<input type="text" ${da} value="${escapeHtml(v||'')}" placeholder="${c.ph||''}">`;
 }
@@ -1043,7 +1058,7 @@ function renderReport(){
   const goalRows = alloc.length ? alloc.map(a=>{
     const yrs = a.months===Infinity?'—':(a.months/12).toFixed(1)+' 年';
     const st = a.status==='full'?'<span class="badge ok">足額</span>':(a.status==='partial'?'<span class="badge no">部分</span>':'<span class="badge no">未分配</span>');
-    return `<tr><td>${escapeHtml(a.g.name||'(未命名)')}</td><td class="n">${fmtMoney(a.g.target_amount)}</td><td class="n">${a.g.target_years} 年</td><td class="n">${fmtMoney(a.req)}</td><td class="n">${fmtMoney(a.alloc)}</td><td class="n">${yrs}</td><td>${st}</td></tr>`;
+    return `<tr><td>${escapeHtml(a.g.name||'(未命名)')}${goalCycleLabel(a.g)}</td><td class="n">${fmtMoney(a.g.target_amount)}</td><td class="n">${a.g.target_years} 年</td><td class="n">${fmtMoney(a.req)}</td><td class="n">${fmtMoney(a.alloc)}</td><td class="n">${yrs}</td><td>${st}</td></tr>`;
   }).join('') : `<tr><td colspan="7" style="color:var(--muted)">尚未設定目標</td></tr>`;
 
   const recHtml=recs.map(r=>`<div class="rec ${r.level}"><div><div class="rt">${r.title}</div><div class="rd">${r.text}</div></div></div>`).join('');
@@ -1114,7 +1129,8 @@ function requiredReturnForRetirement(){
 }
 // 由單一目標反推所需年化報酬（給定分配到的每月投入）
 function requiredReturnForGoal(goal, pmt){
-  const target=Number(goal.target_amount||0), years=Math.max(.0001,Number(goal.target_years||0)), start=Number(goal.start_amount||0);
+  const cyc=Number(goal.cycle_years)||0;
+  const target=Number(goal.target_amount||0), years=Math.max(.0001, cyc>0?cyc:Number(goal.target_years||0)), start=cyc>0?0:Number(goal.start_amount||0);
   if(target<=0) return 0;
   const fv=r=>{ const rm=Math.pow(1+r,1/12)-1; const n=years*12; const sFV=start*Math.pow(1+r,years); const ann=Math.abs(rm)<1e-9? pmt*n : pmt*((Math.pow(1+rm,n)-1)/rm); return sFV+ann-target; };
   let lo=-0.05,hi=0.40;
@@ -1210,7 +1226,7 @@ function renderPortfolio(sel){
     const hard=(rr===Infinity||rr>0.12);
     const ok=!hard && rr<=pr;
     const badge=hard?'<span class="badge no">需更多儲蓄</span>':(ok?'<span class="badge ok">配置可達成</span>':'<span class="badge no">需更積極</span>');
-    return `<tr><td>${escapeHtml(a.g.name||'(未命名)')}</td><td class="n">${fmtMoney(a.g.target_amount)}</td><td class="n">${a.g.target_years} 年</td><td class="n">${fmtMoney(a.alloc)}</td><td class="n">${fmtR(rr)}</td><td>${badge}</td></tr>`;
+    return `<tr><td>${escapeHtml(a.g.name||'(未命名)')}${goalCycleLabel(a.g)}</td><td class="n">${fmtMoney(a.g.target_amount)}</td><td class="n">${a.g.target_years} 年</td><td class="n">${fmtMoney(a.alloc)}</td><td class="n">${fmtR(rr)}</td><td>${badge}</td></tr>`;
   }).join('') : `<tr><td colspan="6" style="color:var(--muted)">尚未設定目標</td></tr>`;
 
   document.getElementById('portfolio-body').innerHTML=`
@@ -1226,8 +1242,8 @@ function renderPortfolio(sel){
     </div>
     <div class="card">
       <h2>自訂資產配置（拖曳調整）</h2>
-      <p class="hint">拖曳下方滑桿自由調整股票／債券／REITs／黃金／現金的<b>相對比重</b>，系統自動換算成 100%。也可先套用範本再微調。<b>隨配置變動，下方會即時提示你目前接近哪一種風險屬性。</b></p>
-      <div class="pf-models">${presetChips}</div>
+      <p class="hint">拖曳滑桿調整時，系統以<b>現金/定存</b>作為調節池：增加其他資產會自動<b>從現金扣除</b>、減少其他資產會<b>回補到現金</b>，總和維持 100%。可按「<b>回復基礎</b>」回到 100% 現金重新配置，或套用範本再微調。<b>下方會即時提示你目前接近哪一種風險屬性。</b></p>
+      <div class="pf-models">${presetChips}<button class="pf-model" data-pf-base>↺ 回復基礎<span class="r">100% 現金</span></button></div>
       <div style="margin:10px 0;padding:10px 12px;border:1px solid var(--line-2);border-radius:10px;background:var(--surface-2)">
         <div id="pf-stage-label">目前配置接近：<b>${stage.label}</b>（成長資產 股票＋REITs ${Math.round((w.stock+w.reit)*100)}%）</div>
         <div style="display:flex;gap:6px;margin-top:8px">${PF_PRESETS.map(p=>`<span data-pf-stage="${p.key}" style="flex:1;text-align:center;font-size:12px;padding:5px 0;border-radius:6px;border:1px solid ${p.key===stage.key?'var(--primary)':'var(--line-2)'};${p.key===stage.key?'background:var(--primary);color:#fff':'color:var(--muted)'}">${p.label}型</span>`).join('')}</div>
@@ -1270,6 +1286,27 @@ function pfLiveUpdate(){
   const ek=document.getElementById('pf-kpi-ret'); if(ek) ek.textContent=fmtPct(pr);
   if(portfolioChart){ portfolioChart.data.datasets[0].data=PF_CLASSES.map(k=>Math.round(w[k]*100)); portfolioChart.update('none'); }
 }
+// 以「現金/定存」作為調節池：調整其他資產 → 從現金增減；維持總和 100
+function pfApply(changedKey, raw){
+  const s=state.settings;
+  const cur={}; PF_CLASSES.forEach(k=>cur[k]=Math.max(0,Number(s['pf_'+k])||0));
+  let v=Math.max(0,Math.min(100,raw));
+  if(changedKey==='cash'){
+    const targetNon=100-v; const others=PF_CLASSES.filter(k=>k!=='cash');
+    const sumOther=others.reduce((a,k)=>a+cur[k],0);
+    if(sumOther>0) others.forEach(k=>cur[k]=cur[k]/sumOther*targetNon);
+    else others.forEach(k=>cur[k]=targetNon/others.length);
+  } else {
+    const others=PF_CLASSES.filter(k=>k!=='cash'&&k!==changedKey);
+    const sumOther=others.reduce((a,k)=>a+cur[k],0);
+    v=Math.min(v,Math.max(0,100-sumOther));   // 不讓非現金總和超過100（即現金不為負）
+    cur[changedKey]=v;
+  }
+  PF_CLASSES.filter(k=>k!=='cash').forEach(k=>s['pf_'+k]=Math.round(cur[k]));
+  const nonCash=PF_CLASSES.filter(k=>k!=='cash').reduce((a,k)=>a+(Number(s['pf_'+k])||0),0);
+  s.pf_cash=Math.max(0,100-nonCash);          // 現金＝殘差，確保剛好100
+}
+function pfSyncSliders(){ PF_CLASSES.forEach(k=>{ const el=document.querySelector(`input[data-pf="${k}"]`); if(el) el.value=Number(state.settings['pf_'+k])||0; }); }
 
 /* ===== 子女養育成本（獨立計算，可將大學教育金加入目標） ===== */
 let childrenChart=null;
@@ -1290,29 +1327,39 @@ function defaultChild(){ return {name:'',current_age:0,include_birth:true,care_0
 // 是否規劃就讀大學（決定是否計入 18–21 歲費用）
 const goesCollege = ch => ch.college && ch.college!=='none';
 
-// 子女在年齡 a 的當年費用（今日價格）— 使用可自訂的 state.childCosts
-function childAnnualToday(ch,a){
-  const cc=state.childCosts; let c=0; const living=(Number(ch.monthly_living)||0)*12;
+// 子女在年齡 a 的當年費用（今日價格）。gross=true 時不扣「按月補助」（供計算補助總額）
+function childAnnualToday(ch,a,gross){
+  const cc=state.childCosts; const sub=cc.subsidy||{}; let c=0; const living=(Number(ch.monthly_living)||0)*12;
   if(a>=0&&a<=17) c+=living;
   if(a>=0&&a<=2) c+=cc.care[ch.care_0_2] ?? 0;
   if(a>=3&&a<=5) c+=cc.preschool[ch.preschool] ?? 0;
-  if(a>=6&&a<=11){ c+=cc.tuition[ch.school_type] ?? 0; }                                               // 國小 學雜費
-  if(a>=12&&a<=14){ c+=Math.max(0,(cc.tuition_junior[ch.school_type] ?? 0)-(Number(cc.subsidy_junior)||0)); } // 國中（扣補助＝自付）
-  if(a>=15&&a<=17){ c+=Math.max(0,(cc.tuition_senior[ch.school_type] ?? 0)-(Number(cc.subsidy_senior)||0)); } // 高中（扣補助＝自付）
-  if(a>=6&&a<=17){ c+=cc.cram[ch.cram_level] ?? 0; }                                                    // 補習/才藝
+  if(a>=6&&a<=11){ c+=cc.tuition[ch.school_type] ?? 0; }                                                  // 國小 學雜費
+  if(a>=12&&a<=14){ c+=Math.max(0,(cc.tuition_junior[ch.school_type] ?? 0)-(Number(sub.junior)||0)); }    // 國中（扣教育補助＝自付）
+  if(a>=15&&a<=17){ c+=Math.max(0,(cc.tuition_senior[ch.school_type] ?? 0)-(Number(sub.senior)||0)); }    // 高中（扣教育補助＝自付）
+  if(a>=6&&a<=17){ c+=cc.cram[ch.cram_level] ?? 0; }                                                       // 補習/才藝
   if(a>=18&&a<=21 && goesCollege(ch)) c+=(cc.college_tuition[ch.college]||0)+(cc.college_living[ch.college]||0);
-  return c;
+  if(!gross){   // 養育照顧/成長津貼（按月、有年齡上限）→ 從當年支出扣抵
+    const mFrom=Number(sub.monthly_from)||0, mTo=(sub.monthly_to!=null?Number(sub.monthly_to):-1);
+    if((Number(sub.monthly)||0)>0 && a>=mFrom && a<=mTo) c -= (Number(sub.monthly)||0)*12;
+  }
+  return Math.max(0,c);
 }
 function childSummary(ch){
-  const cc=state.childCosts;
+  const cc=state.childCosts; const sub=cc.subsidy||{};
   const infl=Number(state.settings.inflation_rate)||0, rr=Number(state.settings.expected_return)||0;
   const cur=Math.max(0,Math.floor(Number(ch.current_age)||0));
   const endAge = goesCollege(ch) ? 21 : 17;
   const stages={birth:0,infant:0,preschool:0,elem:0,junior:0,senior:0,college:0};
-  let today=0,nominal=0; const series=[];
-  if(ch.include_birth && cur<=0){ today+=cc.birth_onetime; nominal+=cc.birth_onetime; stages.birth+=cc.birth_onetime; series.push({t:0,nominal:cc.birth_onetime}); }
+  let today=0,nominal=0,subsidyToday=0; const series=[];
+  if(ch.include_birth && cur<=0){
+    const bSub=Math.min(Number(cc.birth_onetime)||0, Number(sub.birth)||0);   // 生育一次性補助（不超過生產成本）
+    const net=Math.max(0,(Number(cc.birth_onetime)||0)-bSub);
+    subsidyToday+=bSub; today+=net; nominal+=net; stages.birth+=net; series.push({t:0,nominal:net});
+  }
   for(let a=cur;a<=endAge;a++){
-    const t=a-cur, td=childAnnualToday(ch,a); if(td<=0) continue;
+    const t=a-cur, td=childAnnualToday(ch,a), tg=childAnnualToday(ch,a,true);
+    subsidyToday += Math.max(0, tg-td);    // 按月補助實際扣抵金額
+    if(td<=0) continue;
     const nom=td*Math.pow(1+infl,t); today+=td; nominal+=nom; series.push({t,nominal:nom});
     if(a<=2) stages.infant+=td; else if(a<=5) stages.preschool+=td; else if(a<=11) stages.elem+=td; else if(a<=14) stages.junior+=td; else if(a<=17) stages.senior+=td; else stages.college+=td;
   }
@@ -1322,7 +1369,7 @@ function childSummary(ch){
     const yearsTo18=Math.max(0,18-cur);
     if(collegeNominal>0 && yearsTo18>0){ const rm=Math.pow(1+rr,1/12)-1, n=yearsTo18*12; collegeFundMonthly=Math.abs(rm)<1e-9?collegeNominal/n:collegeNominal*rm/(Math.pow(1+rm,n)-1); }
   }
-  return {today,nominal,series,stages,collegeNominal,collegeFundMonthly,monthlyNow:childAnnualToday(ch,cur)/12,cur,endAge};
+  return {today,nominal,series,stages,collegeNominal,collegeFundMonthly,subsidyToday,monthlyNow:childAnnualToday(ch,cur)/12,cur,endAge};
 }
 function combinedChildSeries(){
   const maxT=22; const arr=new Array(maxT+1).fill(0);
@@ -1343,10 +1390,8 @@ const CHILD_COST_FIELDS=[
   {p:'tuition.private',label:'國小(6–11) 學雜費 私立 / 年'},
   {p:'tuition_junior.public',label:'國中(12–14) 學雜費 公立 / 年'},
   {p:'tuition_junior.private',label:'國中(12–14) 學雜費 私立 / 年'},
-  {p:'subsidy_junior',label:'國中 政府補助 / 年（扣抵）'},
   {p:'tuition_senior.public',label:'高中(15–17) 學費+雜費 公立 / 年'},
   {p:'tuition_senior.private',label:'高中(15–17) 學費+雜費 私立 / 年'},
-  {p:'subsidy_senior',label:'高中 政府補助 / 年（扣抵）'},
   {p:'cram.medium',label:'6–17 補習 中等 / 年'},
   {p:'cram.intensive',label:'6–17 補習 密集 / 年'},
   {p:'college_tuition.public',label:'大學學費 公立 / 年'},
@@ -1355,15 +1400,33 @@ const CHILD_COST_FIELDS=[
   {p:'college_living.public',label:'大學生活費 國內 / 年'},
   {p:'college_living.abroad',label:'大學生活費 留學 / 年'},
 ];
+// 政府補助／津貼（會自動從支出扣抵）
+const CHILD_SUBSIDY_FIELDS=[
+  {p:'subsidy.birth',label:'生育給付＋生育獎勵金（一次性）',step:1000},
+  {p:'subsidy.monthly',label:'育兒津貼／托育補助／成長津貼（每月）',step:500},
+  {p:'subsidy.monthly_from',label:'按月補助　起始年齡',step:1},
+  {p:'subsidy.monthly_to',label:'按月補助　結束年齡（含）',step:1},
+  {p:'subsidy.junior',label:'國中 教育補助 / 年（扣學雜費）',step:1000},
+  {p:'subsidy.senior',label:'高中 教育補助 / 年（扣學雜費）',step:1000},
+];
 const ccGet=p=>p.split('.').reduce((o,k)=>(o&&o[k]!=null)?o[k]:undefined, state.childCosts);
 function ccSet(p,v){ const ks=p.split('.'); let o=state.childCosts; for(let i=0;i<ks.length-1;i++) o=o[ks[i]]; o[ks[ks.length-1]]=v; }
 function renderChildCostEditor(){
-  return `<div class="card" style="background:var(--surface-2)">
-      <h3 style="margin:0 0 4px;font-size:15px">💡 國中、高中的學費有政府補助，記得想清楚「實際自付」</h3>
-      <p class="hint" style="margin:0">· <b>國中</b>：屬九年國民義務教育，公立<b>免學費</b>，主要繳雜費、代收代辦（書籍、午餐、班費等）；私立則含學費。<br>· <b>高中職</b>：自 2024 年起<b>公私立「學費」全面免費</b>（政府編列預算補助、不排富），但<b>雜費、書籍、制服、午餐、代收代辦仍須自付</b>，私立雜費通常較高。<br>· 下方「學費+雜費」請填<b>全額</b>，再用「政府補助/年」填你預估可獲補助的金額，系統會自動扣抵算出<b>實際自付</b>並計入支出（自付 = 全額 − 補助，最低為 0）。實際補助因校別、戶籍、家戶所得而異，請以學校與教育部公告為準。</p>
+  const fld=f=>`<div class="cfield"><label>${f.label}</label><input type="number" step="${f.step||1000}" min="0" data-cc-path="${f.p}" value="${Number(ccGet(f.p)||0)}"></div>`;
+  return `<div class="card">
+      <h2 style="font-size:16px">支出項目（年度／一次性費用）</h2>
+      <p class="hint">各階段的「全額」費用（學雜費請填全額，補助在下方另計）。費用僅在對應年齡計入。</p>
+      <div class="cgrid">${CHILD_COST_FIELDS.map(fld).join('')}</div>
     </div>
-    <div class="cgrid">${CHILD_COST_FIELDS.map(f=>`<div class="cfield"><label>${f.label}</label><input type="number" step="1000" data-cc-path="${f.p}" value="${Number(ccGet(f.p)||0)}"></div>`).join('')}</div>
-    <div class="row-actions" style="margin-top:8px"><button class="btn" data-cc-reset>重設為預設值</button></div>`;
+    <div class="card" style="background:#F2F7F4;border:1px solid #CFE3D7">
+      <h2 style="font-size:16px;color:#1E6B50">政府補助／津貼（自動從支出扣抵，不會與支出混在一起）</h2>
+      <p class="hint" style="margin:0 0 10px">補助分兩種性質——<b>一次性給付</b>（懷孕生產）只在出生當年抵用；<b>按月長期津貼</b>（養育照顧、成長津貼）有<b>年齡上限</b>，只在指定年齡區間每年扣抵。系統會把「支出 − 補助」的<b>實際自付</b>計入各年齡的花費與流量。
+      <br>· <b>生育給付/獎勵金</b>：勞保生育給付＋地方生育獎勵金，一次性。
+      <br>· <b>育兒津貼/托育補助/成長津貼</b>：按月發放、通常有年齡上限。育兒津貼一般 <b>0–未滿5歲（即 0–4 歲）</b>；送托之托育補助多為 <b>0–2 歲</b>；兩者通常擇一。可在下方設定發放的起訖年齡。
+      <br>· <b>國中／高中 教育補助</b>：直接扣抵該階段學雜費（高中職自 2024 起公私立學費全免）。</p>
+      <div class="cgrid">${CHILD_SUBSIDY_FIELDS.map(fld).join('')}</div>
+    </div>
+    <div class="row-actions" style="margin-top:8px"><button class="btn" data-cc-reset>全部重設為預設值</button></div>`;
 }
 
 function childCard(ch){
@@ -1386,9 +1449,10 @@ function childCard(ch){
     </div>
     <div class="cgrid">${CHILD_FIELDS.map(field).join('')}</div>
     <div class="cgrid2">
-      <div class="rep-kpi"><div class="l">剩餘成本（今日價格）</div><div class="v" style="font-size:18px">${fmtMoney(s.today)}</div></div>
+      <div class="rep-kpi"><div class="l">剩餘成本（今日價格，已扣補助）</div><div class="v" style="font-size:18px">${fmtMoney(s.today)}</div></div>
+      <div class="rep-kpi"><div class="l">已扣政府補助（今日價格）</div><div class="v" style="font-size:18px;color:#1E6B50">${fmtMoney(s.subsidyToday)}</div></div>
       <div class="rep-kpi"><div class="l">預估實付（含通膨）</div><div class="v" style="font-size:18px">${fmtMoney(s.nominal)}</div></div>
-      <div class="rep-kpi"><div class="l">目前每月</div><div class="v" style="font-size:18px">${fmtMoney(s.monthlyNow)}</div></div>
+      <div class="rep-kpi"><div class="l">目前每月（淨）</div><div class="v" style="font-size:18px">${fmtMoney(s.monthlyNow)}</div></div>
       <div class="rep-kpi"><div class="l">大學金每月需存</div><div class="v" style="font-size:18px">${fmtMoney(s.collegeFundMonthly)}</div></div>
     </div>
     ${stageRows?`<table class="rep" style="margin-top:14px"><thead><tr><th>階段</th><th class="n">今日價格小計</th></tr></thead><tbody>${stageRows}</tbody></table>`:''}
@@ -1906,14 +1970,13 @@ document.getElementById('nav').addEventListener('click',e=>{
 document.addEventListener('input', e=>{
   const t=e.target;
   if(t.matches && t.matches('[data-pf]')){
-    state.settings['pf_'+t.dataset.pf]=parseFloat(t.value)||0;
-    pfLiveUpdate();
+    pfApply(t.dataset.pf, parseFloat(t.value)||0);
+    pfSyncSliders(); pfLiveUpdate();
   }
 });
 document.addEventListener('change', async e=>{
   const t=e.target;
   if(t.matches('[data-pf]')){
-    state.settings['pf_'+t.dataset.pf]=parseFloat(t.value)||0;
     await Store.saveSettings();
     recalc();
     renderPortfolio();
@@ -1922,7 +1985,7 @@ document.addEventListener('change', async e=>{
   if(t.matches('[data-field]')){
     const {key,id,field,type}=t.dataset;
     let val;
-    if(type==='money'||type==='number') val=parseFloat(t.value)||0;
+    if(type==='money'||type==='number') val = (field==='cycle_years' && t.value==='') ? null : (parseFloat(t.value)||0);
     else if(type==='percent') val = (field==='return_rate' && t.value==='') ? null : (parseFloat(t.value)||0)/100;
     else if(type==='check') val=t.checked;
     else val=t.value;
@@ -1994,6 +2057,8 @@ document.addEventListener('change', async e=>{
 document.addEventListener('click', async e=>{
   const pm=e.target.closest('[data-pf-preset]');
   if(pm){ const p=PF_PRESETS.find(x=>x.key===pm.dataset.pfPreset); if(p){ PF_CLASSES.forEach(k=>state.settings['pf_'+k]=p.w[k]); await Store.saveSettings(); recalc(); renderPortfolio(); } return; }
+  const pbase=e.target.closest('[data-pf-base]');
+  if(pbase){ PF_CLASSES.forEach(k=>state.settings['pf_'+k]=(k==='cash'?100:0)); await Store.saveSettings(); recalc(); renderPortfolio(); return; }
   const addc=e.target.closest('[data-add-child]');
   if(addc){ await Store.addItem('children', defaultChild()); renderChildren(); return; }
   const ccr=e.target.closest('[data-cc-reset]');
