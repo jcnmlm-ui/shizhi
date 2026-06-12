@@ -418,8 +418,10 @@ const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id-'+Date.now()+Ma
 const DEFAULT_SETTINGS = { current_age:30, retirement_age:60, life_expectancy:90, inflation_rate:0.02, expected_return:0.05, salary_growth:0.02, emergency_target_months:6, monthly_invest:0, ar_stock:0.07, ar_bond:0.035, ar_cash:0.01,
   li_on:0, li_salary:45800, li_years:35, li_age:65,
   lp_on:0, lp_wage:45800, lp_self:0, lp_bal:0, lp_ret:0.03,
-  ins_life:0, ins_years:10, ins_funeral:1000000, use_real_return:0 };
-const DEFAULT_ASSET_RETURNS = { stock:0.07, bond:0.035, cash:0.01 };
+  ins_life:0, ins_years:10, ins_funeral:1000000, use_real_return:0,
+  ar_reit:0.06, ar_gold:0.03,
+  pf_stock:38, pf_bond:35, pf_reit:12, pf_gold:5, pf_cash:10 };
+const DEFAULT_ASSET_RETURNS = { stock:0.07, bond:0.035, reit:0.06, gold:0.03, cash:0.01 };
 const LABOR_SALARY_CAP = 45800;   // 勞保投保薪資上限
 const LABOR_PENSION_WAGE_CAP = 150000;  // 勞退月提繳工資上限
 
@@ -428,7 +430,11 @@ const DEFAULT_CHILD_COSTS = {
   birth_onetime:250000,
   care:{self:0,nanny:300000,center:240000},
   preschool:{public:48000,private:156000},
-  tuition:{public:18000,private:120000},
+  tuition:{public:18000,private:120000},          // 國小（6–11）學雜費/年
+  tuition_junior:{public:8000,private:130000},    // 國中（12–14）學雜費/年（公立義務教育僅雜費代收）
+  tuition_senior:{public:24000,private:80000},    // 高中職（15–17）學費＋雜費/年（全額，未扣補助）
+  subsidy_junior:0,                               // 國中 政府補助/年（多為義務教育免學費，雜費補助視縣市）
+  subsidy_senior:12000,                           // 高中職 政府補助/年（2024起公私立學費全免，私立補助較高可自行調高）
   cram:{none:0,medium:72000,intensive:156000},
   college_tuition:{none:0,public:62000,private:110000,abroad:1200000},
   college_living:{none:0,public:150000,private:150000,abroad:600000},
@@ -542,7 +548,8 @@ function sanitizeChildCosts(o){
   const d=deepClone(DEFAULT_CHILD_COSTS); if(!o||typeof o!=='object') return d;
   const out=deepClone(d);
   out.birth_onetime = (o.birth_onetime!=null)?Number(o.birth_onetime):d.birth_onetime;
-  ['care','preschool','tuition','cram','college_tuition','college_living'].forEach(g=>{
+  ['subsidy_junior','subsidy_senior'].forEach(k=>{ if(o[k]!=null) out[k]=Number(o[k]); });
+  ['care','preschool','tuition','tuition_junior','tuition_senior','cram','college_tuition','college_living'].forEach(g=>{
     if(o[g]&&typeof o[g]==='object') Object.keys(d[g]).forEach(k=>{ if(o[g][k]!=null) out[g][k]=Number(o[g][k]); });
   });
   return out;
@@ -1120,24 +1127,34 @@ function requiredReturnForGoal(goal, pmt){
 function assetReturns(){ const s=state.settings||{}; return {
   stock:(s.ar_stock!=null?Number(s.ar_stock):DEFAULT_ASSET_RETURNS.stock),
   bond :(s.ar_bond !=null?Number(s.ar_bond ):DEFAULT_ASSET_RETURNS.bond),
+  reit :(s.ar_reit !=null?Number(s.ar_reit ):DEFAULT_ASSET_RETURNS.reit),
+  gold :(s.ar_gold !=null?Number(s.ar_gold ):DEFAULT_ASSET_RETURNS.gold),
   cash :(s.ar_cash !=null?Number(s.ar_cash ):DEFAULT_ASSET_RETURNS.cash) }; }
-const ASSET_LABELS={stock:'股票',bond:'債券',cash:'現金/定存'};
-const ASSET_COLORS={stock:'#1E6B50',bond:'#C0863A',cash:'#9AA39B'};
-const PORTFOLIO_MODELS=[
-  {key:'cons',label:'保守',w:{stock:0.20,bond:0.50,cash:0.30}},
-  {key:'bal', label:'穩健',w:{stock:0.45,bond:0.40,cash:0.15}},
-  {key:'grow',label:'成長',w:{stock:0.65,bond:0.28,cash:0.07}},
-  {key:'aggr',label:'積極',w:{stock:0.85,bond:0.12,cash:0.03}},
+const PF_CLASSES=['stock','bond','reit','gold','cash'];
+const ASSET_LABELS={stock:'股票',bond:'債券',reit:'REITs',gold:'黃金',cash:'現金/定存'};
+const ASSET_COLORS={stock:'#1E6B50',bond:'#C0863A',reit:'#4F86C6',gold:'#D9A521',cash:'#9AA39B'};
+// 快速套用範本（權重以0–100計，會自動正規化）
+const PF_PRESETS=[
+  {key:'cons',label:'保守',w:{stock:15,bond:45,reit:8,gold:7,cash:25}},
+  {key:'bal', label:'穩健',w:{stock:38,bond:35,reit:12,gold:5,cash:10}},
+  {key:'grow',label:'成長',w:{stock:55,bond:22,reit:13,gold:4,cash:6}},
+  {key:'aggr',label:'積極',w:{stock:72,bond:10,reit:13,gold:3,cash:2}},
 ];
-const modelReturn=m=>{ const ar=assetReturns(); return m.w.stock*ar.stock+m.w.bond*ar.bond+m.w.cash*ar.cash; };
+// 任意權重物件（0–100或比例皆可）→ 正規化後的預期年報酬
+function weightReturn(wObj){ const ar=assetReturns(); let sum=0; PF_CLASSES.forEach(k=>sum+=Math.max(0,Number(wObj[k])||0)); if(sum<=0) return 0; return PF_CLASSES.reduce((s,k)=>s+(Math.max(0,Number(wObj[k])||0)/sum)*ar[k],0); }
+// 使用者目前的配置權重（取自設定的滑桿值）→ 正規化為比例（總和1）
+function pfWeights(){ const s=state.settings; const raw={}; let sum=0; PF_CLASSES.forEach(k=>{ raw[k]=Math.max(0,Number(s['pf_'+k])||0); sum+=raw[k]; }); const w={}; if(sum<=0){ return {stock:.38,bond:.35,reit:.12,gold:.05,cash:.10}; } PF_CLASSES.forEach(k=>w[k]=raw[k]/sum); return w; }
+function pfReturn(){ return weightReturn(pfWeights()); }
+// 依「成長資產（股票＋REITs）」比例給四階段提醒
+function pfStage(){ const w=pfWeights(); const g=w.stock+w.reit;
+  if(g<0.30) return {key:'cons',label:'保守型',g};
+  if(g<0.55) return {key:'bal', label:'穩健型',g};
+  if(g<0.78) return {key:'grow',label:'成長型',g};
+  return {key:'aggr',label:'積極型',g}; }
 // === 實際報酬模式 ===
 function useRealReturn(){ return Number(state.settings.use_real_return)>0; }
-// 投資配置：選定（或預設「穩健」）模型的預期報酬 → 用於「未來定期投入」的成長
-function contributionReturn(){
-  const key=portfolioSel||'bal';
-  const m=PORTFOLIO_MODELS.find(x=>x.key===key)||PORTFOLIO_MODELS[1];
-  return modelReturn(m);
-}
+// 投資配置：使用者目前配置（滑桿）的預期報酬 → 用於「未來定期投入」的成長
+function contributionReturn(){ return pfReturn(); }
 // 資產負債：既有投資部位（未勾可動用、未排除退休）各資產預期年報酬之「市值加權」 → 用於既有部位成長
 function holdingsReturn(){
   const pool=(state.assets||[]).filter(a=>!a.exclude_projection && !a.is_liquid);
@@ -1154,19 +1171,18 @@ function assetReturnEditor(){
   const f=(k,label)=>`<div class="cfield"><label>${label}假設年報酬</label><input type="number" step="0.1" data-ar="${k}" value="${(ar[k]*100)}"></div>`;
   return `<div class="card" style="background:var(--surface-2)">
     <h2 style="font-size:16px">各資產類別假設年報酬（可調整）</h2>
-    <p class="hint">下列為長期參考假設，會套用到上面所有配置模型的預期報酬與建議判斷。可依你的看法調整；預設為股 7%、債 3.5%、現金 1%。<b>非保證，實際報酬會波動。</b></p>
-    <div class="cgrid2" style="grid-template-columns:repeat(3,1fr)">${f('stock','股票')}${f('bond','債券')}${f('cash','現金/定存')}</div>
-    <div class="row-actions" style="margin-top:10px"><button class="btn" data-ar-reset>重設為預設值（7% / 3.5% / 1%）</button></div>
+    <p class="hint">下列為長期參考假設，會套用到上方配置的預期報酬與達標判斷。可依你的看法調整；預設股 7%、債 3.5%、REITs 6%、黃金 3%、現金 1%。<b>非保證，實際報酬會波動。</b>（REITs＝不動產投資信託；黃金長期主要為抗通膨/避險，預期報酬偏低。）</p>
+    <div class="cgrid2" style="grid-template-columns:repeat(5,1fr)">${f('stock','股票')}${f('bond','債券')}${f('reit','REITs')}${f('gold','黃金')}${f('cash','現金/定存')}</div>
+    <div class="row-actions" style="margin-top:10px"><button class="btn" data-ar-reset>重設為預設值（7 / 3.5 / 6 / 3 / 1%）</button></div>
   </div>`;
 }
 
 function realReturnToggleCard(){
   const on=useRealReturn();
-  const modelLabel=(PORTFOLIO_MODELS.find(x=>x.key===(portfolioSel||'bal'))||{}).label||'';
   return `<div class="card" style="background:var(--surface-2)">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
       <div><h2 style="border:0;margin:0;font-size:16px">用實際報酬計算成長（一鍵）</h2>
-        <p class="hint" style="margin:4px 0 0">開啟後，時間軸與退休推估的投資成長改用：<b>既有部位</b>＝資產負債表中各資產的「預期年報酬」市值加權（目前約 <b>${fmtPct(holdingsReturn())}</b>）；<b>未來定期投入</b>＝下方選定配置「${modelLabel}」的預期報酬（約 <b>${fmtPct(contributionReturn())}</b>）。關閉則沿用設定頁單一全域預期報酬。</p></div>
+        <p class="hint" style="margin:4px 0 0">開啟後，時間軸與退休推估的投資成長改用：<b>既有部位</b>＝資產負債表中各資產的「預期年報酬」市值加權（目前約 <b>${fmtPct(holdingsReturn())}</b>）；<b>未來定期投入</b>＝下方你的配置（${pfStage().label}）預期報酬（約 <b>${fmtPct(contributionReturn())}</b>）。關閉則沿用設定頁單一全域預期報酬。</p></div>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:700;white-space:nowrap"><input type="checkbox" data-setting="use_real_return" ${on?'checked':''}> <span data-rr-status>${on?'已開啟':'未開啟'}</span></label>
     </div>
   </div>`;
@@ -1174,27 +1190,25 @@ function realReturnToggleCard(){
 
 function renderPortfolio(sel){
   const reqRet=requiredReturnForRetirement();
-  let recIdx=PORTFOLIO_MODELS.findIndex(m=>modelReturn(m)>=reqRet);
-  const infeasible=(reqRet===Infinity || recIdx===-1);
-  if(recIdx===-1) recIdx=PORTFOLIO_MODELS.length-1;
-  const recKey=PORTFOLIO_MODELS[recIdx].key;
-  const selKey=sel||recKey; portfolioSel=selKey;
-  const model=PORTFOLIO_MODELS.find(m=>m.key===selKey);
-  const selRet=modelReturn(model);
+  const w=pfWeights(), pr=pfReturn(), stage=pfStage();
+  const infeasible=(reqRet===Infinity);
+  const enough=!infeasible && pr>=reqRet;
 
-  const btns=PORTFOLIO_MODELS.map(m=>`<button class="pf-model ${m.key===selKey?'active':''}" data-model-key="${m.key}">${m.label}<span class="r">${fmtPct(modelReturn(m))}</span>${m.key===recKey?'<span class="tag">建議</span>':''}</button>`).join('');
-  const rows=Object.keys(model.w).map(k=>`<tr><td><span class="dot" style="background:${ASSET_COLORS[k]}"></span>${ASSET_LABELS[k]}</td><td class="n">${Math.round(model.w[k]*100)}%</td><td class="n">${fmtPct(assetReturns()[k])}</td></tr>`).join('');
+  const presetChips=PF_PRESETS.map(p=>`<button class="pf-model ${p.key===stage.key?'active':''}" data-pf-preset="${p.key}">${p.label}<span class="r">${fmtPct(weightReturn(p.w))}</span></button>`).join('');
+  const sliders=PF_CLASSES.map(k=>`<div style="margin:10px 0">
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:14px;margin-bottom:4px"><span><span class="dot" style="background:${ASSET_COLORS[k]}"></span>${ASSET_LABELS[k]}　<span style="color:var(--muted);font-size:12px">假設報酬 ${fmtPct(assetReturns()[k])}</span></span><b id="pf-pct-${k}">${Math.round(w[k]*100)}%</b></div>
+      <input type="range" min="0" max="100" step="1" data-pf="${k}" value="${Number(state.settings['pf_'+k])||0}" style="width:100%;accent-color:${ASSET_COLORS[k]}">
+    </div>`).join('');
 
-  const enough=selRet>=reqRet && !infeasible;
   let verdict;
-  if(infeasible) verdict=`<div class="rec bad"><div><div class="rt">退休目標難以僅靠資產配置達成</div><div class="rd">以目前的定期投入與資產，達成退休目標需要約 <b>${fmtR(reqRet)}</b> 年化報酬，超過合理可期範圍。建議提高每月定期投入、延後退休年齡或降低退休後支出，而不是單靠拉高風險。</div></div></div>`;
-  else verdict=`<div class="rec ${enough?'good':'warn'}"><div><div class="rt">${enough?'這個配置足以支撐退休目標':'需要更積極的配置或更多儲蓄'}</div><div class="rd">退休目標約需 <b>${fmtR(reqRet)}</b> 年化報酬；你選的「${model.label}」配置預期約 <b>${fmtPct(selRet)}</b>。${enough?'維持紀律即可，並記得隨年齡漸進調整風險。':`建議至少採用「${PORTFOLIO_MODELS[recIdx].label}」配置（預期 ${fmtPct(modelReturn(PORTFOLIO_MODELS[recIdx]))}），或提高定期投入／延後退休。`}</div></div></div>`;
+  if(infeasible) verdict=`<div class="rec bad"><div><div class="rt">退休目標難以僅靠資產配置達成</div><div class="rd">以目前的定期投入與資產，達成退休目標所需的年化報酬超過合理可期範圍。建議提高每月定期投入、延後退休年齡或降低退休後支出，而不是單靠拉高風險。</div></div></div>`;
+  else verdict=`<div class="rec ${enough?'good':'warn'}"><div><div class="rt">${enough?'你目前的配置足以支撐退休目標':'目前配置預期報酬略低於退休所需'}</div><div class="rd">退休目標約需 <b>${fmtR(reqRet)}</b> 年化報酬；你目前的配置（${stage.label}）預期約 <b id="pf-verdict-ret">${fmtPct(pr)}</b>。${enough?'維持紀律即可，並記得隨年齡漸進降低風險。':'可把滑桿往成長資產（股票／REITs）多移一些、提高定期投入，或延後退休／降低退休支出。'}</div></div></div>`;
 
   const alloc=allocateGoals();
   const goalRows=alloc.length? alloc.map(a=>{
     const rr=requiredReturnForGoal(a.g,a.alloc);
     const hard=(rr===Infinity||rr>0.12);
-    const ok=!hard && rr<=selRet;
+    const ok=!hard && rr<=pr;
     const badge=hard?'<span class="badge no">需更多儲蓄</span>':(ok?'<span class="badge ok">配置可達成</span>':'<span class="badge no">需更積極</span>');
     return `<tr><td>${escapeHtml(a.g.name||'(未命名)')}</td><td class="n">${fmtMoney(a.g.target_amount)}</td><td class="n">${a.g.target_years} 年</td><td class="n">${fmtMoney(a.alloc)}</td><td class="n">${fmtR(rr)}</td><td>${badge}</td></tr>`;
   }).join('') : `<tr><td colspan="6" style="color:var(--muted)">尚未設定目標</td></tr>`;
@@ -1206,22 +1220,23 @@ function renderPortfolio(sel){
       <p class="hint">由你目前的資產、每月定期投入與退休目標反推：要在 ${Math.round(Number(state.settings.retirement_age))} 歲達標，投資組合大約需要這樣的年化報酬。本頁為資產「類別」層級配置參考，非個股或特定商品推介；預期報酬為長期假設、非保證。</p>
       <div class="rep-grid" style="grid-template-columns:repeat(3,1fr);margin-top:6px">
         <div class="rep-kpi ${infeasible?'bad':''}"><div class="l">退休目標所需年化報酬</div><div class="v">${fmtR(reqRet)}</div></div>
-        <div class="rep-kpi"><div class="l">建議配置</div><div class="v">${PORTFOLIO_MODELS[recIdx].label}</div></div>
-        <div class="rep-kpi"><div class="l">建議配置預期報酬</div><div class="v">${fmtPct(modelReturn(PORTFOLIO_MODELS[recIdx]))}</div></div>
+        <div class="rep-kpi"><div class="l">你的配置預期報酬</div><div class="v" id="pf-kpi-ret">${fmtPct(pr)}</div></div>
+        <div class="rep-kpi ${enough?'':'warn'}"><div class="l">達標判斷</div><div class="v">${infeasible?'需調整':(enough?'足夠':'略不足')}</div></div>
       </div>
     </div>
     <div class="card">
-      <h2>建議資產配置</h2>
-      <p class="hint">點選不同風險屬性，比較配置與預期報酬。標「建議」者為足以支撐退休目標的最穩健選擇。</p>
-      <div class="pf-models">${btns}</div>
+      <h2>自訂資產配置（拖曳調整）</h2>
+      <p class="hint">拖曳下方滑桿自由調整股票／債券／REITs／黃金／現金的<b>相對比重</b>，系統自動換算成 100%。也可先套用範本再微調。<b>隨配置變動，下方會即時提示你目前接近哪一種風險屬性。</b></p>
+      <div class="pf-models">${presetChips}</div>
+      <div style="margin:10px 0;padding:10px 12px;border:1px solid var(--line-2);border-radius:10px;background:var(--surface-2)">
+        <div id="pf-stage-label">目前配置接近：<b>${stage.label}</b>（成長資產 股票＋REITs ${Math.round((w.stock+w.reit)*100)}%）</div>
+        <div style="display:flex;gap:6px;margin-top:8px">${PF_PRESETS.map(p=>`<span data-pf-stage="${p.key}" style="flex:1;text-align:center;font-size:12px;padding:5px 0;border-radius:6px;border:1px solid ${p.key===stage.key?'var(--primary)':'var(--line-2)'};${p.key===stage.key?'background:var(--primary);color:#fff':'color:var(--muted)'}">${p.label}型</span>`).join('')}</div>
+      </div>
       <div class="pf-layout">
         <div class="pf-donut"><canvas id="pfChart"></canvas></div>
         <div>
-          <table class="rep">
-            <thead><tr><th>資產類別</th><th class="n">配置比例</th><th class="n">假設年報酬</th></tr></thead>
-            <tbody>${rows}</tbody>
-            <tfoot><tr><td><b>組合預期報酬</b></td><td class="n"><b>100%</b></td><td class="n"><b>${fmtPct(selRet)}</b></td></tr></tfoot>
-          </table>
+          ${sliders}
+          <div style="display:flex;justify-content:space-between;border-top:1px solid var(--line-2);margin-top:8px;padding-top:8px;font-weight:700"><span>組合預期年報酬</span><span id="pf-exp-ret">${fmtPct(pr)}</span></div>
         </div>
       </div>
       ${verdict}
@@ -1229,22 +1244,31 @@ function renderPortfolio(sel){
     ${assetReturnEditor()}
     <div class="card">
       <h2>各目標所需報酬</h2>
-      <p class="hint">以瀑布式分配給每個目標的金額為基礎，反推各目標需要的年化報酬，並與你選的配置比較。</p>
+      <p class="hint">以瀑布式分配給每個目標的金額為基礎，反推各目標需要的年化報酬，並與你目前的配置比較。</p>
       <table class="rep">
         <thead><tr><th>目標</th><th class="n">金額</th><th class="n">年限</th><th class="n">分配/月</th><th class="n">所需報酬</th><th>判斷</th></tr></thead>
         <tbody>${goalRows}</tbody>
       </table>
     </div>
     <div class="disclaimer">
-      本頁提供資產「類別」層級的配置參考（股票／債券／現金比例），協助理解達成目標所需的報酬與風險水準，<b>不構成個股或特定金融商品之推介或投資建議</b>。各類別假設報酬為長期參考值、非保證，實際報酬會波動且可能虧損；配置應隨年齡與風險承受度漸進調整。</div>`;
+      本頁提供資產「類別」層級的配置參考（股票／債券／REITs／黃金／現金比例），協助理解達成目標所需的報酬與風險水準，<b>不構成個股或特定金融商品之推介或投資建議</b>。各類別假設報酬為長期參考值、非保證，實際報酬會波動且可能虧損；配置應隨年齡與風險承受度漸進調整。</div>`;
 
-  const ks=Object.keys(model.w);
   if(portfolioChart) portfolioChart.destroy();
   portfolioChart=new Chart(document.getElementById('pfChart'),{
     type:'doughnut',
-    data:{ labels:ks.map(k=>ASSET_LABELS[k]), datasets:[{ data:ks.map(k=>Math.round(model.w[k]*100)), backgroundColor:ks.map(k=>ASSET_COLORS[k]), borderWidth:2, borderColor:'#FFFDF8' }] },
+    data:{ labels:PF_CLASSES.map(k=>ASSET_LABELS[k]), datasets:[{ data:PF_CLASSES.map(k=>Math.round(w[k]*100)), backgroundColor:PF_CLASSES.map(k=>ASSET_COLORS[k]), borderWidth:2, borderColor:'#FFFDF8' }] },
     options:{ responsive:true, maintainAspectRatio:false, cutout:'62%', plugins:{ legend:{ position:'bottom', labels:{ font:{family:"'Noto Sans TC'",size:12}, color:'#6E7A71', usePointStyle:true, pointStyleWidth:10, boxHeight:7, padding:14 } }, tooltip:{ callbacks:{ label:(c)=>c.label+'：'+c.parsed+'%' } } } }
   });
+}
+// 拖曳滑桿時的即時更新（不整頁重繪）
+function pfLiveUpdate(){
+  const w=pfWeights(), pr=pfReturn(), st=pfStage();
+  PF_CLASSES.forEach(k=>{ const el=document.getElementById('pf-pct-'+k); if(el) el.textContent=Math.round(w[k]*100)+'%'; });
+  const sl=document.getElementById('pf-stage-label'); if(sl) sl.innerHTML=`目前配置接近：<b>${st.label}</b>（成長資產 股票＋REITs ${Math.round((w.stock+w.reit)*100)}%）`;
+  document.querySelectorAll('[data-pf-stage]').forEach(el=>{ const on=el.dataset.pfStage===st.key; el.style.background=on?'var(--primary)':''; el.style.color=on?'#fff':'var(--muted)'; el.style.borderColor=on?'var(--primary)':'var(--line-2)'; });
+  const er=document.getElementById('pf-exp-ret'); if(er) er.textContent=fmtPct(pr);
+  const ek=document.getElementById('pf-kpi-ret'); if(ek) ek.textContent=fmtPct(pr);
+  if(portfolioChart){ portfolioChart.data.datasets[0].data=PF_CLASSES.map(k=>Math.round(w[k]*100)); portfolioChart.update('none'); }
 }
 
 /* ===== 子女養育成本（獨立計算，可將大學教育金加入目標） ===== */
@@ -1258,7 +1282,7 @@ const CHILD_FIELDS=[
   {key:'school_type',label:'國小–高中',type:'select',opts:[['public','公立'],['private','私立']]},
   {key:'cram_level',label:'補習/才藝',type:'select',opts:[['none','無'],['medium','中等'],['intensive','密集']]},
   {key:'college',label:'大學(18–21)',type:'select',opts:[['none','不就讀'],['public','公立'],['private','私立'],['abroad','出國留學']]},
-  {key:'monthly_living',label:'每月基本生活費',type:'number'},
+  {key:'monthly_living',label:'每月基本生活費（0–17歲）',type:'number',hint:'食衣、日用、醫療、休閒等「非教育類」日常開銷，套用在 0–17 歲每一年；保育、學費、補習與大學生活費都已另外分項計算，不會重複。這是該期間的「平均值」（年幼較低、青少年較高），抓一個平均即可。'},
   {key:'include_birth',label:'孕期生產(一次性)',type:'check'},
 ];
 function defaultChild(){ return {name:'',current_age:0,include_birth:true,care_0_2:'center',preschool:'public',school_type:'public',cram_level:'medium',college:'public',monthly_living:10000}; }
@@ -1272,7 +1296,10 @@ function childAnnualToday(ch,a){
   if(a>=0&&a<=17) c+=living;
   if(a>=0&&a<=2) c+=cc.care[ch.care_0_2] ?? 0;
   if(a>=3&&a<=5) c+=cc.preschool[ch.preschool] ?? 0;
-  if(a>=6&&a<=17){ c+=cc.tuition[ch.school_type] ?? 0; c+=cc.cram[ch.cram_level] ?? 0; }
+  if(a>=6&&a<=11){ c+=cc.tuition[ch.school_type] ?? 0; }                                               // 國小 學雜費
+  if(a>=12&&a<=14){ c+=Math.max(0,(cc.tuition_junior[ch.school_type] ?? 0)-(Number(cc.subsidy_junior)||0)); } // 國中（扣補助＝自付）
+  if(a>=15&&a<=17){ c+=Math.max(0,(cc.tuition_senior[ch.school_type] ?? 0)-(Number(cc.subsidy_senior)||0)); } // 高中（扣補助＝自付）
+  if(a>=6&&a<=17){ c+=cc.cram[ch.cram_level] ?? 0; }                                                    // 補習/才藝
   if(a>=18&&a<=21 && goesCollege(ch)) c+=(cc.college_tuition[ch.college]||0)+(cc.college_living[ch.college]||0);
   return c;
 }
@@ -1312,8 +1339,14 @@ const CHILD_COST_FIELDS=[
   {p:'care.nanny',label:'0–2 保母 / 年'},
   {p:'preschool.public',label:'3–5 幼兒園 公立 / 年'},
   {p:'preschool.private',label:'3–5 幼兒園 私立 / 年'},
-  {p:'tuition.public',label:'6–17 學雜費 公立 / 年'},
-  {p:'tuition.private',label:'6–17 學雜費 私立 / 年'},
+  {p:'tuition.public',label:'國小(6–11) 學雜費 公立 / 年'},
+  {p:'tuition.private',label:'國小(6–11) 學雜費 私立 / 年'},
+  {p:'tuition_junior.public',label:'國中(12–14) 學雜費 公立 / 年'},
+  {p:'tuition_junior.private',label:'國中(12–14) 學雜費 私立 / 年'},
+  {p:'subsidy_junior',label:'國中 政府補助 / 年（扣抵）'},
+  {p:'tuition_senior.public',label:'高中(15–17) 學費+雜費 公立 / 年'},
+  {p:'tuition_senior.private',label:'高中(15–17) 學費+雜費 私立 / 年'},
+  {p:'subsidy_senior',label:'高中 政府補助 / 年（扣抵）'},
   {p:'cram.medium',label:'6–17 補習 中等 / 年'},
   {p:'cram.intensive',label:'6–17 補習 密集 / 年'},
   {p:'college_tuition.public',label:'大學學費 公立 / 年'},
@@ -1325,7 +1358,11 @@ const CHILD_COST_FIELDS=[
 const ccGet=p=>p.split('.').reduce((o,k)=>(o&&o[k]!=null)?o[k]:undefined, state.childCosts);
 function ccSet(p,v){ const ks=p.split('.'); let o=state.childCosts; for(let i=0;i<ks.length-1;i++) o=o[ks[i]]; o[ks[ks.length-1]]=v; }
 function renderChildCostEditor(){
-  return `<div class="cgrid">${CHILD_COST_FIELDS.map(f=>`<div class="cfield"><label>${f.label}</label><input type="number" step="1000" data-cc-path="${f.p}" value="${Number(ccGet(f.p)||0)}"></div>`).join('')}</div>
+  return `<div class="card" style="background:var(--surface-2)">
+      <h3 style="margin:0 0 4px;font-size:15px">💡 國中、高中的學費有政府補助，記得想清楚「實際自付」</h3>
+      <p class="hint" style="margin:0">· <b>國中</b>：屬九年國民義務教育，公立<b>免學費</b>，主要繳雜費、代收代辦（書籍、午餐、班費等）；私立則含學費。<br>· <b>高中職</b>：自 2024 年起<b>公私立「學費」全面免費</b>（政府編列預算補助、不排富），但<b>雜費、書籍、制服、午餐、代收代辦仍須自付</b>，私立雜費通常較高。<br>· 下方「學費+雜費」請填<b>全額</b>，再用「政府補助/年」填你預估可獲補助的金額，系統會自動扣抵算出<b>實際自付</b>並計入支出（自付 = 全額 − 補助，最低為 0）。實際補助因校別、戶籍、家戶所得而異，請以學校與教育部公告為準。</p>
+    </div>
+    <div class="cgrid">${CHILD_COST_FIELDS.map(f=>`<div class="cfield"><label>${f.label}</label><input type="number" step="1000" data-cc-path="${f.p}" value="${Number(ccGet(f.p)||0)}"></div>`).join('')}</div>
     <div class="row-actions" style="margin-top:8px"><button class="btn" data-cc-reset>重設為預設值</button></div>`;
 }
 
@@ -1338,7 +1375,7 @@ function childCard(ch){
     else if(cf.type==='check') inp=`<label class="cchk"><input type="checkbox" ${da} ${v?'checked':''}> 計入</label>`;
     else if(cf.type==='number') inp=`<input type="number" ${da} value="${Number(v||0)}">`;
     else inp=`<input type="text" ${da} value="${escapeHtml(v||'')}" placeholder="${cf.ph||''}">`;
-    return `<div class="cfield"><label>${cf.label}</label>${inp}</div>`;
+    return `<div class="cfield"><label>${cf.label}</label>${inp}${cf.hint?`<div style="font-size:11px;color:var(--muted);margin-top:3px;line-height:1.45">${cf.hint}</div>`:''}</div>`;
   };
   const stageRows=[['孕期生產',s.stages.birth],['0–2 嬰幼兒',s.stages.infant],['3–5 幼兒園',s.stages.preschool],['6–11 國小',s.stages.elem],['12–14 國中',s.stages.junior],['15–17 高中',s.stages.senior],['18–21 大學',s.stages.college]]
     .filter(r=>r[1]>0).map(r=>`<tr><td>${r[0]}</td><td class="n">${fmtMoney(r[1])}</td></tr>`).join('');
@@ -1866,8 +1903,22 @@ document.getElementById('nav').addEventListener('click',e=>{
 });
 
 // 表格輸入變更（含設定）
+document.addEventListener('input', e=>{
+  const t=e.target;
+  if(t.matches && t.matches('[data-pf]')){
+    state.settings['pf_'+t.dataset.pf]=parseFloat(t.value)||0;
+    pfLiveUpdate();
+  }
+});
 document.addEventListener('change', async e=>{
   const t=e.target;
+  if(t.matches('[data-pf]')){
+    state.settings['pf_'+t.dataset.pf]=parseFloat(t.value)||0;
+    await Store.saveSettings();
+    recalc();
+    renderPortfolio();
+    return;
+  }
   if(t.matches('[data-field]')){
     const {key,id,field,type}=t.dataset;
     let val;
@@ -1941,14 +1992,14 @@ document.addEventListener('change', async e=>{
 
 // 新增 / 刪除
 document.addEventListener('click', async e=>{
-  const pm=e.target.closest('[data-model-key]');
-  if(pm){ renderPortfolio(pm.dataset.modelKey); return; }
+  const pm=e.target.closest('[data-pf-preset]');
+  if(pm){ const p=PF_PRESETS.find(x=>x.key===pm.dataset.pfPreset); if(p){ PF_CLASSES.forEach(k=>state.settings['pf_'+k]=p.w[k]); await Store.saveSettings(); recalc(); renderPortfolio(); } return; }
   const addc=e.target.closest('[data-add-child]');
   if(addc){ await Store.addItem('children', defaultChild()); renderChildren(); return; }
   const ccr=e.target.closest('[data-cc-reset]');
   if(ccr){ state.childCosts=deepClone(DEFAULT_CHILD_COSTS); await Store.saveSettings(); renderChildren(); return; }
   const arr=e.target.closest('[data-ar-reset]');
-  if(arr){ state.settings.ar_stock=DEFAULT_ASSET_RETURNS.stock; state.settings.ar_bond=DEFAULT_ASSET_RETURNS.bond; state.settings.ar_cash=DEFAULT_ASSET_RETURNS.cash; await Store.saveSettings(); renderPortfolio(portfolioSel); return; }
+  if(arr){ state.settings.ar_stock=DEFAULT_ASSET_RETURNS.stock; state.settings.ar_bond=DEFAULT_ASSET_RETURNS.bond; state.settings.ar_reit=DEFAULT_ASSET_RETURNS.reit; state.settings.ar_gold=DEFAULT_ASSET_RETURNS.gold; state.settings.ar_cash=DEFAULT_ASSET_RETURNS.cash; await Store.saveSettings(); recalc(); renderPortfolio(); return; }
   const addp=e.target.closest('[data-add-purchase]');
   if(addp){ await Store.addItem('purchases', defaultPurchase()); renderPurchases(); recalc(); return; }
   const delp=e.target.closest('[data-purchase-del-id]');
