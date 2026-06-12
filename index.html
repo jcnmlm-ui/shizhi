@@ -39,11 +39,16 @@
   .side{
     border-right:1px solid var(--line); padding:26px 20px; position:sticky;top:0;height:100vh;
     display:flex;flex-direction:column;gap:6px; background:linear-gradient(180deg,var(--surface-2),transparent 40%);
+    overflow:hidden;
   }
-  .brand{display:flex;align-items:baseline;gap:9px;margin:2px 4px 22px}
+  .brand{display:flex;align-items:baseline;gap:9px;margin:2px 4px 22px;flex-shrink:0}
   .brand .mark{font-family:var(--font-display);font-weight:600;font-size:30px;letter-spacing:.5px;color:var(--primary-2)}
   .brand .sub{font-size:11.5px;color:var(--muted);letter-spacing:1px}
-  .nav{display:flex;flex-direction:column;gap:3px}
+  .nav{display:flex;flex-direction:column;gap:3px;flex:1;overflow-y:auto;padding-right:2px;
+    scrollbar-width:thin;scrollbar-color:var(--line-2) transparent}
+  .nav::-webkit-scrollbar{width:4px}
+  .nav::-webkit-scrollbar-track{background:transparent}
+  .nav::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:4px}
   .nav button{
     text-align:left;border:0;background:transparent;color:var(--ink);padding:11px 14px;border-radius:11px;
     font-size:14.5px;cursor:pointer;display:flex;align-items:center;gap:11px;transition:.15s;font-weight:500;
@@ -56,7 +61,7 @@
   .nav button.locked:hover{background:transparent;}
   .nav-group-label{font-size:10.5px;font-weight:700;letter-spacing:.06em;color:var(--faint);padding:10px 14px 2px;text-transform:uppercase}
   .nav-sep{height:1px;background:var(--line-2);margin:6px 8px}
-  .side .foot{margin-top:auto;font-size:11px;color:var(--faint);padding:0 6px;line-height:1.6}
+  .side .foot{margin-top:2px;flex-shrink:0;font-size:11px;color:var(--faint);padding:0 6px;line-height:1.6}
 
   .main{padding:34px 40px 70px;max-width:1080px;width:100%}
   .pagehead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:24px;flex-wrap:wrap}
