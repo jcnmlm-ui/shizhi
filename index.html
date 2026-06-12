@@ -135,8 +135,8 @@
   .row-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
   .btn{border:1px solid var(--line-2);background:var(--surface);color:var(--ink);border-radius:10px;padding:9px 16px;font-size:13.5px;cursor:pointer;font-weight:500;transition:.15s}
   .btn:hover{border-color:var(--primary);color:var(--primary-2)}
-  .btn.primary{background:var(--primary);color:#fff;border-color:var(--primary)}
-  .btn.primary:hover{background:var(--primary-2);color:#fff}
+  .btn.primary,.btn-primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+  .btn.primary:hover,.btn-primary:hover{background:var(--primary-2);color:#fff}
   .btn.ghost-danger:hover{border-color:var(--danger);color:var(--danger)}
 
   /* auth bar */
@@ -390,6 +390,33 @@
         免責聲明：本工具為個人財務試算與規劃用途，所有未來金額均為依你輸入之假設所做的估算，並非投資建議或報酬保證。退休/勞保/勞退與稅務僅為簡化估算，實際請以官方規定為準。重大財務決策請諮詢合格專業人士。
       </div>
     </section>
+
+    <!-- SNAPSHOTS -->
+    <section class="section" id="tab-snapshots">
+      <div class="pagehead">
+        <div><h1>歷史規劃紀錄</h1><p>儲存目前的完整規劃，日後可對照或還原</p></div>
+      </div>
+      <div id="snapshots-body">
+        <p class="hint" style="color:var(--muted)">載入中…</p>
+      </div>
+    </section>
+
+    <!-- ADDON: 創業財務模板 -->
+    <section class="section" id="tab-startup">
+      <div class="pagehead">
+        <div><h1>🚀 創業財務模板</h1><p>燒錢率、資金跑道、損益平衡點、收入目標追蹤</p></div>
+      </div>
+      <div id="startup-body"><p class="hint" style="color:var(--muted)">載入中…</p></div>
+    </section>
+
+    <!-- 加購模組商店（所有用戶可見） -->
+    <section class="section" id="tab-addon-store">
+      <div class="pagehead">
+        <div><h1>加購模組</h1><p>獨立購買的專題試算工具，一次買斷、永久使用</p></div>
+      </div>
+      <div id="addon-store-body"><p class="hint" style="color:var(--muted)">載入中…</p></div>
+    </section>
+
   </main>
 </div>
 
@@ -405,17 +432,15 @@ const SUPABASE_URL = "https://haxfwofjrfkjwestfzvk.supabase.co";        // ← P
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhheGZ3b2ZqcmZrandlc3RmenZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NTg2NzQsImV4cCI6MjA5NjIzNDY3NH0.j-mo1J0D-xDmsLb1sTBjthKHXMJVu1Y_bj5akCKE07w";   // ← anon / publishable key（可公開）
 
 /* ===== 功能旗標（Feature Flags） ===== */
-// 本地模式或未登入時的預設：開放所有功能（個人自用）
-// 雲端模式登入後會呼叫 Edge Function 覆寫此值
 let allowedFeatures = [
   'dash','flow','balance','goals','children','purchases',
   'postal','pension','insurance','portfolio','report','settings'
 ];
-let currentPlan = 'local'; // 'local' | 'free' | 'full' | 'subscription'
+let currentPlan = 'local';
+let allowedAddons = [];     // 加購模組（已購買的 module_key 清單）
 
-// 呼叫 Edge Function 取得伺服器端核可的功能清單
 async function fetchFeatures(){
-  if(!sb || !session) return; // 未連線或未登入 → 維持本地預設
+  if(!sb || !session) return;
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/get-features`, {
       headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
@@ -424,10 +449,27 @@ async function fetchFeatures(){
     const data = await res.json();
     if(Array.isArray(data.features)) allowedFeatures = data.features;
     if(data.plan) currentPlan = data.plan;
+    if(Array.isArray(data.addons)) allowedAddons = data.addons;   // ← 新增
   } catch(e) { console.warn('fetchFeatures 失敗，維持預設', e); }
 }
 
 function canAccess(tab){ return allowedFeatures.includes(tab); }
+function hasAddon(key){ return allowedAddons.includes(key); }
+
+// ── 加購模組登記表（新模組只需在這裡加一筆）────────────────
+const ADDON_REGISTRY = {
+  startup: {
+    label:       '創業財務模板',
+    description: '燒錢率、資金跑道、損益平衡點、月收入目標追蹤',
+    icon:        '🚀',
+    navIcon:     '<path d="M12 2C6.5 7 4 12 4 16a8 8 0 0016 0c0-4-2.5-9-8-14z"/><circle cx="12" cy="16" r="2"/><path d="M12 14v-4"/>',
+    price_onetime: 499,
+    sectionId:   'tab-startup',
+    render:      ()=> renderStartup(),
+  },
+  // 未來新模組範例（先留著，等要上架時解開）：
+  // realestate: { label:'房地產投報試算', description:'租金投報率、貸款壓力測試、增值試算', icon:'🏠', navIcon:'<path d="M3 9.5L12 3l9 6.5V20H3z"/><path d="M9 20v-7h6v7"/>', price_onetime:499, sectionId:'tab-realestate', render:()=>renderRealestate() },
+};
 
 // ── Nav 設定（分組 + 圖示 + 功能 key）────────────────────────
 const NAV_GROUPS = [
@@ -447,22 +489,41 @@ const NAV_GROUPS = [
     { tab:'insurance', label:'保險防護', icon:'<path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/>' },
     { tab:'portfolio', label:'投資配置', icon:'<path d="M12 3a9 9 0 109 9h-9z"/><path d="M12 3v9h9A9 9 0 0012 3z" opacity=".4"/>' },
   ]},
+  { label: '訂閱功能', items: [
+    { tab:'snapshots', label:'歷史規劃紀錄', icon:'<path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/>' },
+  ]},
 ];
 
 function renderNav(){
   const nav = document.getElementById('nav'); if(!nav) return;
   const activeBefore = nav.querySelector('button.active')?.dataset.tab || 'dash';
   let html = '';
-  NAV_GROUPS.forEach((g, gi) => {
+
+  // 固定功能分組
+  NAV_GROUPS.forEach(g => {
     if(g.label) html += `<div class="nav-sep"></div><div class="nav-group-label">${g.label}</div>`;
     g.items.forEach(it => {
       const allowed = canAccess(it.tab);
       const isActive = it.tab === activeBefore;
-      const lockIcon = allowed ? '' : ' 🔒';
       html += `<button data-tab="${it.tab}" class="${isActive&&allowed?'active':''} ${allowed?'':'locked'}" title="${allowed?it.label:it.label+' — 此方案未開放'}">
-        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">${it.icon}</svg>${it.label}${lockIcon}</button>`;
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">${it.icon}</svg>${it.label}${allowed?'':' 🔒'}</button>`;
     });
   });
+
+  // 加購模組分組（動態）
+  const addonEntries = Object.entries(ADDON_REGISTRY);
+  html += `<div class="nav-sep"></div><div class="nav-group-label">加購模組</div>`;
+  addonEntries.forEach(([key, a]) => {
+    const owned = hasAddon(key);
+    const isActive = key === activeBefore;
+    html += `<button data-tab="${key}" class="${isActive&&owned?'active':''} ${owned?'':'locked'}" title="${owned?a.label:a.label+' — 尚未加購'}">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">${a.navIcon}</svg>${a.label}${owned?'':' 🔒'}</button>`;
+  });
+  // 商店入口（永遠可點）
+  const storeActive = activeBefore==='addon-store';
+  html += `<button data-tab="addon-store" class="${storeActive?'active':''}" title="瀏覽加購模組">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 6h18M3 12h18M3 18h18"/></svg>瀏覽模組商店</button>`;
+
   nav.innerHTML = html;
 }
 
@@ -602,6 +663,51 @@ const Store = {
       const { error } = await sb.from('fp_settings').upsert(payload);
       if(error) console.error(error);
     } else { persistLocal(); }
+  },
+
+  // ── 歷史快照 ────────────────────────────────────────────────
+  async saveSnapshot(name, note=''){
+    if(this.mode!=='cloud' || !session) return { error:'需要雲端模式才能儲存快照' };
+    const m=metrics();
+    const aInc=sumAnnual(state.incomes), aExp=sumAnnual(state.expenses);
+    const payload={
+      user_id: session.user.id,
+      name: name.trim()||'未命名快照',
+      note: note.trim()||null,
+      snapshot: { settings:state.settings, incomes:state.incomes, expenses:state.expenses,
+                  assets:state.assets, liabilities:state.liabilities, goals:state.goals,
+                  children:state.children, purchases:state.purchases,
+                  childCosts:state.childCosts, postal:state.postal },
+      net_worth: Math.round(m.netWorth),
+      annual_income: Math.round(aInc),
+      annual_expense: Math.round(aExp),
+    };
+    const { error } = await sb.from('fp_snapshots').insert(payload);
+    return { error };
+  },
+
+  async listSnapshots(){
+    if(this.mode!=='cloud' || !session) return [];
+    const { data, error } = await sb.from('fp_snapshots')
+      .select('id,name,note,net_worth,annual_income,annual_expense,created_at')
+      .eq('user_id', session.user.id)
+      .order('created_at', { ascending:false });
+    if(error){ console.error(error); return []; }
+    return data||[];
+  },
+
+  async loadSnapshot(id){
+    if(this.mode!=='cloud' || !session) return null;
+    const { data, error } = await sb.from('fp_snapshots')
+      .select('snapshot,name')
+      .eq('id', id).eq('user_id', session.user.id).maybeSingle();
+    if(error||!data) return null;
+    return data;
+  },
+
+  async deleteSnapshot(id){
+    if(this.mode!=='cloud' || !session) return;
+    await sb.from('fp_snapshots').delete().eq('id', id).eq('user_id', session.user.id);
   }
 };
 
@@ -2037,6 +2143,250 @@ async function doResetPassword(){
   msg.className='authmsg ok'; msg.textContent='重設密碼信已寄出，請至信箱點連結後回到本頁設定新密碼。';
 }
 
+
+// ── 歷史規劃紀錄（訂閱功能）────────────────────────────────
+async function renderSnapshots(){
+  const body=document.getElementById('snapshots-body'); if(!body) return;
+  if(Store.mode!=='cloud' || !session){
+    body.innerHTML=`<div class="card" style="text-align:center;padding:40px 20px">
+      <div style="font-size:36px;margin-bottom:12px">☁️</div>
+      <h2 style="margin:0 0 8px">需要雲端模式</h2>
+      <p class="hint">歷史規劃紀錄需要登入雲端帳號，請至「設定」頁面登入後再使用。</p>
+    </div>`; return;
+  }
+
+  // 儲存表單（置頂）
+  body.innerHTML=`
+    <div class="card">
+      <h2>儲存目前規劃</h2>
+      <p class="hint">把現在的完整規劃（收支、資產、目標、所有設定…）拍一張快照，日後可以對照或還原。快照一旦儲存<b>不可編輯</b>，但可以刪除。</p>
+      <div class="cgrid2" style="margin-bottom:10px">
+        <div class="cfield"><label>快照名稱（必填）</label><input type="text" id="snap-name" placeholder="例：買房前的基準規劃" maxlength="60"></div>
+        <div class="cfield"><label>備註（選填）</label><input type="text" id="snap-note" placeholder="例：稅後薪資 5.5 萬時的版本" maxlength="120"></div>
+      </div>
+      <div class="row-actions">
+        <button class="btn btn-primary" id="snap-save-btn">📌 儲存快照</button>
+        <span id="snap-save-msg" style="font-size:13px;margin-left:10px"></span>
+      </div>
+    </div>
+    <div id="snap-list-wrap"><p class="hint" style="color:var(--muted);padding:10px">讀取歷史中…</p></div>`;
+
+  // 綁定儲存按鈕
+  document.getElementById('snap-save-btn').onclick = async()=>{
+    const name=document.getElementById('snap-name').value.trim();
+    const note=document.getElementById('snap-note').value.trim();
+    const msg=document.getElementById('snap-save-msg');
+    if(!name){ msg.textContent='請填寫快照名稱'; msg.style.color='var(--danger)'; return; }
+    const btn=document.getElementById('snap-save-btn');
+    btn.disabled=true; btn.textContent='儲存中…';
+    const {error}=await Store.saveSnapshot(name,note);
+    btn.disabled=false; btn.textContent='📌 儲存快照';
+    if(error){ msg.textContent='儲存失敗：'+error; msg.style.color='var(--danger)'; }
+    else { msg.textContent='✅ 已儲存'; msg.style.color='var(--primary)'; document.getElementById('snap-name').value=''; document.getElementById('snap-note').value=''; renderSnapshotList(); }
+  };
+
+  await renderSnapshotList();
+}
+
+async function renderSnapshotList(){
+  const wrap=document.getElementById('snap-list-wrap'); if(!wrap) return;
+  const list=await Store.listSnapshots();
+  if(!list.length){
+    wrap.innerHTML=`<div class="card" style="text-align:center;color:var(--muted);padding:30px">尚無歷史快照。儲存第一份快照後會在這裡顯示。</div>`;
+    return;
+  }
+  const fmt=v=>v!=null?fmtMoney(v):'—';
+  const fmtDate=s=>{ const d=new Date(s); return d.getFullYear()+'/'+(d.getMonth()+1).toString().padStart(2,'0')+'/'+d.getDate().toString().padStart(2,'0')+' '+d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0'); };
+  const rows=list.map(s=>`
+    <div class="card" style="margin-bottom:10px" data-snap-id="${s.id}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <div>
+          <div style="font-weight:700;font-size:16px">${escapeHtml(s.name)}</div>
+          ${s.note?`<div style="color:var(--muted);font-size:13px;margin-top:2px">${escapeHtml(s.note)}</div>`:''}
+          <div style="color:var(--faint);font-size:12px;margin-top:4px">📅 ${fmtDate(s.created_at)}</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+          <button class="btn snap-restore" data-id="${s.id}" data-name="${escapeHtml(s.name)}">🔄 還原</button>
+          <button class="btn snap-delete" data-id="${s.id}" style="color:var(--danger)">刪除</button>
+        </div>
+      </div>
+      <div class="rep-grid" style="grid-template-columns:repeat(3,1fr);margin-top:12px">
+        <div class="rep-kpi"><div class="l">淨值</div><div class="v" style="font-size:16px">${fmt(s.net_worth)}</div></div>
+        <div class="rep-kpi"><div class="l">年收入</div><div class="v" style="font-size:16px">${fmt(s.annual_income)}</div></div>
+        <div class="rep-kpi"><div class="l">年支出</div><div class="v" style="font-size:16px">${fmt(s.annual_expense)}</div></div>
+      </div>
+    </div>`).join('');
+  wrap.innerHTML=`<h2 style="margin:16px 0 10px">歷史快照（共 ${list.length} 份）</h2>${rows}`;
+
+  // 還原按鈕
+  wrap.querySelectorAll('.snap-restore').forEach(btn=>{
+    btn.onclick=async()=>{
+      const id=btn.dataset.id, name=btn.dataset.name;
+      if(!confirm(`確定要還原「${name}」這份快照嗎？\n\n⚠️ 目前頁面上所有的資料都會被取代（雲端資料不受影響，可再次儲存快照）。`)) return;
+      btn.disabled=true; btn.textContent='還原中…';
+      const data=await Store.loadSnapshot(id);
+      if(!data){ alert('讀取快照失敗，請重試。'); btn.disabled=false; btn.textContent='🔄 還原'; return; }
+      const d=data.snapshot;
+      state.settings   = {...DEFAULT_SETTINGS,...(d.settings||{})};
+      state.incomes    = d.incomes||[];
+      state.expenses   = d.expenses||[];
+      state.assets     = d.assets||[];
+      state.liabilities= d.liabilities||[];
+      state.goals      = d.goals||[];
+      state.children   = d.children||[];
+      state.purchases  = d.purchases||[];
+      state.childCosts = sanitizeChildCosts(d.childCosts);
+      state.postal     = sanitizePostal(d.postal);
+      mcCache=null;
+      renderAll();
+      // 切回儀表板讓使用者看到還原結果
+      document.querySelector('#nav button[data-tab="dash"]')?.click();
+      setTimeout(()=>alert(`✅ 已還原「${data.name}」\n\n這只是畫面預覽，若要正式套用請按設定頁的「儲存」，或繼續編輯後正常存檔。`),300);
+    };
+  });
+
+  // 刪除按鈕
+  wrap.querySelectorAll('.snap-delete').forEach(btn=>{
+    btn.onclick=async()=>{
+      const id=btn.dataset.id;
+      const card=btn.closest('[data-snap-id]');
+      const name=card?.querySelector('div[style*="font-weight"]')?.textContent||'';
+      if(!confirm(`確定刪除「${name}」？刪除後無法復原。`)) return;
+      btn.disabled=true; btn.textContent='刪除中…';
+      await Store.deleteSnapshot(id);
+      card?.remove();
+      const remaining=wrap.querySelectorAll('[data-snap-id]').length;
+      if(!remaining) wrap.innerHTML=`<div class="card" style="text-align:center;color:var(--muted);padding:30px">尚無歷史快照。</div>`;
+    };
+  });
+}
+
+
+// ── 加購模組：創業財務模板 ────────────────────────────────────
+const STARTUP_KEY = 'shizhi_startup_v1';
+let su = { current_cash:0, monthly_fixed:0, monthly_variable:0, unit_price:0, unit_variable_cost:0, current_mrr:0, target_mrr:0, milestones:[] };
+
+function loadStartup(){ try{ const d=localStorage.getItem(STARTUP_KEY); if(d) su={...su,...JSON.parse(d)}; }catch(e){} }
+function saveStartup(){ localStorage.setItem(STARTUP_KEY, JSON.stringify(su)); }
+
+function renderStartup(){
+  loadStartup();
+  const body=document.getElementById('startup-body'); if(!body) return;
+  const burnRate=(Number(su.monthly_fixed)||0)+(Number(su.monthly_variable)||0);
+  const cash=Number(su.current_cash)||0;
+  const runwayM=burnRate>0?cash/burnRate:0;
+  const runwayColor=runwayM>=12?'var(--primary)':runwayM>=6?'#C0863A':'var(--danger)';
+  const runwayLabel=runwayM>=18?'充裕（≥18個月）':runwayM>=12?'安全（12–18個月）':runwayM>=6?'警戒（6–12個月）':runwayM>0?'危險（<6個月）':'—';
+  const untilDate=runwayM>0?new Date(Date.now()+runwayM*30.5*86400000).toLocaleDateString('zh-TW',{year:'numeric',month:'long'}):'—';
+  const uPrice=Number(su.unit_price)||0, uVC=Number(su.unit_variable_cost)||0;
+  const margin=uPrice-uVC;
+  const mFixed=Number(su.monthly_fixed)||0;
+  const beUnits=margin>0&&mFixed>0?Math.ceil(mFixed/margin):0;
+  const beRev=beUnits*uPrice;
+  const mrr=Number(su.current_mrr)||0, tmrr=Number(su.target_mrr)||0;
+  const mrrGap=Math.max(0,tmrr-mrr);
+  const milestoneHTML=(su.milestones||[]).length
+    ? (su.milestones||[]).map((m,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line-2)">
+        <input type="checkbox" ${m.done?'checked':''} onchange="su.milestones[${i}].done=this.checked;saveStartup()">
+        <span style="flex:1;${m.done?'text-decoration:line-through;color:var(--muted)':''}">${escapeHtml(m.text)}</span>
+        <button class="btn" style="padding:3px 9px;font-size:12px" onclick="su.milestones.splice(${i},1);saveStartup();renderStartup()">×</button>
+      </div>`).join('')
+    : '<p style="color:var(--muted);font-size:13px;margin:0">尚無里程碑，在下方新增</p>';
+
+  const su_update=(fields)=>{ Object.assign(su,fields); saveStartup(); renderStartup(); };
+
+  body.innerHTML=`
+    <div class="card">
+      <h2>燒錢率與資金跑道</h2>
+      <p class="hint">依目前現金與每月支出，估算資金還能撐多久。</p>
+      <div class="cgrid2">
+        <div class="cfield"><label>目前現金存量</label><input type="number" step="10000" id="su-cash" value="${su.current_cash||0}"></div>
+        <div class="cfield"><label>每月固定支出（薪資/租金）</label><input type="number" step="1000" id="su-fixed" value="${su.monthly_fixed||0}"></div>
+        <div class="cfield"><label>每月變動支出估計</label><input type="number" step="1000" id="su-var" value="${su.monthly_variable||0}"></div>
+      </div>
+      <div class="rep-grid" style="grid-template-columns:repeat(3,1fr);margin-top:12px">
+        <div class="rep-kpi"><div class="l">月燒錢率</div><div class="v">${fmtMoney(burnRate)}</div></div>
+        <div class="rep-kpi"><div class="l">資金跑道</div>
+          <div class="v" style="color:${runwayColor}">${runwayM>0?Math.floor(runwayM)+'個月':'—'}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">${runwayLabel}</div></div>
+        <div class="rep-kpi"><div class="l">可撐至</div><div class="v" style="font-size:16px">${untilDate}</div></div>
+      </div>
+      <div class="row-actions" style="margin-top:10px"><button class="btn btn-primary"
+        onclick="su_update({current_cash:+document.getElementById('su-cash').value,monthly_fixed:+document.getElementById('su-fixed').value,monthly_variable:+document.getElementById('su-var').value})">更新計算</button></div>
+    </div>
+    <div class="card">
+      <h2>損益平衡點</h2>
+      <p class="hint">每月固定支出 ÷ 每單位毛利 ＝ 每月最低銷售量。</p>
+      <div class="cgrid2">
+        <div class="cfield"><label>平均售價/單位</label><input type="number" step="100" id="su-price" value="${su.unit_price||0}"></div>
+        <div class="cfield"><label>變動成本/單位</label><input type="number" step="100" id="su-uvc" value="${su.unit_variable_cost||0}"></div>
+      </div>
+      <div class="rep-grid" style="grid-template-columns:repeat(3,1fr);margin-top:12px">
+        <div class="rep-kpi"><div class="l">每單位毛利</div><div class="v" style="color:${margin>0?'var(--primary)':'var(--danger)'}">${fmtMoney(margin)}</div></div>
+        <div class="rep-kpi"><div class="l">損益平衡銷售量/月</div><div class="v">${beUnits>0?beUnits.toLocaleString()+'單':margin<=0?'毛利≤0':'—'}</div></div>
+        <div class="rep-kpi"><div class="l">損益平衡月收入</div><div class="v">${beRev>0?fmtMoney(beRev):'—'}</div></div>
+      </div>
+      <div class="row-actions" style="margin-top:10px"><button class="btn btn-primary"
+        onclick="su_update({unit_price:+document.getElementById('su-price').value,unit_variable_cost:+document.getElementById('su-uvc').value})">更新計算</button></div>
+    </div>
+    <div class="card">
+      <h2>收入目標追蹤</h2>
+      <div class="cgrid2">
+        <div class="cfield"><label>目前月收入（MRR）</label><input type="number" step="1000" id="su-mrr" value="${su.current_mrr||0}"></div>
+        <div class="cfield"><label>目標月收入</label><input type="number" step="1000" id="su-tmrr" value="${su.target_mrr||0}"></div>
+      </div>
+      <div class="rep-grid" style="grid-template-columns:repeat(3,1fr);margin-top:12px">
+        <div class="rep-kpi"><div class="l">目前月收入</div><div class="v">${fmtMoney(mrr)}</div></div>
+        <div class="rep-kpi"><div class="l">目標缺口</div><div class="v" style="color:${mrrGap>0?'var(--danger)':'var(--primary)'}">${mrrGap>0?fmtMoney(mrrGap):'已達標 ✅'}</div></div>
+        <div class="rep-kpi"><div class="l">達成率</div><div class="v">${tmrr>0?Math.min(100,Math.round(mrr/tmrr*100))+'%':'—'}</div></div>
+      </div>
+      <div class="row-actions" style="margin-top:10px"><button class="btn btn-primary"
+        onclick="su_update({current_mrr:+document.getElementById('su-mrr').value,target_mrr:+document.getElementById('su-tmrr').value})">更新計算</button></div>
+    </div>
+    <div class="card">
+      <h2>里程碑追蹤</h2>
+      <div id="su-milestones" style="margin-bottom:12px">${milestoneHTML}</div>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="su-ms-new" placeholder="新增里程碑，例：完成MVP開發" style="flex:1;padding:9px 12px;border:1px solid var(--line-2);border-radius:9px;font-size:14px;background:var(--bg)">
+        <button class="btn btn-primary" onclick="const v=document.getElementById('su-ms-new').value.trim();if(v){su.milestones.push({text:v,done:false});saveStartup();renderStartup()}">新增</button>
+      </div>
+    </div>
+    <p class="hint">💡 此模板資料存在本機（localStorage），不影響主頁的退休規劃。若要把創業薪資/支出納入退休推估，請到「收支」頁另行登錄。</p>`;
+
+  // 讓 onclick 能呼叫到
+  window.su_update = su_update;
+}
+
+// ── 加購模組商店 ─────────────────────────────────────────────
+function renderAddonStore(){
+  const body=document.getElementById('addon-store-body'); if(!body) return;
+  const cards=Object.entries(ADDON_REGISTRY).map(([key,a])=>{
+    const owned=hasAddon(key);
+    return `<div class="card" style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
+        <div>
+          <div style="font-weight:700;font-size:17px">${a.icon} ${a.label}</div>
+          <div style="color:var(--muted);font-size:13px;margin-top:4px">${a.description}</div>
+          <div style="margin-top:8px;font-size:13px">
+            ${a.price_onetime?`買斷價：<b>${fmtMoney(a.price_onetime)}</b>（一次購買、永久使用）`:'隨方案解鎖'}
+          </div>
+        </div>
+        ${owned
+          ? `<span class="badge ok" style="font-size:13px;padding:6px 14px;flex-shrink:0">✅ 已啟用</span>`
+          : `<button class="btn btn-primary" style="flex-shrink:0" onclick="window.open('mailto:contact@example.com?subject=加購${encodeURIComponent(a.label)}&body=請幫我開通「${encodeURIComponent(a.label)}」模組，感謝。')">聯絡購買</button>`
+        }
+      </div>
+    </div>`;
+  }).join('');
+  body.innerHTML=`
+    <div class="card" style="background:var(--surface-2)">
+      <h2 style="font-size:15px">如何加購</h2>
+      <p class="hint" style="margin:0">加購模組為一次買斷，付款確認後由管理員手動開通（通常 1 個工作天內）。開通後重新登入即可使用，購買紀錄綁定你的帳號。</p>
+    </div>
+    ${cards}
+    <p class="hint">有其他需求或想法？歡迎 <a href="mailto:contact@example.com">來信討論</a>。</p>`;
+}
+
 function renderAll(){
   mcCache=null;
   renderNav();
@@ -2166,10 +2516,27 @@ document.getElementById('nav').addEventListener('click',e=>{
   if(tab==='postal') renderPostal();
   if(tab==='pension') renderPension();
   if(tab==='insurance') renderInsurance();
+  if(tab==='snapshots') renderSnapshots();
+  if(tab==='addon-store') renderAddonStore();
+  // 加購模組（由 ADDON_REGISTRY 動態路由）
+  const addonDef = ADDON_REGISTRY[tab];
+  if(addonDef) addonDef.render();
 });
 
 function upgradeCard(tab){
-  const info={children:{name:'子女養育'},purchases:{name:'分期採購'},postal:{name:'郵局薪資'},pension:{name:'勞退勞保'},insurance:{name:'保險防護'},portfolio:{name:'投資配置'},snapshots:{name:'歷史紀錄（訂閱）'}};
+  const addonDef=ADDON_REGISTRY[tab];
+  if(addonDef){
+    const planLabel={free:'試用版',full:'完整版',subscription:'訂閱制',local:'本地模式'}[currentPlan]||currentPlan;
+    return `<div style="max-width:440px;margin:60px auto;text-align:center;padding:0 20px">
+      <div style="font-size:44px;margin-bottom:12px">${addonDef.icon}</div>
+      <h2 style="margin:0 0 8px">「${addonDef.label}」需要加購</h2>
+      <p style="color:var(--muted);margin:0 0 6px">${addonDef.description}</p>
+      <p style="margin:0 0 20px">買斷價：<b>${fmtMoney(addonDef.price_onetime)}</b>（一次購買、永久使用）</p>
+      <button class="btn btn-primary" onclick="document.querySelector('[data-tab=addon-store]').click()">前往加購頁面</button>
+      <p class="hint" style="margin-top:16px">目前方案：<b>${planLabel}</b>　｜　購買後重新登入生效</p>
+    </div>`;
+  }
+  const info={children:{name:'子女養育'},purchases:{name:'分期採購'},postal:{name:'郵局薪資'},pension:{name:'勞退勞保'},insurance:{name:'保險防護'},portfolio:{name:'投資配置'},snapshots:{name:'歷史規劃紀錄（訂閱）'}};
   const nm=(info[tab]||{name:tab}).name;
   const planLabel={free:'試用版',full:'完整版',subscription:'訂閱制',local:'本地模式'}[currentPlan]||currentPlan;
   return `<div style="max-width:420px;margin:60px auto;text-align:center;padding:0 20px">
