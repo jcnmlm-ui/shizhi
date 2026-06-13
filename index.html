@@ -3063,28 +3063,51 @@ document.getElementById('resetBtn').onclick=()=>{
 };
 
 /* ============================ 啟動 ============================ */
-// 從 fp_site_config 載入站點設定（公開可讀，不需登入）
+// 站點設定與加購模組定價（公開可讀，不需登入）
+let siteConfigArr = [];   // fp_site_config 快取（供 renderComingSoon 等使用）
+
 async function loadSiteConfig(){
   if(!SUPABASE_URL||!SUPABASE_ANON_KEY) return;
+  const h={'apikey':SUPABASE_ANON_KEY,'Authorization':'Bearer '+SUPABASE_ANON_KEY};
   try {
-    const res=await fetch(`${SUPABASE_URL}/rest/v1/fp_site_config?select=key,value`,{
-      headers:{'apikey':SUPABASE_ANON_KEY,'Authorization':'Bearer '+SUPABASE_ANON_KEY}
-    });
-    if(!res.ok) return;
-    const rows=await res.json();
-    if(!Array.isArray(rows)) return;
-    rows.forEach(({key,value})=>{
-      if(!value&&value!=='0') return;
-      // payment.* → PAYMENT_CONFIG
-      if(key==='payment.bank_name')    PAYMENT_CONFIG.bank_name=value;
-      if(key==='payment.bank_code')    PAYMENT_CONFIG.bank_code=value;
-      if(key==='payment.account_no')   PAYMENT_CONFIG.account_no=value;
-      if(key==='payment.account_name') PAYMENT_CONFIG.account_name=value;
-      if(key==='payment.price_full')   PAYMENT_CONFIG.price_full=Number(value)||PAYMENT_CONFIG.price_full;
-      if(key==='payment.price_sub')    PAYMENT_CONFIG.price_sub=Number(value)||PAYMENT_CONFIG.price_sub;
-      if(key==='contact.email')        PAYMENT_CONFIG.contact_email=value;
-      if(key==='contact.response_time')PAYMENT_CONFIG.response_time=value;
-    });
+    // 同時載入：站點設定 + 加購模組定價
+    const [cfgRes, addonsRes] = await Promise.all([
+      fetch(`${SUPABASE_URL}/rest/v1/fp_site_config?select=key,value`, {headers:h}),
+      fetch(`${SUPABASE_URL}/rest/v1/fp_addons?select=module_key,price_onetime,price_monthly,status&active=eq.true`, {headers:h}),
+    ]);
+
+    // ── 站點設定 → PAYMENT_CONFIG ──────────────────────────────
+    if(cfgRes.ok){
+      const rows=await cfgRes.json();
+      if(Array.isArray(rows)){
+        siteConfigArr=rows;  // 快取供 renderComingSoon 等讀取
+        rows.forEach(({key,value})=>{
+          if(!value&&value!=='0') return;
+          if(key==='payment.bank_name')    PAYMENT_CONFIG.bank_name=value;
+          if(key==='payment.bank_code')    PAYMENT_CONFIG.bank_code=value;
+          if(key==='payment.account_no')   PAYMENT_CONFIG.account_no=value;
+          if(key==='payment.account_name') PAYMENT_CONFIG.account_name=value;
+          if(key==='payment.price_full')   PAYMENT_CONFIG.price_full=Number(value)||PAYMENT_CONFIG.price_full;
+          if(key==='payment.price_sub')    PAYMENT_CONFIG.price_sub=Number(value)||PAYMENT_CONFIG.price_sub;
+          if(key==='contact.email')        PAYMENT_CONFIG.contact_email=value;
+          if(key==='contact.response_time')PAYMENT_CONFIG.response_time=value;
+        });
+      }
+    }
+
+    // ── 加購模組定價 → ADDON_REGISTRY ──────────────────────────
+    // admin.html 修改 fp_addons 的定價/狀態 → 下次前台載入即生效
+    if(addonsRes.ok){
+      const addons=await addonsRes.json();
+      if(Array.isArray(addons)){
+        addons.forEach(a=>{
+          if(ADDON_REGISTRY[a.module_key]){
+            if(a.price_onetime!=null) ADDON_REGISTRY[a.module_key].price_onetime=a.price_onetime;
+            if(a.status)              ADDON_REGISTRY[a.module_key].status=a.status;
+          }
+        });
+      }
+    }
   } catch(e){ console.warn('站點設定載入失敗，使用預設值', e); }
 }
 
