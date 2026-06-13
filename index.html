@@ -382,11 +382,18 @@
       </div>
 
       <div class="card">
-        <h2>資料管理</h2><p class="hint">匯出可做備份；匯入會覆蓋目前資料。</p>
+        <h2>資料管理</h2>
+        <p class="hint">訂閱制用戶可在「歷史規劃紀錄」頁儲存雲端快照（推薦）；以下 JSON 備份適合本地模式或需要跨工具遷移的情境。</p>
+        <details style="margin-bottom:8px">
+          <summary style="cursor:pointer;font-size:13px;color:var(--muted);padding:4px 0">▸ JSON 備份 / 匯入（進階）</summary>
+          <div class="row-actions" style="margin-top:10px">
+            <button class="btn" id="exportBtn">匯出 JSON</button>
+            <button class="btn" id="importBtn">匯入 JSON</button>
+            <input type="file" id="importFile" accept="application/json" style="display:none">
+          </div>
+          <p class="hint" style="margin-top:6px">匯入會覆蓋目前所有資料，建議先匯出備份。</p>
+        </details>
         <div class="row-actions">
-          <button class="btn" id="exportBtn">匯出 JSON 備份</button>
-          <button class="btn" id="importBtn">匯入 JSON</button>
-          <input type="file" id="importFile" accept="application/json" style="display:none">
           <button class="btn ghost-danger" id="resetBtn">清除全部資料</button>
         </div>
       </div>
@@ -420,6 +427,14 @@
         <div><h1>加購模組</h1><p>獨立購買的專題試算工具，一次買斷、永久使用</p></div>
       </div>
       <div id="addon-store-body"><p class="hint" style="color:var(--muted)">載入中…</p></div>
+    </section>
+
+    <!-- ADDON: 開發中佔位 sections -->
+    <section class="section" id="tab-realestate">
+      <div id="realestate-body"></div>
+    </section>
+    <section class="section" id="tab-taxcalc">
+      <div id="taxcalc-body"></div>
     </section>
 
   </main>
@@ -481,18 +496,65 @@ function hasAddon(key){ return allowedAddons.includes(key); }
 
 // ── 加購模組登記表（新模組只需在這裡加一筆）────────────────
 const ADDON_REGISTRY = {
+  postal: {
+    label:       '郵局薪資試算',
+    description: '中華郵政職階薪級制、逐年薪資成長推估、碰頂獎金、年收入加總與平均年薪試算',
+    icon:        '📮',
+    navIcon:     '<path d="M4 7h16v12H4z"/><path d="M4 10h16"/><circle cx="8" cy="14.5" r="1.3"/><path d="M13 14h5"/>',
+    price_onetime: 499,
+    featureKey:  'postal',   // 相容：canAccess('postal')=true 的舊完整版用戶也可使用
+    sectionId:   'tab-postal',
+    status:      'available',
+    render:      ()=> renderPostal(),
+  },
   startup: {
     label:       '創業財務模板',
-    description: '燒錢率、資金跑道、損益平衡點、月收入目標追蹤',
+    description: '燒錢率、資金跑道、損益平衡點、月收入目標追蹤、里程碑清單',
     icon:        '🚀',
     navIcon:     '<path d="M12 2C6.5 7 4 12 4 16a8 8 0 0016 0c0-4-2.5-9-8-14z"/><circle cx="12" cy="16" r="2"/><path d="M12 14v-4"/>',
     price_onetime: 499,
     sectionId:   'tab-startup',
+    status:      'available',
     render:      ()=> renderStartup(),
   },
-  // 未來新模組範例（先留著，等要上架時解開）：
-  // realestate: { label:'房地產投報試算', description:'租金投報率、貸款壓力測試、增值試算', icon:'🏠', navIcon:'<path d="M3 9.5L12 3l9 6.5V20H3z"/><path d="M9 20v-7h6v7"/>', price_onetime:499, sectionId:'tab-realestate', render:()=>renderRealestate() },
+  realestate: {
+    label:       '房地產投報試算',
+    description: '租金投報率、貸款壓力測試、持有成本與增值試算',
+    icon:        '🏠',
+    navIcon:     '<path d="M3 9.5L12 3l9 6.5V20H3z"/><path d="M9 20v-7h6v7"/>',
+    price_onetime: 499,
+    sectionId:   'tab-realestate',
+    status:      'coming_soon',
+    render:      ()=> renderComingSoon('realestate'),
+  },
+  taxcalc: {
+    label:       '綜所稅試算',
+    description: '薪資所得年稅額估算、各項扣除額、退補稅概算',
+    icon:        '📊',
+    navIcon:     '<path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/>',
+    price_onetime: 299,
+    sectionId:   'tab-taxcalc',
+    status:      'coming_soon',
+    render:      ()=> renderComingSoon('taxcalc'),
+  },
 };
+
+// 開發中模組顯示頁（follow 連結從 fp_site_config 讀取）
+function renderComingSoon(key){
+  const a=ADDON_REGISTRY[key]; if(!a) return;
+  const sectionId=a.sectionId;
+  const sec=sectionId?document.getElementById(sectionId):null;
+  if(!sec) return;
+  const followUrl=(siteConfigArr||[]).find(r=>r.key==='site.newsletter_url')?.value||'';
+  const note=(siteConfigArr||[]).find(r=>r.key==='site.coming_soon_note')?.value||'感謝你的關注！新模組開發中，完成後將優先通知。';
+  sec.innerHTML='<div class="pagehead"><div><h1>'+a.icon+' '+a.label+'</h1><p>'+a.description+'</p></div></div>'
+    +'<div style="max-width:440px;margin:60px auto;text-align:center;padding:0 20px">'
+    +'<div style="font-size:48px;margin-bottom:12px">🔨</div>'
+    +'<h2 style="margin:0 0 8px">開發中 · 敬請期待</h2>'
+    +'<p style="color:var(--muted);margin:0 0 24px">'+note+'</p>'
+    +(followUrl?'<a class="btn btn-primary" href="'+followUrl+'" target="_blank" rel="noopener">🔔 追蹤更新通知</a>':'')
+    +'<p style="color:var(--faint);font-size:12px;margin-top:16px">預計售價：NT$'+a.price_onetime+'（正式上線前可能調整）</p></div>';
+}
 
 // ── Nav 設定（分組 + 圖示 + 功能 key）────────────────────────
 const NAV_GROUPS = [
@@ -507,7 +569,6 @@ const NAV_GROUPS = [
   { label: '進階模組', items: [
     { tab:'children',  label:'子女養育', icon:'<circle cx="9" cy="7" r="3"/><path d="M3.5 21v-2a5.5 5.5 0 0111 0v2"/><circle cx="17.5" cy="9" r="2"/><path d="M16.5 21v-1a4 4 0 013.5-4"/>' },
     { tab:'purchases', label:'分期採購', icon:'<path d="M5 11l1.4-4.2A2 2 0 018.3 5.4h7.4a2 2 0 011.9 1.4L19 11"/><path d="M4 11h16v5H4z"/><circle cx="7.5" cy="16.5" r="1.4"/><circle cx="16.5" cy="16.5" r="1.4"/>' },
-    { tab:'postal',    label:'郵局薪資', icon:'<path d="M4 7h16v12H4z"/><path d="M4 10h16"/><circle cx="8" cy="14.5" r="1.3"/><path d="M13 14h5"/>' },
     { tab:'pension',   label:'勞退勞保', icon:'<path d="M3 21h18"/><path d="M5 21V8l7-4 7 4v13"/><path d="M9 21v-6h6v6"/>' },
     { tab:'insurance', label:'保險防護', icon:'<path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/>' },
     { tab:'portfolio', label:'投資配置', icon:'<path d="M12 3a9 9 0 109 9h-9z"/><path d="M12 3v9h9A9 9 0 0012 3z" opacity=".4"/>' },
@@ -537,10 +598,16 @@ function renderNav(){
   const addonEntries = Object.entries(ADDON_REGISTRY);
   html += `<div class="nav-sep"></div><div class="nav-group-label">加購模組</div>`;
   addonEntries.forEach(([key, a]) => {
-    const owned = hasAddon(key);
+    const isComingSoon = a.status === 'coming_soon';
+    // 相容：canAccess(featureKey) 為 true 的舊完整版用戶也可使用
+    const owned = hasAddon(key) || (a.featureKey && canAccess(a.featureKey));
+    const accessible = owned && !isComingSoon;
     const isActive = key === activeBefore;
-    html += `<button data-tab="${key}" class="${isActive&&owned?'active':''} ${owned?'':'locked'}" title="${owned?a.label:a.label+' — 尚未加購'}">
-      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">${a.navIcon}</svg>${a.label}${owned?'':' 🔒'}</button>`;
+    let badge = '';
+    if(isComingSoon) badge = ' <span style="font-size:9px;background:var(--accent-soft);color:var(--accent);padding:1px 5px;border-radius:4px;vertical-align:middle">即將推出</span>';
+    else if(!owned) badge = ' 🔒';
+    html += `<button data-tab="${key}" class="${isActive&&accessible?'active':''} ${!accessible&&!isComingSoon?'locked':''}" ${isComingSoon?'style="opacity:.65"':''} title="${isComingSoon?a.label+' — 開發中':accessible?a.label:a.label+' — 尚未加購'}">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">${a.navIcon}</svg>${a.label}${badge}</button>`;
   });
   // 商店入口（永遠可點）
   const storeActive = activeBefore==='addon-store';
@@ -2158,7 +2225,7 @@ function renderCloudArea(){
         <button class="btn primary" id="pwSave">儲存新密碼</button>
       </div>
       <div class="authmsg ${pwRecovery?'ok':''}" id="pwMsg">${pwRecovery?'已驗證重設連結，請在上方設定新密碼。':''}</div>`;
-    document.getElementById('logoutBtn').onclick=async()=>{ await sb.auth.signOut(); session=null; pwRecovery=false; state={settings:{...DEFAULT_SETTINGS},incomes:[],expenses:[],assets:[],liabilities:[],goals:[],children:[],purchases:[],childCosts:deepClone(DEFAULT_CHILD_COSTS),postal:{...DEFAULT_POSTAL}}; renderAll(); };
+    document.getElementById('logoutBtn').onclick=async()=>{ await sb.auth.signOut(); session=null; pwRecovery=false; state={settings:{...DEFAULT_SETTINGS},incomes:[],expenses:[],assets:[],liabilities:[],goals:[],children:[],purchases:[],childCosts:deepClone(DEFAULT_CHILD_COSTS),postal:{...DEFAULT_POSTAL}}; closeUpgradeModal(); syncPrintBtn(); renderAll(); };
     document.getElementById('pwToggle').onclick=()=>{ const f=document.getElementById('pwForm'); f.style.display=(f.style.display==='none'?'flex':'none'); };
     document.getElementById('pwSave').onclick=doChangePassword;
   }else{
@@ -2595,9 +2662,15 @@ document.getElementById('nav').addEventListener('click',e=>{
   if(tab==='insurance') renderInsurance();
   if(tab==='snapshots') renderSnapshots();
   if(tab==='addon-store') renderAddonStore();
-  // 加購模組（由 ADDON_REGISTRY 動態路由）
   const addonDef = ADDON_REGISTRY[tab];
-  if(addonDef) addonDef.render();
+  if(addonDef) {
+    const owned = hasAddon(tab) || (addonDef.featureKey && canAccess(addonDef.featureKey));
+    if(addonDef.status==='coming_soon' || owned) { addonDef.render(); return; }
+    // 未購買且非開發中 → 升級提示
+    const body=document.getElementById(tab+'-body');
+    if(body) body.innerHTML=upgradeCard(tab);
+    return;
+  }
 });
 
 // ── PDF 付費牆：同步列印按鈕狀態 ───────────────────────────────
@@ -2623,78 +2696,86 @@ function showPaymentUpgrade(triggerFeature){
   const fmtNT=n=>'NT$'+n.toLocaleString();
   const loggedIn=!!(session&&session.user);
   const userEmail=session?.user?.email||'';
-
-  inner.innerHTML=`
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-      <h2 style="margin:0;font-size:20px">解鎖 PDF 匯出</h2>
-      <button onclick="closeUpgradeModal()" style="border:0;background:none;font-size:22px;cursor:pointer;color:var(--muted)">×</button>
-    </div>
-    <p style="color:var(--muted);margin:0 0 20px">PDF 匯出（列印 / 另存為 PDF）為付費功能。完整報告可在網頁上免費瀏覽；升級後可無限次匯出。</p>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px">
-      <div style="border:2px solid var(--primary);border-radius:12px;padding:16px;background:var(--primary-soft)">
-        <div style="font-weight:700;font-size:15px;color:var(--primary)">完整版（買斷）</div>
-        <div style="font-size:22px;font-weight:700;margin:6px 0">${fmtNT(pc.price_full)}</div>
-        <div style="font-size:12px;color:var(--muted)">一次付款、永久使用<br>所有進階模組全開</div>
-      </div>
-      <div style="border:1px solid var(--line-2);border-radius:12px;padding:16px">
-        <div style="font-weight:700;font-size:15px">訂閱制</div>
-        <div style="font-size:22px;font-weight:700;margin:6px 0">${fmtNT(pc.price_sub)}<span style="font-size:13px;font-weight:400">/月</span></div>
-        <div style="font-size:12px;color:var(--muted)">歷史快照 + 所有進階模組<br>可隨時取消</div>
-      </div>
-    </div>
-
-    <div style="background:var(--surface-2);border-radius:12px;padding:16px;margin-bottom:20px">
-      <div style="font-weight:700;margin-bottom:10px">💳 匯款資訊</div>
-      <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:14px">
-        <span style="color:var(--muted)">銀行</span><span>${pc.bank_code} ${pc.bank_name}</span>
-        <span style="color:var(--muted)">帳號</span><span style="font-weight:600;font-family:monospace">${pc.account_no}</span>
-        <span style="color:var(--muted)">戶名</span><span>${pc.account_name}</span>
-      </div>
-    </div>
-
-    ${loggedIn ? `
-    <div>
-      <div style="font-weight:700;margin-bottom:12px">📝 匯款完成後，填寫以下資訊</div>
-      <div style="display:grid;gap:10px;margin-bottom:14px">
-        <div class="field"><label>Email（帳號）</label><input id="pay-email" type="email" value="${escapeHtml(userEmail)}" placeholder="your@email.com"></div>
-        <div class="field"><label>欲升級方案</label>
-          <select id="pay-plan">
-            <option value="full">完整版（買斷，${fmtNT(pc.price_full)}）</option>
-            <option value="subscription">訂閱制（${fmtNT(pc.price_sub)}/月）</option>
-          </select>
-        </div>
-        <div class="field"><label>匯款末五碼</label><input id="pay-last5" type="text" maxlength="5" placeholder="例：12345" style="letter-spacing:.1em;font-family:monospace;font-size:16px"></div>
-        <div class="field"><label>匯款金額（NT$）</label><input id="pay-amount" type="number" placeholder="例：1500"></div>
-        <div class="field"><label>備註（選填）</label><input id="pay-note" type="text" placeholder="例：ATM 匯款 / 台新銀行"></div>
-      </div>
-      <div style="display:flex;gap:10px;align-items:center">
-        <button class="btn primary" onclick="submitPaymentRequest()" style="flex:1">送出驗證申請</button>
-      </div>
-      <p id="pay-msg" style="margin:8px 0 0;font-size:13px"></p>
-    </div>` : `
-    <div style="text-align:center;padding:10px 0">
-      <p style="color:var(--muted);margin:0 0 14px">請先登入帳號再送出匯款申請</p>
-      <button class="btn primary" onclick="closeUpgradeModal();document.querySelector('[data-tab=settings]').click()">前往登入</button>
-    </div>`}
-
-    <p style="color:var(--faint);font-size:11px;margin:16px 0 0;text-align:center">
-      送出後通常於 <b>${pc.response_time||'1 個工作天'}</b> 內開通；如有問題請聯絡
-      <a href="mailto:${pc.contact_email}">${pc.contact_email}</a>
-    </p>`;
-
+  const SUB_OPTS=[
+    {months:1, label:'1 個月', disc:1.00, tag:''},
+    {months:3, label:'3 個月', disc:0.90, tag:'九折'},
+    {months:6, label:'6 個月', disc:0.85, tag:'85折'},
+    {months:12,label:'12 個月',disc:0.80, tag:'八折'},
+  ];
+  const subChips=SUB_OPTS.map((o,i)=>{
+    const total=Math.round(pc.price_sub*o.months*o.disc);
+    const perM=Math.round(total/o.months);
+    return '<div class="sub-chip'+(i===0?' active':'')+'" data-months="'+o.months+'" data-amount="'+total+'" onclick="selectSubMonths(this,'+total+')" style="border:2px solid '+(i===0?'var(--primary)':'var(--line-2)')+';border-radius:10px;padding:8px 6px;text-align:center;cursor:pointer;background:'+(i===0?'var(--primary-soft)':'')+'">'
+      +'<div style="font-weight:700;font-size:13px">'+o.label+'</div>'
+      +'<div style="font-size:15px;font-weight:700;color:var(--primary)">'+fmtNT(total)+'</div>'
+      +'<div style="font-size:10px;color:var(--muted)">'+fmtNT(perM)+'/月'+(o.tag?'<br><b style=\"color:var(--accent)\">'+o.tag+'</b>':'')+' </div></div>';
+  }).join('');
+  const bankSection='<div style="background:var(--surface-2);border-radius:12px;padding:16px;margin-bottom:20px"><div style="font-weight:700;margin-bottom:10px">💳 匯款資訊</div><div style="display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:14px"><span style="color:var(--muted)">銀行</span><span>'+pc.bank_code+' '+pc.bank_name+'</span><span style="color:var(--muted)">帳號</span><span style="font-weight:600;font-family:monospace">'+pc.account_no+'</span><span style="color:var(--muted)">戶名</span><span>'+pc.account_name+'</span></div></div>';
+  const formSection=loggedIn
+    ? '<div><div style="font-weight:700;margin-bottom:12px">📝 匯款完成後，填寫以下資訊</div>'
+      +'<div style="display:grid;gap:10px;margin-bottom:14px">'
+      +'<div class="field"><label>登入 Email（你的帳號，用於核對並開通）</label>'
+      +'<input id="pay-email" type="email" value="'+escapeHtml(userEmail)+'" placeholder="your@email.com">'
+      +(userEmail?'<div style="font-size:11px;color:var(--primary);margin-top:3px">✓ 已自動帶入你的登入帳號</div>':'<div style="font-size:11px;color:var(--muted);margin-top:3px">請填入你在本工具登入的 Email，開通後用此帳號登入即可使用</div>')
+      +'</div>'
+      +'<div class="field"><label>欲升級方案</label>'
+      +'<select id="pay-plan" onchange="toggleSubMonths(this.value)">'
+      +'<option value="full">完整版（買斷，'+fmtNT(pc.price_full)+'）</option>'
+      +'<option value="subscription">訂閱制（'+fmtNT(pc.price_sub)+'/月，依月數有折扣）</option>'
+      +'</select></div>'
+      +'<div id="sub-months-row" style="display:none"><div style="font-size:12px;color:var(--muted);margin-bottom:6px">選擇月數</div>'
+      +'<div id="sub-month-chips" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">'+subChips+'</div></div>'
+      +'<div class="field"><label>匯款末五碼</label><input id="pay-last5" type="text" maxlength="5" placeholder="例：12345" style="letter-spacing:.1em;font-family:monospace;font-size:16px"></div>'
+      +'<div class="field"><label>匯款金額（NT$）</label><input id="pay-amount" type="number" placeholder="例：'+pc.price_full+'"></div>'
+      +'<div class="field"><label>備註（選填）</label><input id="pay-note" type="text" placeholder="例：ATM 匯款 / 台新銀行"></div>'
+      +'</div><button class="btn primary" onclick="submitPaymentRequest()" style="width:100%;padding:11px">送出驗證申請</button>'
+      +'<p id="pay-msg" style="margin:8px 0 0;font-size:13px"></p></div>'
+    : '<div style="text-align:center;padding:10px 0"><div style="font-size:32px;margin-bottom:10px">🔐</div>'
+      +'<p style="color:var(--ink);font-weight:600;margin:0 0 6px">請先登入帳號再送出匯款申請</p>'
+      +'<p style="color:var(--muted);font-size:13px;margin:0 0 16px">開通需要對應你的帳號，登入後回到此頁即可送出申請。</p>'
+      +'<button class="btn primary" onclick="goToLogin()">前往登入 / 註冊</button></div>';
+  inner.innerHTML=
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">'
+    +'<h2 style="margin:0;font-size:20px">解鎖 PDF 匯出</h2>'
+    +'<button onclick="closeUpgradeModal()" style="border:0;background:none;font-size:22px;cursor:pointer;color:var(--muted);padding:0 4px" title="關閉">×</button>'
+    +'</div>'
+    +'<p style="color:var(--muted);margin:0 0 20px">PDF 匯出為付費功能。完整報告可在網頁上免費瀏覽；升級後可無限次匯出。</p>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px">'
+    +'<div style="border:2px solid var(--primary);border-radius:12px;padding:16px;background:var(--primary-soft)">'
+    +'<div style="font-weight:700;font-size:15px;color:var(--primary)">完整版（買斷）</div>'
+    +'<div style="font-size:22px;font-weight:700;margin:6px 0">'+fmtNT(pc.price_full)+'</div>'
+    +'<div style="font-size:12px;color:var(--muted)">一次付款、永久使用<br>所有進階模組全開</div></div>'
+    +'<div style="border:1px solid var(--line-2);border-radius:12px;padding:16px">'
+    +'<div style="font-weight:700;font-size:15px">訂閱制</div>'
+    +'<div style="font-size:22px;font-weight:700;margin:6px 0">'+fmtNT(pc.price_sub)+'<span style="font-size:13px;font-weight:400">/月起</span></div>'
+    +'<div style="font-size:12px;color:var(--muted)">歷史快照 + 所有進階模組<br>多月折扣，可隨時取消</div></div></div>'
+    +bankSection+formSection
+    +'<p style="color:var(--faint);font-size:11px;margin:16px 0 6px;text-align:center">送出後通常於 <b>'+(pc.response_time||'1 個工作天')+'</b> 內開通；如有問題請聯絡 <a href="mailto:'+pc.contact_email+'">'+pc.contact_email+'</a></p>'
+    +'<p style="text-align:center"><a href="javascript:void(0)" onclick="closeUpgradeModal()" style="font-size:12px;color:var(--muted)">稍後再說</a></p>';
   modal.style.display='flex';
   document.body.style.overflow='hidden';
+}
+function toggleSubMonths(plan){
+  const row=document.getElementById('sub-months-row');
+  if(row) row.style.display=(plan==='subscription'?'block':'none');
+}
+function selectSubMonths(el,amount){
+  document.querySelectorAll('#sub-month-chips .sub-chip').forEach(c=>{c.style.borderColor='var(--line-2)';c.style.background='';c.classList.remove('active');});
+  el.style.borderColor='var(--primary)';el.style.background='var(--primary-soft)';el.classList.add('active');
+  const f=document.getElementById('pay-amount'); if(f) f.value=amount;
 }
 
 function closeUpgradeModal(){
   const modal=document.getElementById('upgrade-modal');
   if(modal){ modal.style.display='none'; document.body.style.overflow=''; }
 }
-// 點 modal 背景關閉
-document.getElementById('upgrade-modal').addEventListener('click', e=>{
-  if(e.target===e.currentTarget) closeUpgradeModal();
-});
+function goToLogin(){
+  closeUpgradeModal();
+  const btn=document.querySelector('[data-tab="settings"]');
+  if(btn) btn.click();
+}
+// ← 移除：不再允許點外側黑色遮罩關閉（避免付款流程中途誤觸）
+// 關閉只能透過 × 按鈕或「稍後再說」連結
 
 async function submitPaymentRequest(){
   if(!sb||!session){ alert('請先登入帳號'); return; }
@@ -2710,6 +2791,10 @@ async function submitPaymentRequest(){
   if(submitBtn){ submitBtn.disabled=true; submitBtn.textContent='送出中…'; }
   const payload={ user_id:session.user.id, email, plan_requested:plan, last5, note:note||null };
   if(amount) payload.amount=parseFloat(amount)||null;
+  if(plan==='subscription'){
+    const activeChip=document.querySelector('#sub-month-chips .sub-chip.active');
+    if(activeChip) payload.duration_months=parseInt(activeChip.dataset.months)||1;
+  }
   const { error } = await sb.from('fp_payment_requests').insert(payload);
   if(submitBtn){ submitBtn.disabled=false; submitBtn.textContent='送出驗證申請'; }
   if(error){
