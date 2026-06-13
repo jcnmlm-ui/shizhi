@@ -2783,6 +2783,30 @@ function goToLogin(){
 // ← 移除：不再允許點外側黑色遮罩關閉（避免付款流程中途誤觸）
 // 關閉只能透過 × 按鈕或「稍後再說」連結
 
+// ── 加購模組申請送出 ──────────────────────────────────────────
+async function submitAddonRequest(addonKey){
+  if(!sb||!session){ alert('請先登入帳號'); return; }
+  const email=session.user.email;
+  const last5=(document.getElementById('addon-pay-last5')?.value||'').trim();
+  const amount=document.getElementById('addon-pay-amount')?.value;
+  const note=document.getElementById('addon-pay-note')?.value?.trim();
+  const msg=document.getElementById('addon-pay-msg');
+  if(!last5){ if(msg){msg.textContent='請填寫匯款末五碼';msg.style.color='var(--danger)';} return; }
+  if(!/^\d{5}$/.test(last5)){ if(msg){msg.textContent='末五碼須為5位數字';msg.style.color='var(--danger)';} return; }
+  const btn=document.querySelector(`[onclick*="submitAddonRequest"]`);
+  if(btn){btn.disabled=true;btn.textContent='送出中…';}
+  const payload={user_id:session.user.id, email, plan_requested:'addon', addon_key:addonKey, last5, note:note||null};
+  if(amount) payload.amount=parseFloat(amount)||null;
+  const {error}=await sb.from('fp_payment_requests').insert(payload);
+  if(btn){btn.disabled=false;btn.textContent='送出加購申請';}
+  if(error){
+    if(msg){msg.textContent='送出失敗：'+error.message;msg.style.color='var(--danger)';}
+  } else {
+    if(msg){msg.textContent='✅ 加購申請已送出！通常 '+(PAYMENT_CONFIG.response_time||'1 個工作天')+' 內開通，開通後請重新整理。';msg.style.color='var(--primary)';}
+    const f=document.getElementById('addon-pay-last5'); if(f) f.value='';
+  }
+}
+window.submitAddonRequest=submitAddonRequest;
 async function submitPaymentRequest(){
   if(!sb||!session){ alert('請先登入帳號'); return; }
   const email=document.getElementById('pay-email')?.value.trim();
@@ -2814,24 +2838,99 @@ async function submitPaymentRequest(){
 function upgradeCard(tab){
   const addonDef=ADDON_REGISTRY[tab];
   if(addonDef){
+    const isPaidPlan=currentPlan==='full'||currentPlan==='subscription';
     const planLabel={free:'試用版',full:'完整版',subscription:'訂閱制',local:'本地模式'}[currentPlan]||currentPlan;
-    return `<div style="max-width:440px;margin:60px auto;text-align:center;padding:0 20px">
-      <div style="font-size:44px;margin-bottom:12px">${addonDef.icon}</div>
-      <h2 style="margin:0 0 8px">「${addonDef.label}」需要加購</h2>
-      <p style="color:var(--muted);margin:0 0 6px">${addonDef.description}</p>
-      <p style="margin:0 0 20px">買斷價：<b>${fmtMoney(addonDef.price_onetime)}</b>（一次購買、永久使用）</p>
-      <button class="btn btn-primary" onclick="document.querySelector('[data-tab=addon-store]').click()">前往加購頁面</button>
-      <p class="hint" style="margin-top:16px">目前方案：<b>${planLabel}</b>　｜　購買後重新登入生效</p>
+    const pc=PAYMENT_CONFIG;
+    const fmtNT=n=>'NT$'+n.toLocaleString();
+    const userEmail=session?.user?.email||'';
+
+    // ── 第一道牆：沒有付費方案，先升級 ────────────────────────────
+    if(!isPaidPlan){
+      return `<div style="max-width:480px;margin:40px auto;padding:0 20px">
+        <div style="font-size:40px;text-align:center;margin-bottom:12px">${addonDef.icon}</div>
+        <h2 style="text-align:center;margin:0 0 8px">「${addonDef.label}」是加購模組</h2>
+        <p style="text-align:center;color:var(--muted);margin:0 0 24px;font-size:14px">加購模組需要先擁有<b>完整版</b>或<b>訂閱制</b>方案才能購買。</p>
+
+        <div style="border:2px solid var(--primary);border-radius:12px;padding:16px;margin-bottom:12px;background:var(--primary-soft)">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+            <span style="background:var(--primary);color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0">1</span>
+            <b>先升級到完整版或訂閱制</b>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+            <div style="background:var(--surface);border-radius:8px;padding:12px;text-align:center">
+              <div style="font-weight:700;font-size:13px">完整版（買斷）</div>
+              <div style="font-size:18px;font-weight:700;color:var(--primary)">${fmtNT(pc.price_full)}</div>
+            </div>
+            <div style="background:var(--surface);border-radius:8px;padding:12px;text-align:center">
+              <div style="font-weight:700;font-size:13px">訂閱制</div>
+              <div style="font-size:18px;font-weight:700;color:var(--primary)">${fmtNT(pc.price_sub)}/月</div>
+            </div>
+          </div>
+          <button class="btn btn-primary" style="width:100%" onclick="showPaymentUpgrade()">升級方案 →</button>
+        </div>
+
+        <div style="border:1px solid var(--line-2);border-radius:12px;padding:16px;opacity:.55">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="background:var(--muted);color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0">2</span>
+            <div><b>再加購「${addonDef.label}」</b><span style="color:var(--muted);font-size:13px;margin-left:8px">${fmtNT(addonDef.price_onetime)}</span></div>
+          </div>
+          <p style="color:var(--muted);font-size:12px;margin:6px 0 0 36px">取得完整版或訂閱制後才能加購此模組</p>
+        </div>
+
+        <p class="hint" style="text-align:center;margin-top:14px">目前方案：<b>${planLabel}</b>　｜　已有付費方案？請先<a href="javascript:void(0)" onclick="goToLogin()">登入帳號</a></p>
+      </div>`;
+    }
+
+    // ── 第二道牆：已有付費方案，顯示加購表單 ──────────────────────
+    return `<div style="max-width:480px;margin:40px auto;padding:0 20px">
+      <div style="font-size:40px;text-align:center;margin-bottom:12px">${addonDef.icon}</div>
+      <h2 style="text-align:center;margin:0 0 6px">加購「${addonDef.label}」</h2>
+      <p style="text-align:center;color:var(--muted);font-size:13px;margin:0 0 4px">${addonDef.description}</p>
+      <p style="text-align:center;font-size:24px;font-weight:700;color:var(--primary);margin:0 0 20px">${fmtNT(addonDef.price_onetime)} <span style="font-size:14px;font-weight:400;color:var(--muted)">買斷・永久使用</span></p>
+
+      <div style="background:var(--surface-2);border-radius:12px;padding:14px;margin-bottom:16px">
+        <div style="font-weight:700;margin-bottom:8px">💳 匯款資訊</div>
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:5px 14px;font-size:13px">
+          <span style="color:var(--muted)">銀行</span><span>${pc.bank_code} ${pc.bank_name}</span>
+          <span style="color:var(--muted)">帳號</span><span style="font-weight:700;font-family:monospace">${pc.account_no}</span>
+          <span style="color:var(--muted)">戶名</span><span>${pc.account_name}</span>
+        </div>
+      </div>
+
+      ${userEmail ? `
+      <div>
+        <div style="font-weight:700;margin-bottom:12px">📝 匯款完成後填寫</div>
+        <div style="display:grid;gap:10px;margin-bottom:14px">
+          <div class="field">
+            <label>登入 Email（帳號，用於核對並開通）</label>
+            <input id="addon-pay-email" type="email" value="${escapeHtml(userEmail)}" readonly style="background:var(--surface-2)">
+            <div style="font-size:11px;color:var(--primary);margin-top:3px">✓ 已自動帶入你的登入帳號（${planLabel}）</div>
+          </div>
+          <div class="field"><label>匯款末五碼</label><input id="addon-pay-last5" type="text" maxlength="5" placeholder="例：12345" style="letter-spacing:.1em;font-family:monospace;font-size:16px"></div>
+          <div class="field"><label>匯款金額（NT$）</label><input id="addon-pay-amount" type="number" value="${addonDef.price_onetime}"></div>
+          <div class="field"><label>備註（選填）</label><input id="addon-pay-note" type="text" placeholder="例：ATM 匯款 / 台新銀行"></div>
+        </div>
+        <button class="btn btn-primary" style="width:100%;padding:11px" onclick="submitAddonRequest('${tab}')">送出加購申請</button>
+        <p id="addon-pay-msg" style="margin:8px 0 0;font-size:13px"></p>
+      </div>` : `
+      <div style="text-align:center;padding:10px 0">
+        <p style="color:var(--muted);margin:0 0 12px">請重新登入後即可送出加購申請</p>
+        <button class="btn btn-primary" onclick="goToLogin()">前往登入</button>
+      </div>`}
+
+      <p style="color:var(--faint);font-size:11px;margin:16px 0 0;text-align:center">送出後通常於 <b>${pc.response_time||'1 個工作天'}</b> 內開通；如有問題請聯絡 <a href="mailto:${pc.contact_email}">${pc.contact_email}</a></p>
     </div>`;
   }
+
+  // ── 一般功能升級提示 ──────────────────────────────────────────
   const info={children:{name:'子女養育'},purchases:{name:'分期採購'},postal:{name:'郵局薪資'},pension:{name:'勞退勞保'},insurance:{name:'保險防護'},portfolio:{name:'投資配置'},snapshots:{name:'歷史規劃紀錄（訂閱）'}};
   const nm=(info[tab]||{name:tab}).name;
-  const planLabel={free:'試用版',full:'完整版',subscription:'訂閱制',local:'本地模式'}[currentPlan]||currentPlan;
+  const planLabel2={free:'試用版',full:'完整版',subscription:'訂閱制',local:'本地模式'}[currentPlan]||currentPlan;
   return `<div style="max-width:420px;margin:60px auto;text-align:center;padding:0 20px">
     <div style="font-size:44px;margin-bottom:12px">🔒</div>
     <h2 style="margin:0 0 8px">「${nm}」需要升級方案</h2>
     <p style="color:var(--muted);margin:0 0 20px">升級後即可解鎖，所有已輸入的資料不受影響。</p>
-    <p class="hint">目前方案：<b>${planLabel}</b>　｜　如已升級請重新登入或<a href="javascript:void(0)" onclick="location.reload()">重新整理</a></p>
+    <p class="hint">目前方案：<b>${planLabel2}</b>　｜　如已升級請重新登入或<a href="javascript:void(0)" onclick="location.reload()">重新整理</a></p>
   </div>`;
 }
 
