@@ -469,12 +469,10 @@ const PAYMENT_CONFIG = {
 };
 
 /* ===== 功能旗標（Feature Flags） ===== */
-let allowedFeatures = [
-  'dash','flow','balance','goals','children','purchases',
-  'postal','pension','insurance','portfolio','report','settings'
-];
-let currentPlan = 'local';
-let allowedAddons = [];     // 加購模組（已購買的 module_key 清單）
+// 預設：未登入只開放基礎功能（登入後由 Edge Function 覆寫）
+let allowedFeatures = ['dash','flow','balance','goals','report','settings'];
+let currentPlan = 'free';   // 'free' | 'full' | 'subscription' | 'local'(dev)
+let allowedAddons = [];      // 已購買的加購模組 module_key 清單
 
 async function fetchFeatures(){
   if(!sb || !session) return;
@@ -597,22 +595,18 @@ function renderNav(){
   // 加購模組分組（動態）
   const addonEntries = Object.entries(ADDON_REGISTRY);
   html += `<div class="nav-sep"></div><div class="nav-group-label">加購模組</div>`;
-  addonEntries.forEach(([key, a]) => {
-    const isComingSoon = a.status === 'coming_soon';
-    // 相容：canAccess(featureKey) 為 true 的舊完整版用戶也可使用
-    const owned = hasAddon(key) || (a.featureKey && canAccess(a.featureKey));
-    const accessible = owned && !isComingSoon;
-    const isActive = key === activeBefore;
-    let badge = '';
-    if(isComingSoon) badge = ' <span style="font-size:9px;background:var(--accent-soft);color:var(--accent);padding:1px 5px;border-radius:4px;vertical-align:middle">即將推出</span>';
-    else if(!owned) badge = ' 🔒';
-    html += `<button data-tab="${key}" class="${isActive&&accessible?'active':''} ${!accessible&&!isComingSoon?'locked':''}" ${isComingSoon?'style="opacity:.65"':''} title="${isComingSoon?a.label+' — 開發中':accessible?a.label:a.label+' — 尚未加購'}">
-      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">${a.navIcon}</svg>${a.label}${badge}</button>`;
-  });
-  // 商店入口（永遠可點）
+  // 商店入口永遠在第一個
   const storeActive = activeBefore==='addon-store';
-  html += `<button data-tab="addon-store" class="${storeActive?'active':''}" title="瀏覽加購模組">
-    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 6h18M3 12h18M3 18h18"/></svg>瀏覽模組商店</button>`;
+  html += `<button data-tab="addon-store" class="${storeActive?'active':''}" title="瀏覽所有加購模組">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>模組商店</button>`;
+  // 只顯示已擁有的模組（未擁有 / 開發中 → 在商店內查看）
+  addonEntries.forEach(([key, a]) => {
+    const owned = hasAddon(key) || (a.featureKey && canAccess(a.featureKey));
+    if (!owned) return;  // 未擁有的不顯示在 nav
+    const isActive = key === activeBefore;
+    html += `<button data-tab="${key}" class="${isActive?'active':''}" title="${a.label}">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">${a.navIcon}</svg>${a.label}</button>`;
+  });
 
   nav.innerHTML = html;
 }
@@ -698,7 +692,7 @@ const Store = {
         this.mode='cloud';
         const { data } = await sb.auth.getSession();
         session = data.session;
-        sb.auth.onAuthStateChange(async (e,s)=>{ session=s; if(e==='PASSWORD_RECOVERY') pwRecovery=true; renderCloudArea(); if(s){ await fetchFeatures(); renderNav(); await Store.loadAll(); renderAll(); } else { allowedFeatures=['dash','flow','balance','goals','children','purchases','postal','pension','insurance','portfolio','report','settings']; currentPlan='local'; renderNav(); } });
+        sb.auth.onAuthStateChange(async (e,s)=>{ session=s; if(e==='PASSWORD_RECOVERY') pwRecovery=true; renderCloudArea(); if(s){ await fetchFeatures(); renderNav(); await Store.loadAll(); renderAll(); } else { allowedFeatures=['dash','flow','balance','goals','report','settings']; currentPlan='free'; allowedAddons=[]; closeUpgradeModal(); syncPrintBtn(); renderAll(); } });
       }catch(err){ console.error('Supabase 載入失敗，改用本地模式',err); this.mode='local'; }
     }
   },
@@ -2490,36 +2484,69 @@ function renderStartup(){
   // 讓 onclick 能呼叫到
   window.su_update = su_update;
 }
-
-// ── 加購模組商店 ─────────────────────────────────────────────
+// ── 加購模組商店（重新設計：三個區塊）────────────────────────
 function renderAddonStore(){
   const body=document.getElementById('addon-store-body'); if(!body) return;
-  const cards=Object.entries(ADDON_REGISTRY).map(([key,a])=>{
-    const owned=hasAddon(key);
-    return `<div class="card" style="margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
-        <div>
-          <div style="font-weight:700;font-size:17px">${a.icon} ${a.label}</div>
-          <div style="color:var(--muted);font-size:13px;margin-top:4px">${a.description}</div>
-          <div style="margin-top:8px;font-size:13px">
-            ${a.price_onetime?`買斷價：<b>${fmtMoney(a.price_onetime)}</b>（一次購買、永久使用）`:'隨方案解鎖'}
-          </div>
-        </div>
-        ${owned
-          ? `<span class="badge ok" style="font-size:13px;padding:6px 14px;flex-shrink:0">✅ 已啟用</span>`
-          : `<button class="btn btn-primary" style="flex-shrink:0" onclick="window.open('mailto:contact@example.com?subject=加購${encodeURIComponent(a.label)}&body=請幫我開通「${encodeURIComponent(a.label)}」模組，感謝。')">聯絡購買</button>`
-        }
-      </div>
-    </div>`;
-  }).join('');
-  body.innerHTML=`
-    <div class="card" style="background:var(--surface-2)">
-      <h2 style="font-size:15px">如何加購</h2>
-      <p class="hint" style="margin:0">加購模組為一次買斷，付款確認後由管理員手動開通（通常 1 個工作天內）。開通後重新登入即可使用，購買紀錄綁定你的帳號。</p>
-    </div>
-    ${cards}
-    <p class="hint">有其他需求或想法？歡迎 <a href="mailto:contact@example.com">來信討論</a>。</p>`;
+  const pc=PAYMENT_CONFIG;
+  const fmtNT=n=>'NT$'+n.toLocaleString();
+  const followUrl=(siteConfigArr||[]).find(r=>r.key==='site.newsletter_url')?.value||'';
+  const isPaidPlan=currentPlan==='full'||currentPlan==='subscription';
+
+  const owned=[],available=[],comingSoon=[];
+  Object.entries(ADDON_REGISTRY).forEach(([key,a])=>{
+    const isOwned=hasAddon(key)||(a.featureKey&&canAccess(a.featureKey));
+    if(a.status==='coming_soon') comingSoon.push([key,a]);
+    else if(isOwned) owned.push([key,a]);
+    else available.push([key,a]);
+  });
+
+  const card=(key,a,state)=>{
+    const isOwned=state==='owned', isCS=state==='coming_soon';
+    const badge=isOwned
+      ? '<span style="background:#e0f0e8;color:var(--primary);font-size:11px;padding:3px 10px;border-radius:99px;font-weight:700">✅ 已啟用</span>'
+      : isCS
+      ? '<span style="background:var(--accent-soft);color:var(--accent);font-size:11px;padding:3px 10px;border-radius:99px;font-weight:700">🔨 開發中</span>'
+      : '<span style="font-weight:700;color:var(--primary);font-size:16px">'+fmtNT(a.price_onetime)+' <span style="font-size:11px;font-weight:400;color:var(--muted)">買斷</span></span>';
+    const btn=isOwned
+      ? '<button class="btn" data-nav-addon="'+key+'">進入使用</button>'
+      : isCS
+      ? (followUrl?'<a class="btn" href="'+followUrl+'" target="_blank" rel="noopener">🔔 追蹤更新</a>':'')
+      : '<button class="btn btn-primary" data-nav-addon="'+key+'">加購此模組</button>';
+    return '<div class="card" style="display:flex;align-items:flex-start;gap:14px;padding:16px 20px;margin-bottom:10px">'
+      +'<div style="font-size:32px;flex-shrink:0">'+a.icon+'</div>'
+      +'<div style="flex:1"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px"><b style="font-size:15px">'+a.label+'</b>'+badge+'</div>'
+      +'<div style="color:var(--muted);font-size:13px;margin-bottom:10px">'+a.description+'</div>'+btn+'</div></div>';
+  };
+
+  const loginNotice=!session
+    ? '<div class="card" style="background:var(--surface-2);text-align:center;padding:16px"><p style="margin:0 0 10px;color:var(--muted);font-size:13px">請先<b>登入帳號</b>才能購買加購模組</p><button class="btn btn-primary" onclick="goToLogin()">前往登入 / 註冊</button></div>'
+    : !isPaidPlan
+    ? '<div class="card" style="background:var(--accent-soft);border:1px solid var(--accent);padding:14px 18px"><b>💡 加購前需先有完整版或訂閱制方案</b><p style="color:var(--muted);font-size:13px;margin:6px 0 10px">加購模組是付費方案的延伸功能。</p><button class="btn btn-primary" onclick="showPaymentUpgrade()">升級方案 →</button></div>'
+    : '';
+
+  body.innerHTML=
+    (loginNotice?loginNotice+'<div style="margin-bottom:16px"></div>':'')
+    +(owned.length?'<h2 style="margin:0 0 10px;font-size:15px">✅ 已擁有的模組</h2>'+owned.map(([k,a])=>card(k,a,'owned')).join('')+'<div style="margin-bottom:16px"></div>':'')
+    +(available.length?'<h2 style="margin:0 0 10px;font-size:15px">🧩 可加購的模組</h2>'+available.map(([k,a])=>card(k,a,'available')).join('')+'<div style="margin-bottom:16px"></div>':'')
+    +(comingSoon.length?'<h2 style="margin:0 0 10px;font-size:15px">🔨 即將推出</h2>'+comingSoon.map(([k,a])=>card(k,a,'coming_soon')).join(''):'')
+    +'<p class="hint" style="margin-top:16px;text-align:center">有功能建議？歡迎 <a href="mailto:'+pc.contact_email+'">來信告訴我們</a>。</p>';
 }
+
+function navToAddon(key){
+  const a=ADDON_REGISTRY[key]; if(!a) return;
+  document.querySelectorAll('.section').forEach(s=>s.classList.toggle('show',s.id===a.sectionId));
+  if(a.status==='coming_soon'){ renderComingSoon(key); return; }
+  const owned=hasAddon(key)||(a.featureKey&&canAccess(a.featureKey));
+  if(owned){ a.render(); return; }
+  const body=document.getElementById(key+'-body');
+  if(body) body.innerHTML=upgradeCard(key);
+}
+window.navToAddon=navToAddon;
+// 商店卡片按鈕（用 data-nav-addon 避免字串引號問題）
+document.addEventListener('click',e=>{
+  const btn=e.target.closest('[data-nav-addon]'); if(!btn) return;
+  navToAddon(btn.dataset.navAddon);
+});
 
 function renderAll(){
   mcCache=null;
@@ -2648,9 +2675,12 @@ document.getElementById('nav').addEventListener('click',e=>{
   if(addonDef){
     document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b===btn));
     document.querySelectorAll('.section').forEach(s=>s.classList.toggle('show', s.id==='tab-'+tab));
+    // coming_soon：無論有沒有購買，一律顯示「開發中」頁
+    if(addonDef.status==='coming_soon'){ renderComingSoon(tab); return; }
+    // 已購買（或舊完整版用戶有 featureKey）：進入功能
     const owned = hasAddon(tab) || (addonDef.featureKey && canAccess(addonDef.featureKey));
-    if(addonDef.status==='coming_soon' || owned){ addonDef.render(); return; }
-    // 未購買且非開發中 → 升級提示
+    if(owned){ addonDef.render(); return; }
+    // 未購買且非開發中 → 兩道牆升級提示
     const body=document.getElementById(tab+'-body');
     if(body) body.innerHTML=upgradeCard(tab);
     return;
