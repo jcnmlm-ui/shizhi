@@ -2642,6 +2642,21 @@ function renderAnnualCashflow(){
 document.getElementById('nav').addEventListener('click',e=>{
   const btn=e.target.closest('button[data-tab]'); if(!btn) return;
   const tab=btn.dataset.tab;
+
+  // ① 加購模組優先處理（在 canAccess 之前，否則 coming_soon 也會被攔截）
+  const addonDef = ADDON_REGISTRY[tab];
+  if(addonDef){
+    document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b===btn));
+    document.querySelectorAll('.section').forEach(s=>s.classList.toggle('show', s.id==='tab-'+tab));
+    const owned = hasAddon(tab) || (addonDef.featureKey && canAccess(addonDef.featureKey));
+    if(addonDef.status==='coming_soon' || owned){ addonDef.render(); return; }
+    // 未購買且非開發中 → 升級提示
+    const body=document.getElementById(tab+'-body');
+    if(body) body.innerHTML=upgradeCard(tab);
+    return;
+  }
+
+  // ② 一般功能 feature flag 檢查
   if(!canAccess(tab)){
     document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b===btn));
     document.querySelectorAll('.section').forEach(s=>s.classList.toggle('show', s.id==='tab-'+tab));
@@ -2649,6 +2664,7 @@ document.getElementById('nav').addEventListener('click',e=>{
     if(body) body.innerHTML=upgradeCard(tab);
     return;
   }
+
   document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b===btn));
   document.querySelectorAll('.section').forEach(s=>s.classList.toggle('show', s.id==='tab-'+tab));
   if(tab==='dash') updateChart();
@@ -2657,20 +2673,10 @@ document.getElementById('nav').addEventListener('click',e=>{
   if(tab==='portfolio') renderPortfolio(portfolioSel);
   if(tab==='children') renderChildren();
   if(tab==='purchases') renderPurchases();
-  if(tab==='postal') renderPostal();
   if(tab==='pension') renderPension();
   if(tab==='insurance') renderInsurance();
   if(tab==='snapshots') renderSnapshots();
   if(tab==='addon-store') renderAddonStore();
-  const addonDef = ADDON_REGISTRY[tab];
-  if(addonDef) {
-    const owned = hasAddon(tab) || (addonDef.featureKey && canAccess(addonDef.featureKey));
-    if(addonDef.status==='coming_soon' || owned) { addonDef.render(); return; }
-    // 未購買且非開發中 → 升級提示
-    const body=document.getElementById(tab+'-body');
-    if(body) body.innerHTML=upgradeCard(tab);
-    return;
-  }
 });
 
 // ── PDF 付費牆：同步列印按鈕狀態 ───────────────────────────────
