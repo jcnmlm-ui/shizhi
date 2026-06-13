@@ -425,6 +425,11 @@
   </main>
 </div>
 
+<!-- 付費升級 Modal -->
+<div id="upgrade-modal" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(27,38,32,.45);align-items:center;justify-content:center;padding:20px">
+  <div id="upgrade-modal-inner" style="background:var(--surface);border-radius:18px;padding:32px;width:100%;max-width:500px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 48px rgba(27,38,32,.28)"></div>
+</div>
+
 <script>
 /* =========================================================================
    時值 · 人生財務面板
@@ -435,6 +440,17 @@
 /* ===== ① Supabase 設定（之後貼上即可啟用雲端，現在留空＝本地模式） ===== */
 const SUPABASE_URL = "https://haxfwofjrfkjwestfzvk.supabase.co";        // ← Project URL
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhheGZ3b2ZqcmZrandlc3RmenZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NTg2NzQsImV4cCI6MjA5NjIzNDY3NH0.j-mo1J0D-xDmsLb1sTBjthKHXMJVu1Y_bj5akCKE07w";   // ← anon / publishable key（可公開）
+
+// ── 付款方式設定（請填入你的帳戶資訊）──────────────────────────
+const PAYMENT_CONFIG = {
+  bank_name:    '台灣銀行',            // 銀行名稱
+  bank_code:    '004',                 // 銀行代碼
+  account_no:   '請填入完整帳號',      // 帳號（顯示給用戶匯款用）
+  account_name: '請填入戶名',          // 戶名
+  price_full:   1500,                  // 完整版買斷（NT$）
+  price_sub:    299,                   // 訂閱制月費（NT$）
+  contact_email:'contact@example.com', // 聯絡/問題信箱
+};
 
 /* ===== 功能旗標（Feature Flags） ===== */
 let allowedFeatures = [
@@ -455,6 +471,7 @@ async function fetchFeatures(){
     if(Array.isArray(data.features)) allowedFeatures = data.features;
     if(data.plan) currentPlan = data.plan;
     if(Array.isArray(data.addons)) allowedAddons = data.addons;   // ← 新增
+    syncPrintBtn();
   } catch(e) { console.warn('fetchFeatures 失敗，維持預設', e); }
 }
 
@@ -889,9 +906,29 @@ function purchaseScheduleAnnual(years){
 /* ===== 勞保 / 勞退 / 保險 ===== */
 const laborOn   = () => Number(state.settings.li_on)>0;
 const laborPenOn= () => Number(state.settings.lp_on)>0;
+// 勞保增減給提示標籤（獨立函式，避免在 template literal 中使用 IIFE 造成括號失衡）
+function liAdjBadge(claimAge){
+  const adj=laborInsAdjustFactor(), diff=claimAge-65;
+  const c=diff<0?'var(--danger)':diff>0?'var(--primary)':'var(--muted)';
+  const label=diff<0?'提前 '+Math.abs(diff)+' 年 → 月年金 ×'+(adj*100).toFixed(0)+'%（−'+Math.abs(diff)*4+'%）':
+              diff>0?'延後 '+diff+' 年 → 月年金 ×'+(adj*100).toFixed(0)+'%（+'+diff*4+'%）':
+              '法定年齡請領，不增減';
+  return '<div style="margin:6px 0 2px;padding:8px 12px;border-radius:8px;background:var(--surface-2);font-size:13px;color:'+c+'">📌 '+label+'</div>';
+}
+// 法定請領年齡 65（簡化；實際因出生年不同而異）
+// 提前請領(60–64)：每提前一年減 4%（最多 -20%）
+// 延後請領(66–70)：每延後一年增 4%（最多 +20%）
+function laborInsAdjustFactor(){
+  const claimAge=laborInsClaimAge(), stdAge=65;
+  const diff=claimAge-stdAge;
+  if(diff<0) return Math.max(0.80, 1+diff*0.04);   // 提前：-4%/年
+  if(diff>0) return Math.min(1.20, 1+diff*0.04);   // 延後：+4%/年
+  return 1.0;
+}
 function laborInsMonthly(){ if(!laborOn()) return 0;
   const sal=Math.min(LABOR_SALARY_CAP, Number(state.settings.li_salary)||0), y=Math.max(0,Number(state.settings.li_years)||0);
-  return Math.max(sal*y*0.0155, sal*y*0.00775+3000); }      // 兩式取高
+  const base=Math.max(sal*y*0.0155, sal*y*0.00775+3000);
+  return base * laborInsAdjustFactor(); }      // 加入增減給係數
 function laborInsAnnual(){ return laborInsMonthly()*12; }
 function laborInsClaimAge(){ return Math.round(Number(state.settings.li_age)||65); }
 // 勞退個人專戶在「退休當年」的帳戶價值（雇主6%＋自提，按報酬複利）
@@ -904,6 +941,12 @@ function laborPenAccrued(){ if(!laborPenOn()) return 0;
   const fvBal=(Number(s.lp_bal)||0)*Math.pow(1+r,years);
   const fvContrib=Math.abs(rm)<1e-9 ? monthly*n : monthly*((Math.pow(1+rm,n)-1)/rm);
   return fvBal+fvContrib; }
+// 勞退自提月扣款（僅員工自提部分影響現金流；雇主6%不影響薪資）
+function laborPenSelfContribMonthly(){ if(!laborPenOn()) return 0;
+  const s=state.settings;
+  const wage=Math.min(LABOR_PENSION_WAGE_CAP, Number(s.lp_wage)||0);
+  const selfRate=Math.max(0,Math.min(0.06,Number(s.lp_self)||0));
+  return wage*selfRate; }
 // 勞退估算月退（簡化：帳戶 ÷ 退休至平均餘命的月數）
 function laborPenMonthly(){ const s=state.settings; const months=Math.max(1,(Math.round(Number(s.life_expectancy))-Math.round(Number(s.retirement_age)))*12); return laborPenAccrued()/months; }
 
@@ -942,7 +985,8 @@ function projection(real, ovrRet, ovrInfl, dRet){
     const pension = (age>=laborInsClaimAge()) ? laborInsAnnual() : 0;
     const expense = aExpense*Math.pow(1+infl,t);
     const dOut = (debt[t]||0) + (pur.inst[t]||0) + (pur.down[t]||0); // 負債還款 + 分期金 + 頭期款（名目固定）
-    cash += (income + pension - expense - dOut);    // 1) 當年結餘進入現金池
+    const selfPen = working ? laborPenSelfContribMonthly()*12 : 0;    // 勞退自提（工作期才扣）
+    cash += (income + pension - expense - dOut - selfPen);            // 1) 當年結餘進入現金池
     const invAmt = working ? Math.min(annualInvest, Math.max(0, cash)) : 0; // 2) 定期定額（工作期、以現金為限）
     cash -= invAmt; fresh += invAmt;
     hold *= (1+rHold); fresh *= (1+rPort);          // 3) 既有部位、定期投入分別複利（現金 0%）
@@ -965,10 +1009,24 @@ function retirementTarget(real){
 // 各資產類別長期年化波動率（標準差）假設值
 const DEFAULT_ASSET_VOLS = { stock:0.18, bond:0.07, reit:0.15, gold:0.16, cash:0.01 };
 
-// 依目前投資配置的加權平均波動率（簡化版，不計相關係數 → 偏保守估計）
+// 資產間長期相關係數（簡化版；股債負相關是最關鍵的分散效果）
+const ASSET_CORR = {
+  stock:{ stock:1.00, bond:-0.15, reit:0.65, gold:0.05, cash:0.00 },
+  bond: { stock:-0.15,bond: 1.00, reit:0.10, gold:0.10, cash:0.05 },
+  reit: { stock:0.65, bond: 0.10, reit:1.00, gold:0.05, cash:0.00 },
+  gold: { stock:0.05, bond: 0.10, reit:0.05, gold:1.00, cash:0.00 },
+  cash: { stock:0.00, bond: 0.05, reit:0.00, gold:0.00, cash:1.00 },
+};
+
+// 投資組合年化波動率：σ_p = √(Σᵢ Σⱼ wᵢ wⱼ σᵢ σⱼ ρᵢⱼ)
+// 考慮相關係數後，分散效果使組合波動率低於加權平均（尤其股債混合時）
 function pfVolatility(){
-  const w=pfWeights();
-  return PF_CLASSES.reduce((s,k)=>s+w[k]*DEFAULT_ASSET_VOLS[k], 0);
+  const w=pfWeights(), v=DEFAULT_ASSET_VOLS;
+  let variance=0;
+  for(const i of PF_CLASSES)
+    for(const j of PF_CLASSES)
+      variance += w[i]*w[j]*v[i]*v[j]*ASSET_CORR[i][j];
+  return Math.sqrt(Math.max(0, variance));
 }
 
 // Box-Muller：產生標準常態亂數
@@ -992,6 +1050,7 @@ function runMonteCarlo(N=800){
   const initCash=projAssets.filter(a=> a.is_liquid).reduce((x,a)=>x+Number(a.value||0),0);
   const debt=debtScheduleAnnual(span), pur=purchaseScheduleAnnual(span);
   const labPen=laborPenAccrued(), labAnn=laborInsAnnual(), labAge=laborInsClaimAge();
+  const selfPenAnnual=laborPenSelfContribMonthly()*12;
 
   // allVals[t] = Float32Array(N) — 記每個模擬在第 t 年的總資產
   const allVals=Array.from({length:span},()=>new Float32Array(N));
@@ -1008,7 +1067,8 @@ function runMonteCarlo(N=800){
       const pension=age>=labAge?labAnn:0;
       const expense=aExpense*Math.pow(1+infl,t);
       const dOut=(debt[t]||0)+(pur.inst[t]||0)+(pur.down[t]||0);
-      cash+=(income+pension-expense-dOut);
+      const sp=working?selfPenAnnual:0;
+      cash+=(income+pension-expense-dOut-sp);
       const invAmt=working?Math.min(annualInvest,Math.max(0,cash)):0;
       cash-=invAmt; fresh+=invAmt;
       // 該年報酬：均值=baseRet，σ=pfVolatility()，最差不低於 -80%
@@ -1056,7 +1116,7 @@ function renderMC(){
         <div style="font-size:12px;color:var(--muted);margin-top:2px">${pctLabel}</div></div>
       <div class="rep-kpi"><div class="l">50th 退休資產（中位數）</div><div class="v">${fmtV(mc.p50[mc.ret-mc.ages[0]])}</div></div>
       <div class="rep-kpi"><div class="l">模擬波動率（σ）</div><div class="v">${(mc.sigma*100).toFixed(1)}%</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:2px">依投資配置加權估算</div></div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">依投資配置＋相關係數計算</div></div>
     </div>
     <p class="hint" style="margin:4px 0 10px">圖表顯示 ${mc.N} 次模擬的資產分佈扇形：<span style="display:inline-block;width:28px;height:4px;background:rgba(30,107,80,.3);vertical-align:middle;border-radius:2px"></span> 5%–95% 範圍　<span style="display:inline-block;width:28px;height:4px;background:rgba(30,107,80,.55);vertical-align:middle;border-radius:2px"></span> 25%–75% 中段　<b style="color:#1E6B50">—</b> 中位數。每次模擬各年的報酬均來自常態分佈（均值 ${(mc.baseRet*100).toFixed(1)}%、σ ${(mc.sigma*100).toFixed(1)}%），反映真實波動與順序風險。</p>
     <div style="height:280px;position:relative"><canvas id="mcChart"></canvas></div>
@@ -1954,19 +2014,20 @@ function renderPension(){
   body.innerHTML=`
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-      <div><h2 style="border:0;margin:0">勞保老年年金</h2><p class="hint" style="margin:4px 0 0">勞保局兩式擇優：月年金 = 平均月投保薪資 × 年資 × 1.55%（或 ×0.775%＋3,000）。投保薪資上限 ${fmtMoney(LABOR_SALARY_CAP).replace('NT$','')}；法定請領年齡 65。</p></div>
+      <div><h2 style="border:0;margin:0">勞保老年年金</h2><p class="hint" style="margin:4px 0 0">勞保局兩式擇優：月年金 = 平均月投保薪資 × 年資 × 1.55%（或 ×0.775%＋3,000）。投保薪資上限 ${fmtMoney(LABOR_SALARY_CAP).replace('NT$','')}；法定請領年齡 65 歲；提前請領（60–64）每提前 1 年減 4%；延後請領（66–70）每延後 1 年增 4%。</p></div>
       ${sw('li_on',liOn)}
     </div>
     <div class="cgrid" style="margin-top:10px">
       <div class="cfield"><label>平均月投保薪資（上限 45,800）</label><input type="number" data-setting="li_salary" value="${Number(s.li_salary)||0}"></div>
       <div class="cfield"><label>退休時投保年資（年）</label><input type="number" data-setting="li_years" value="${yrs}"></div>
-      <div class="cfield"><label>請領年齡</label><input type="number" data-setting="li_age" value="${claim}"></div>
+      <div class="cfield"><label>請領年齡（60–70）</label><input type="number" min="60" max="70" data-setting="li_age" value="${claim}"></div>
     </div>
+    ${liAdjBadge(claim)}
     <div class="cgrid2" style="margin-top:8px">
-      <div class="rep-kpi"><div class="l">每月可領（估）</div><div class="v" style="font-size:18px">${fmtMoney(liM)}</div></div>
+      <div class="rep-kpi"><div class="l">每月可領（含增減給）</div><div class="v" style="font-size:18px">${fmtMoney(liM)}</div></div>
       <div class="rep-kpi"><div class="l">每年可領</div><div class="v" style="font-size:18px">${fmtMoney(liA)}</div></div>
       <div class="rep-kpi"><div class="l">採用公式</div><div class="v" style="font-size:15px">${f1>=f2?'1.55% 式':'0.775%+3000 式'}</div></div>
-      <div class="rep-kpi"><div class="l">幾歲起領</div><div class="v" style="font-size:18px">${claim} 歲</div></div>
+      <div class="rep-kpi"><div class="l">增減給係數</div><div class="v" style="font-size:18px">${(laborInsAdjustFactor()*100).toFixed(0)}%</div></div>
     </div>
   </div>
   <div class="card">
@@ -1981,18 +2042,18 @@ function renderPension(){
       <div class="cfield"><label>帳戶預估年化報酬</label><input type="number" step="0.1" data-setting="lp_ret" data-pct="true" value="${(Number(s.lp_ret)||0)*100}"></div>
     </div>
     <div class="cgrid2" style="margin-top:8px">
-      <div class="rep-kpi"><div class="l">每月共提繳</div><div class="v" style="font-size:18px">${fmtMoney(monthlyContrib)}</div></div>
+      <div class="rep-kpi"><div class="l">每月共提繳（雇主＋自提）</div><div class="v" style="font-size:18px">${fmtMoney(monthlyContrib)}</div></div>
+      <div class="rep-kpi"><div class="l">其中自提（月扣薪資）</div><div class="v" style="font-size:18px">${fmtMoney(laborPenSelfContribMonthly())}</div></div>
       <div class="rep-kpi"><div class="l">退休時帳戶價值（估）</div><div class="v" style="font-size:18px">${fmtMoney(acc)}</div></div>
       <div class="rep-kpi"><div class="l">估算每月可領</div><div class="v" style="font-size:18px">${fmtMoney(lpM)}</div></div>
-      <div class="rep-kpi"><div class="l">月退領至</div><div class="v" style="font-size:15px">平均餘命</div></div>
     </div>
   </div>
   <div class="card" style="background:var(--surface-2)">
     <h2 style="font-size:16px">這會如何影響你的規劃？</h2>
     <p class="hint" style="margin:0">啟用後，兩者會自動計入「儀表板」時間軸與「建議報告／投資配置」的退休推估：<br><br>
-    ·<b>勞退</b>：退休當年帳戶價值（${fmtMoney(acc)}）一次併入你的資產，<b>墊高退休時資產、降低達標所需報酬</b>。<br>
-    ·<b>勞保年金</b>：從 ${claim} 歲起每年 ${fmtMoney(liA)} 計入退休後收入，<b>減緩老年資產下降、延長可用年數</b>。<br><br>
-    說明：估算為簡化模型（勞退月退以「帳戶÷平均餘命月數」概算、未計年金利率；勞保採兩式擇優、未計提前/延後請領增減給）。投保薪資與提繳工資已分別套用 45,800 / 150,000 上限。所有數字僅供參考，實際以勞保局/勞動部核發為準。</p>
+    ·<b>勞退</b>：退休當年帳戶價值（${fmtMoney(acc)}）一次併入你的資產，<b>墊高退休時資產、降低達標所需報酬</b>。自提部分（每月 ${fmtMoney(laborPenSelfContribMonthly())}）已從工作期可用現金流扣除。<br>
+    ·<b>勞保年金</b>：從 ${claim} 歲起每年 ${fmtMoney(liA)} 計入退休後收入（含增減給係數 ${(laborInsAdjustFactor()*100).toFixed(0)}%），<b>減緩老年資產下降、延長可用年數</b>。<br><br>
+    說明：勞退月退以「帳戶÷平均餘命月數」概算（未計年金給付利率）；勞保採兩式擇優＋提前/延後請領增減給（每年±4%）。投保薪資與提繳工資已套用法定上限。所有數字僅供參考，實際以勞保局/勞動部核發為準。</p>
   </div>`;
 }
 
@@ -2395,6 +2456,7 @@ function renderAddonStore(){
 function renderAll(){
   mcCache=null;
   renderNav();
+  syncPrintBtn();
   Object.keys(SCHEMAS).forEach(renderEntity);
   renderSettings();
   updateSummaries();
@@ -2463,9 +2525,18 @@ function annualFlowMonthly(){
   };
   state.incomes.forEach(it=>add(it,inM));
   state.expenses.forEach(it=>add(it,outM));
-  if(postalOn()){ const pm=postalMonthlyAtYear(0); for(let m=0;m<12;m++) inM[m]+=pm; }
+  if(postalOn()){
+    const pm=postalMonthlyAtYear(0);
+    const bonusM=Number(state.postal.bonus_months)||0;
+    const capM=postalCapMonthsAtYear(0);
+    for(let m=0;m<12;m++) inM[m]+=pm;              // 每月本薪
+    const halfBonus=pm*(bonusM+capM)/2;
+    inM[1]+=halfBonus;                              // 2月（年中獎金）
+    inM[7]+=halfBonus;                              // 8月（年終獎金）
+  }
   const debt=monthlyDebtPayment(); if(debt>0){ for(let m=0;m<12;m++) outM[m]+=debt; }
   const inv=flowIncludeInvest ? (Number(state.settings.monthly_invest)||0) : 0; if(inv>0){ for(let m=0;m<12;m++) outM[m]+=inv; }
+  const selfPen=laborPenSelfContribMonthly(); if(selfPen>0){ for(let m=0;m<12;m++) outM[m]+=selfPen; }
   const net=inM.map((v,i)=>v-outM[i]);
   let minNet=Infinity,minIdx=0; net.forEach((v,i)=>{ if(v<minNet){minNet=v;minIdx=i;} });
   let maxOut=-Infinity,maxOutIdx=0; outM.forEach((v,i)=>{ if(v>maxOut){maxOut=v;maxOutIdx=i;} });
@@ -2528,6 +2599,126 @@ document.getElementById('nav').addEventListener('click',e=>{
   if(addonDef) addonDef.render();
 });
 
+// ── PDF 付費牆：同步列印按鈕狀態 ───────────────────────────────
+function syncPrintBtn(){
+  const btn=document.getElementById('printBtn'); if(!btn) return;
+  if(canAccess('report_export')){
+    btn.textContent='列印 / 另存為 PDF';
+    btn.className='btn primary';
+    btn.title='';
+  } else {
+    btn.textContent='列印 / 另存為 PDF 🔒';
+    btn.className='btn';
+    btn.title='完整版或訂閱制功能';
+  }
+}
+
+// ── 升級 Modal ────────────────────────────────────────────────
+function showPaymentUpgrade(triggerFeature){
+  const modal=document.getElementById('upgrade-modal');
+  const inner=document.getElementById('upgrade-modal-inner');
+  if(!modal||!inner) return;
+  const pc=PAYMENT_CONFIG;
+  const fmtNT=n=>'NT$'+n.toLocaleString();
+  const loggedIn=!!(session&&session.user);
+  const userEmail=session?.user?.email||'';
+
+  inner.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <h2 style="margin:0;font-size:20px">解鎖 PDF 匯出</h2>
+      <button onclick="closeUpgradeModal()" style="border:0;background:none;font-size:22px;cursor:pointer;color:var(--muted)">×</button>
+    </div>
+    <p style="color:var(--muted);margin:0 0 20px">PDF 匯出（列印 / 另存為 PDF）為付費功能。完整報告可在網頁上免費瀏覽；升級後可無限次匯出。</p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px">
+      <div style="border:2px solid var(--primary);border-radius:12px;padding:16px;background:var(--primary-soft)">
+        <div style="font-weight:700;font-size:15px;color:var(--primary)">完整版（買斷）</div>
+        <div style="font-size:22px;font-weight:700;margin:6px 0">${fmtNT(pc.price_full)}</div>
+        <div style="font-size:12px;color:var(--muted)">一次付款、永久使用<br>所有進階模組全開</div>
+      </div>
+      <div style="border:1px solid var(--line-2);border-radius:12px;padding:16px">
+        <div style="font-weight:700;font-size:15px">訂閱制</div>
+        <div style="font-size:22px;font-weight:700;margin:6px 0">${fmtNT(pc.price_sub)}<span style="font-size:13px;font-weight:400">/月</span></div>
+        <div style="font-size:12px;color:var(--muted)">歷史快照 + 所有進階模組<br>可隨時取消</div>
+      </div>
+    </div>
+
+    <div style="background:var(--surface-2);border-radius:12px;padding:16px;margin-bottom:20px">
+      <div style="font-weight:700;margin-bottom:10px">💳 匯款資訊</div>
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:14px">
+        <span style="color:var(--muted)">銀行</span><span>${pc.bank_code} ${pc.bank_name}</span>
+        <span style="color:var(--muted)">帳號</span><span style="font-weight:600;font-family:monospace">${pc.account_no}</span>
+        <span style="color:var(--muted)">戶名</span><span>${pc.account_name}</span>
+      </div>
+    </div>
+
+    ${loggedIn ? `
+    <div>
+      <div style="font-weight:700;margin-bottom:12px">📝 匯款完成後，填寫以下資訊</div>
+      <div style="display:grid;gap:10px;margin-bottom:14px">
+        <div class="field"><label>Email（帳號）</label><input id="pay-email" type="email" value="${escapeHtml(userEmail)}" placeholder="your@email.com"></div>
+        <div class="field"><label>欲升級方案</label>
+          <select id="pay-plan">
+            <option value="full">完整版（買斷，${fmtNT(pc.price_full)}）</option>
+            <option value="subscription">訂閱制（${fmtNT(pc.price_sub)}/月）</option>
+          </select>
+        </div>
+        <div class="field"><label>匯款末五碼</label><input id="pay-last5" type="text" maxlength="5" placeholder="例：12345" style="letter-spacing:.1em;font-family:monospace;font-size:16px"></div>
+        <div class="field"><label>匯款金額（NT$）</label><input id="pay-amount" type="number" placeholder="例：1500"></div>
+        <div class="field"><label>備註（選填）</label><input id="pay-note" type="text" placeholder="例：ATM 匯款 / 台新銀行"></div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button class="btn primary" onclick="submitPaymentRequest()" style="flex:1">送出驗證申請</button>
+      </div>
+      <p id="pay-msg" style="margin:8px 0 0;font-size:13px"></p>
+    </div>` : `
+    <div style="text-align:center;padding:10px 0">
+      <p style="color:var(--muted);margin:0 0 14px">請先登入帳號再送出匯款申請</p>
+      <button class="btn primary" onclick="closeUpgradeModal();document.querySelector('[data-tab=settings]').click()">前往登入</button>
+    </div>`}
+
+    <p style="color:var(--faint);font-size:11px;margin:16px 0 0;text-align:center">
+      送出後通常於 1 個工作天內開通；如有問題請聯絡
+      <a href="mailto:${pc.contact_email}">${pc.contact_email}</a>
+    </p>`;
+
+  modal.style.display='flex';
+  document.body.style.overflow='hidden';
+}
+
+function closeUpgradeModal(){
+  const modal=document.getElementById('upgrade-modal');
+  if(modal){ modal.style.display='none'; document.body.style.overflow=''; }
+}
+// 點 modal 背景關閉
+document.getElementById('upgrade-modal').addEventListener('click', e=>{
+  if(e.target===e.currentTarget) closeUpgradeModal();
+});
+
+async function submitPaymentRequest(){
+  if(!sb||!session){ alert('請先登入帳號'); return; }
+  const email=document.getElementById('pay-email')?.value.trim();
+  const plan=document.getElementById('pay-plan')?.value;
+  const last5=(document.getElementById('pay-last5')?.value||'').trim();
+  const amount=document.getElementById('pay-amount')?.value;
+  const note=document.getElementById('pay-note')?.value.trim();
+  const msg=document.getElementById('pay-msg');
+  if(!email||!last5){ if(msg){msg.textContent='請填寫 Email 與匯款末五碼'; msg.style.color='var(--danger)';} return; }
+  if(!/^\d{5}$/.test(last5)){ if(msg){msg.textContent='末五碼須為 5 位數字'; msg.style.color='var(--danger)';} return; }
+  const submitBtn=document.querySelector('#upgrade-modal-inner .btn.primary');
+  if(submitBtn){ submitBtn.disabled=true; submitBtn.textContent='送出中…'; }
+  const payload={ user_id:session.user.id, email, plan_requested:plan, last5, note:note||null };
+  if(amount) payload.amount=parseFloat(amount)||null;
+  const { error } = await sb.from('fp_payment_requests').insert(payload);
+  if(submitBtn){ submitBtn.disabled=false; submitBtn.textContent='送出驗證申請'; }
+  if(error){
+    if(msg){msg.textContent='送出失敗：'+error.message; msg.style.color='var(--danger)';}
+  } else {
+    if(msg){msg.textContent='✅ 申請已送出！通常 1 個工作天內開通，開通後請重新登入或重新整理。'; msg.style.color='var(--primary)';}
+    document.getElementById('pay-last5').value='';
+    document.getElementById('pay-amount').value='';
+  }
+}
 function upgradeCard(tab){
   const addonDef=ADDON_REGISTRY[tab];
   if(addonDef){
@@ -2760,7 +2951,10 @@ document.getElementById('flowInvestToggle').addEventListener('click',e=>{
   e.target.textContent= flowIncludeInvest? '定期定額：計入' : '定期定額：不計入';
   renderCashflow(); updateSummaries();
 });
-document.getElementById('printBtn').addEventListener('click',()=>window.print());
+document.getElementById('printBtn').addEventListener('click',()=>{
+  if(canAccess('report_export')) window.print();
+  else showPaymentUpgrade('report_export');
+});
 
 // 資料管理
 document.getElementById('exportBtn').onclick=()=>{
