@@ -443,13 +443,14 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 // ── 付款方式設定（請填入你的帳戶資訊）──────────────────────────
 const PAYMENT_CONFIG = {
-  bank_name:    '台灣銀行',            // 銀行名稱
-  bank_code:    '004',                 // 銀行代碼
-  account_no:   '請填入完整帳號',      // 帳號（顯示給用戶匯款用）
-  account_name: '請填入戶名',          // 戶名
-  price_full:   1500,                  // 完整版買斷（NT$）
-  price_sub:    299,                   // 訂閱制月費（NT$）
-  contact_email:'contact@example.com', // 聯絡/問題信箱
+  bank_name:     '台灣銀行',            // 銀行名稱
+  bank_code:     '004',                 // 銀行代碼
+  account_no:    '請填入完整帳號',      // 帳號（顯示給用戶匯款用）
+  account_name:  '請填入戶名',          // 戶名
+  price_full:    1500,                  // 完整版買斷（NT$）
+  price_sub:     299,                   // 訂閱制月費（NT$）
+  contact_email: 'contact@example.com', // 聯絡/問題信箱
+  response_time: '1 個工作天',          // 開通回應時間說明
 };
 
 /* ===== 功能旗標（Feature Flags） ===== */
@@ -2678,7 +2679,7 @@ function showPaymentUpgrade(triggerFeature){
     </div>`}
 
     <p style="color:var(--faint);font-size:11px;margin:16px 0 0;text-align:center">
-      送出後通常於 1 個工作天內開通；如有問題請聯絡
+      送出後通常於 <b>${pc.response_time||'1 個工作天'}</b> 內開通；如有問題請聯絡
       <a href="mailto:${pc.contact_email}">${pc.contact_email}</a>
     </p>`;
 
@@ -2977,8 +2978,34 @@ document.getElementById('resetBtn').onclick=()=>{
 };
 
 /* ============================ 啟動 ============================ */
+// 從 fp_site_config 載入站點設定（公開可讀，不需登入）
+async function loadSiteConfig(){
+  if(!SUPABASE_URL||!SUPABASE_ANON_KEY) return;
+  try {
+    const res=await fetch(`${SUPABASE_URL}/rest/v1/fp_site_config?select=key,value`,{
+      headers:{'apikey':SUPABASE_ANON_KEY,'Authorization':'Bearer '+SUPABASE_ANON_KEY}
+    });
+    if(!res.ok) return;
+    const rows=await res.json();
+    if(!Array.isArray(rows)) return;
+    rows.forEach(({key,value})=>{
+      if(!value&&value!=='0') return;
+      // payment.* → PAYMENT_CONFIG
+      if(key==='payment.bank_name')    PAYMENT_CONFIG.bank_name=value;
+      if(key==='payment.bank_code')    PAYMENT_CONFIG.bank_code=value;
+      if(key==='payment.account_no')   PAYMENT_CONFIG.account_no=value;
+      if(key==='payment.account_name') PAYMENT_CONFIG.account_name=value;
+      if(key==='payment.price_full')   PAYMENT_CONFIG.price_full=Number(value)||PAYMENT_CONFIG.price_full;
+      if(key==='payment.price_sub')    PAYMENT_CONFIG.price_sub=Number(value)||PAYMENT_CONFIG.price_sub;
+      if(key==='contact.email')        PAYMENT_CONFIG.contact_email=value;
+      if(key==='contact.response_time')PAYMENT_CONFIG.response_time=value;
+    });
+  } catch(e){ console.warn('站點設定載入失敗，使用預設值', e); }
+}
+
 (async function init(){
   renderNav();          // 先渲染 nav（本地模式預設全開），避免頁面空白
+  await loadSiteConfig(); // 在任何 UI 顯示前載入收款資訊
   await Store.init();
   await Store.loadAll();
   renderAll();
