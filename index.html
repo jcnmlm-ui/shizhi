@@ -412,6 +412,7 @@
 
       <div class="disclaimer">
         免責聲明：本工具為個人財務試算與規劃用途，所有未來金額均為依你輸入之假設所做的估算，並非投資建議或報酬保證。退休/勞保/勞退與稅務僅為簡化估算，實際請以官方規定為準。重大財務決策請諮詢合格專業人士。
+      使用本服務即表示你同意我們的 <a href="terms.html" target="_blank">使用者條款</a> 與 <a href="terms.html#privacy" target="_blank">隱私政策</a>。
       </div>
     </section>
 
@@ -2277,7 +2278,18 @@ function renderCloudArea(){
         <button class="btn primary" id="loginBtn">登入</button>
         <button class="btn" id="signupBtn">註冊</button>
         <button class="btn" id="forgotBtn">忘記密碼</button>
-      </div><div class="authmsg" id="authMsg"></div>`;
+      </div>
+      <div style="margin-top:10px;font-size:13px;line-height:1.8;padding:0 2px">
+        <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer">
+          <input type="checkbox" id="agreeTerms" style="margin-top:3px;flex:0 0 auto;accent-color:var(--primary)">
+          <span>我已閱讀並同意 <a href="terms.html" target="_blank" style="color:var(--primary)">使用者條款</a> 與 <a href="terms.html#privacy" target="_blank" style="color:var(--primary)">隱私政策</a>（註冊必填）</span>
+        </label>
+        <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;margin-top:5px">
+          <input type="checkbox" id="marketingConsent" style="margin-top:3px;flex:0 0 auto;accent-color:var(--primary)">
+          <span style="color:var(--muted)">我同意接收時值的產品更新與優惠通知（選填）</span>
+        </label>
+      </div>
+      <div class="authmsg" id="authMsg"></div>`;
     document.getElementById('loginBtn').onclick=()=>doAuth('in');
     document.getElementById('signupBtn').onclick=()=>doAuth('up');
     document.getElementById('forgotBtn').onclick=doResetPassword;
@@ -2289,8 +2301,14 @@ async function doAuth(kind){
   const password=document.getElementById('authPass').value;
   const msg=document.getElementById('authMsg');
   if(!email||!password){ msg.className='authmsg err'; msg.textContent='請輸入 Email 與密碼'; return; }
+  if(kind==='up' && !document.getElementById('agreeTerms')?.checked){
+    msg.className='authmsg err'; msg.textContent='請先閱讀並同意使用者條款與隱私政策'; return;
+  }
   msg.className='authmsg'; msg.textContent='處理中…';
-  const fn = kind==='in' ? sb.auth.signInWithPassword({email,password}) : sb.auth.signUp({email,password});
+  const marketingConsent = document.getElementById('marketingConsent')?.checked || false;
+  const fn = kind==='in'
+    ? sb.auth.signInWithPassword({email,password})
+    : sb.auth.signUp({email,password,options:{data:{marketing_consent:marketingConsent}}});
   const { error } = await fn;
   if(error){ msg.className='authmsg err'; msg.textContent=error.message; return; }
   msg.className='authmsg ok'; msg.textContent= kind==='up' ? '註冊成功！若需 Email 驗證請至信箱確認後登入。' : '登入成功';
@@ -2812,6 +2830,7 @@ function showPaymentUpgrade(triggerFeature){
       +'<div class="field"><label>匯款金額（NT$）</label><input id="pay-amount" type="number" placeholder="例：'+pc.price_full+'"></div>'
       +'<div class="field"><label>備註（選填）</label><input id="pay-note" type="text" placeholder="例：ATM 匯款 / 台新銀行"></div>'
       +'</div><button class="btn primary" onclick="submitPaymentRequest()" style="width:100%;padding:11px">送出驗證申請</button>'
+      +'<p style="font-size:11.5px;color:var(--faint);margin-top:10px;text-align:center">送出即表示你同意 <a href="terms.html" target="_blank" style="color:var(--primary)">使用者條款</a> 與 <a href="terms.html#privacy" target="_blank" style="color:var(--primary)">隱私政策</a></p>'
       +'<p id="pay-msg" style="margin:8px 0 0;font-size:13px"></p></div>'
     : '<div style="text-align:center;padding:10px 0"><div style="font-size:32px;margin-bottom:10px">🔐</div>'
       +'<p style="color:var(--ink);font-weight:600;margin:0 0 6px">請先登入帳號再送出匯款申請</p>'
