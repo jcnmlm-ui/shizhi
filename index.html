@@ -152,6 +152,18 @@
 
   .disclaimer{margin-top:26px;font-size:11.5px;color:var(--faint);line-height:1.7;border-top:1px solid var(--line);padding-top:16px}
 
+  /* paywall */
+  .paywall-wrap{position:relative;margin-top:20px}
+  .paywall-wrap .paywall-content{pointer-events:none;user-select:none}
+  .paywall-wrap .paywall-content .card+.card{margin-top:20px}
+  .paywall-fade{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(246,242,233,0) 0%,rgba(246,242,233,.55) 18%,rgba(246,242,233,.92) 42%,var(--bg) 68%);pointer-events:none;z-index:1}
+  .paywall-gate{position:absolute;bottom:0;left:0;right:0;z-index:2;display:flex;flex-direction:column;align-items:center;padding:40px 20px 32px;text-align:center}
+  .paywall-gate .pg-icon{font-size:32px;margin-bottom:10px}
+  .paywall-gate .pg-title{font-family:var(--font-display);font-size:22px;font-weight:600;color:var(--ink);margin:0 0 6px}
+  .paywall-gate .pg-sub{font-size:13.5px;color:var(--muted);margin:0 0 20px;max-width:340px;line-height:1.6}
+  .paywall-gate .pg-btn{background:var(--primary);color:#fff;border:none;border-radius:12px;padding:13px 28px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 18px rgba(30,107,80,.28);transition:.15s}
+  .paywall-gate .pg-btn:hover{background:var(--primary-2)}
+
   /* report */
   .rep-meta{font-size:12.5px;color:var(--muted);margin:-6px 0 18px}
   .rep-section{margin-bottom:18px}
@@ -1489,21 +1501,41 @@ function renderReport(){
 
   const recHtml=recs.map(r=>`<div class="rec ${r.level}"><div><div class="rt">${r.title}</div><div class="rd">${r.text}</div></div></div>`).join('');
 
-  document.getElementById('report-body').innerHTML=`
-    <div class="card">
-      <div class="rep-meta">報告產生日期：${today}　·　${Store.mode==='cloud'&&session?escapeHtml(session.user.email):'本地資料'}</div>
-      <h2>一、財務現況體檢</h2>
-      <div class="rep-grid" style="margin-top:12px">
-        ${kpi('淨值', fmtMoney(m.netWorth))}
-        ${kpi('每月結餘', fmtMoney(m.net), m.net<0?'bad':'')}
-        ${kpi('儲蓄率', fmtPct(m.savingsRate), m.savingsRate<0.2?'warn':'')}
-        ${kpi('緊急預備金', m.emMonths.toFixed(1)+' 個月', emCls)}
-        ${kpi('總資產', fmtMoney(m.assets))}
-        ${kpi('總負債', fmtMoney(m.liab))}
-        ${kpi('每月收入', fmtMoney(m.mIncome))}
-        ${kpi('每月支出+還款', fmtMoney(m.mExpense+m.mDebt))}
+  const isFree = currentPlan === 'free';
+
+  const lockedHtml = isFree ? `
+    <div class="paywall-wrap">
+      <div class="paywall-content">
+        <div class="card">
+          <h2>二、退休準備度（三情境）</h2>
+          <p class="hint">以 4% 法則估算退休目標，比較不同報酬假設下 ${base.retAge} 歲退休時的預估資產（名目）。</p>
+          <div class="rep-chart"><canvas id="reportChart"></canvas></div>
+          <table class="rep" style="margin-top:14px">
+            <thead><tr><th>情境</th><th class="n">退休時預估資產</th><th class="n">退休目標</th><th class="n">差額</th></tr></thead>
+            <tbody>${scRows}</tbody>
+          </table>
+        </div>
+        <div class="card">
+          <h2>三、目標可行性與資金分配</h2>
+          <p class="hint">依優先序與年限，把目前每月可投入 ${fmtMoney(Math.max(0,m.net))} 以瀑布式分配給各目標。</p>
+          <table class="rep">
+            <thead><tr><th>目標</th><th class="n">金額</th><th class="n">期望年限</th><th class="n">每月需要</th><th class="n">分配到</th><th class="n">預估達成</th><th>狀態</th></tr></thead>
+            <tbody>${goalRows}</tbody>
+          </table>
+        </div>
+        <div class="card">
+          <h2>四、行動建議</h2>
+          <div class="recs">${recHtml}</div>
+        </div>
       </div>
-    </div>
+      <div class="paywall-fade"></div>
+      <div class="paywall-gate">
+        <div class="pg-icon">🔒</div>
+        <div class="pg-title">解鎖完整財務報告</div>
+        <div class="pg-sub">升級後可查看退休準備度分析、目標可行性、行動建議，以及完整財務體檢報告。</div>
+        <button class="pg-btn" onclick="openUpgradeModal()">立即升級</button>
+      </div>
+    </div>` : `
     <div class="card">
       <h2>二、退休準備度（三情境）</h2>
       <p class="hint">以 4% 法則估算退休目標，比較不同報酬假設下 ${base.retAge} 歲退休時的預估資產（名目）。${useRealReturn()?'已開啟「實際報酬」：既有部位採各資產的預期年報酬、定期投入採投資配置所選模型；此處標示的報酬%為配置基準。':''}</p>
@@ -1524,10 +1556,25 @@ function renderReport(){
     <div class="card">
       <h2>四、行動建議</h2>
       <div class="recs">${recHtml}</div>
-    </div>
-    <div class="disclaimer">
-      本報告由「時值」依你輸入之資料與假設自動產生，所有數字均為估算，並非投資建議或報酬保證；退休/稅務等為簡化試算。重大財務決策請諮詢合格專業人士。
     </div>`;
+
+  document.getElementById('report-body').innerHTML=`
+    <div class="card">
+      <div class="rep-meta">報告產生日期：${today}　·　${Store.mode==='cloud'&&session?escapeHtml(session.user.email):'本地資料'}</div>
+      <h2>一、財務現況體檢</h2>
+      <div class="rep-grid" style="margin-top:12px">
+        ${kpi('淨值', fmtMoney(m.netWorth))}
+        ${kpi('每月結餘', fmtMoney(m.net), m.net<0?'bad':'')}
+        ${kpi('儲蓄率', fmtPct(m.savingsRate), m.savingsRate<0.2?'warn':'')}
+        ${kpi('緊急預備金', m.emMonths.toFixed(1)+' 個月', emCls)}
+        ${kpi('總資產', fmtMoney(m.assets))}
+        ${kpi('總負債', fmtMoney(m.liab))}
+        ${kpi('每月收入', fmtMoney(m.mIncome))}
+        ${kpi('每月支出+還款', fmtMoney(m.mExpense+m.mDebt))}
+      </div>
+    </div>
+    ${lockedHtml}
+    ${isFree ? '' : '<div class="disclaimer">本報告由「時值」依你輸入之資料與假設自動產生，所有數字均為估算，並非投資建議或報酬保證；退休/稅務等為簡化試算。重大財務決策請諮詢合格專業人士。</div>'}`;
 
   const ages=base.ages;
   const ds=SCENARIOS.map(sc=>{
