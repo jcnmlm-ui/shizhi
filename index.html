@@ -705,7 +705,7 @@ const Store = {
         this.mode='cloud';
         const { data } = await sb.auth.getSession();
         session = data.session;
-        sb.auth.onAuthStateChange(async (e,s)=>{ session=s; if(e==='PASSWORD_RECOVERY') pwRecovery=true; renderCloudArea(); if(s){ await fetchFeatures(); renderNav(); await Store.loadAll(); renderAll(); } else { allowedFeatures=['dash','flow','balance','goals','report','settings','addon-store']; currentPlan='free'; allowedAddons=[]; closeUpgradeModal(); syncPrintBtn(); renderAll(); } });
+        sb.auth.onAuthStateChange(async (e,s)=>{ session=s; if(e==='PASSWORD_RECOVERY') pwRecovery=true; renderCloudArea(); if(s){ await fetchFeatures(); renderNav(); await Store.loadAll(); renderAll(); rerenderActiveTab(); } else { allowedFeatures=['dash','flow','balance','goals','report','settings','addon-store']; currentPlan='free'; allowedAddons=[]; closeUpgradeModal(); syncPrintBtn(); renderAll(); } });
       }catch(err){ console.error('Supabase 載入失敗，改用本地模式',err); this.mode='local'; }
     }
   },
@@ -2584,7 +2584,7 @@ function renderAddonStore(){
   };
 
   const loginNotice=!session
-    ? '<div class="card" style="background:var(--surface-2);text-align:center;padding:16px"><p style="margin:0 0 10px;color:var(--muted);font-size:13px">請先<b>登入帳號</b>才能購買加購模組</p><button class="btn btn-primary" onclick="goToLogin()">前往登入 / 註冊</button></div>'
+    ? '<div class="card" style="background:var(--surface-2);text-align:center;padding:20px"><p style="margin:0 0 4px;font-size:14px;font-weight:600">加購模組需先有完整版或訂閱制方案</p><p style="margin:0 0 14px;color:var(--muted);font-size:13px">請先登入帳號，再升級方案即可加購。</p><button class="btn btn-primary" onclick="goToLogin()">前往登入 / 註冊</button></div>'
     : !isPaidPlan
     ? '<div class="card" style="background:var(--accent-soft);border:1px solid var(--accent);padding:14px 18px"><b>💡 加購前需先有完整版或訂閱制方案</b><p style="color:var(--muted);font-size:13px;margin:6px 0 10px">加購模組是付費方案的延伸功能。<br><span style="color:var(--primary);font-weight:500">已購買的模組永久有效，即使訂閱到期後也能繼續使用。</span></p><button class="btn btn-primary" onclick="showPaymentUpgrade()">升級方案 →</button></div>'
     : '';
@@ -2612,6 +2612,19 @@ document.addEventListener('click',e=>{
   const btn=e.target.closest('[data-nav-addon]'); if(!btn) return;
   navToAddon(btn.dataset.navAddon);
 });
+
+function rerenderActiveTab(){
+  const tab=document.querySelector('#nav button.active')?.dataset.tab;
+  if(!tab) return;
+  if(tab==='report') renderReport();
+  else if(tab==='addon-store') renderAddonStore();
+  else if(tab==='portfolio') renderPortfolio(portfolioSel);
+  else if(tab==='children') renderChildren();
+  else if(tab==='purchases') renderPurchases();
+  else if(tab==='pension') renderPension();
+  else if(tab==='insurance') renderInsurance();
+  else if(tab==='snapshots') renderSnapshots();
+}
 
 function renderAll(){
   mcCache=null;
@@ -2888,6 +2901,7 @@ function goToLogin(){
   closeUpgradeModal();
   const btn=document.querySelector('[data-tab="settings"]');
   if(btn) btn.click();
+  setTimeout(()=>{ document.getElementById('cloud-area')?.scrollIntoView({behavior:'smooth',block:'center'}); }, 300);
 }
 // ← 移除：不再允許點外側黑色遮罩關閉（避免付款流程中途誤觸）
 // 關閉只能透過 × 按鈕或「稍後再說」連結
