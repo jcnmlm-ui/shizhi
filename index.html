@@ -2266,7 +2266,7 @@ function renderCloudArea(){
         <button class="btn primary" id="pwSave">儲存新密碼</button>
       </div>
       <div class="authmsg ${pwRecovery?'ok':''}" id="pwMsg">${pwRecovery?'已驗證重設連結，請在上方設定新密碼。':''}</div>`;
-    document.getElementById('logoutBtn').onclick=async()=>{ await sb.auth.signOut(); session=null; pwRecovery=false; state={settings:{...DEFAULT_SETTINGS},incomes:[],expenses:[],assets:[],liabilities:[],goals:[],children:[],purchases:[],childCosts:deepClone(DEFAULT_CHILD_COSTS),postal:{...DEFAULT_POSTAL}}; closeUpgradeModal(); syncPrintBtn(); renderAll(); };
+    document.getElementById('logoutBtn').onclick=async()=>{ await sb.auth.signOut(); session=null; pwRecovery=false; localStorage.removeItem(LS_KEY); state={settings:{...DEFAULT_SETTINGS},incomes:[],expenses:[],assets:[],liabilities:[],goals:[],children:[],purchases:[],childCosts:deepClone(DEFAULT_CHILD_COSTS),postal:{...DEFAULT_POSTAL}}; closeUpgradeModal(); syncPrintBtn(); renderAll(); };
     document.getElementById('pwToggle').onclick=()=>{ const f=document.getElementById('pwForm'); f.style.display=(f.style.display==='none'?'flex':'none'); };
     document.getElementById('pwSave').onclick=doChangePassword;
   }else{
@@ -3299,11 +3299,15 @@ async function loadSiteConfig(){
 }
 
 (async function init(){
-  renderNav();          // 先渲染 nav（本地模式預設全開），避免頁面空白
-  await loadSiteConfig(); // 在任何 UI 顯示前載入收款資訊
+  renderNav();
+  await loadSiteConfig();
   await Store.init();
   await Store.loadAll();
   renderAll();
+  if(location.hash==='#login'){
+    document.querySelector('#nav button[data-tab="settings"]')?.click();
+    setTimeout(()=>{ document.getElementById('cloud-area')?.scrollIntoView({behavior:'smooth',block:'center'}); }, 300);
+  }
 })();
 </script>
 </body>
