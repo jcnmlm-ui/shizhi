@@ -140,6 +140,18 @@
 
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
 
+  /* balance 動態展開 */
+  .balance-grid{display:flex;gap:20px;align-items:flex-start}
+  .balance-grid>.card{flex:1;min-width:0;transition:flex 0.32s ease}
+  .balance-grid>.card.bal-active{flex:1.75}
+  /* 資產 hint 折疊 */
+  .hint-details{font-size:12.5px;color:var(--muted);margin-bottom:10px;line-height:1.5}
+  .hint-details>summary{cursor:pointer;list-style:none;outline:none}
+  .hint-details>summary::-webkit-details-marker{display:none}
+  .hint-details>summary::after{content:' ▾';font-size:10px;opacity:.7}
+  details[open].hint-details>summary::after{content:' ▴'}
+  .hint-details p{margin:6px 0 0;color:var(--muted)}
+
   /* settings */
   .fields{display:grid;grid-template-columns:repeat(2,1fr);gap:18px 22px}
   .field label{display:block;font-size:13px;color:var(--ink);margin-bottom:6px;font-weight:500}
@@ -244,6 +256,7 @@
     .main{padding:22px 16px 60px}
     .stats{grid-template-columns:repeat(2,1fr)}
     .grid2,.fields{grid-template-columns:1fr}
+    .balance-grid{flex-direction:column}
     .pagehead h1{font-size:25px}
   }
 </style>
@@ -323,14 +336,19 @@
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:700;white-space:nowrap"><input type="checkbox" data-setting="use_real_return"> <span data-rr-status>未開啟</span></label>
         </div>
       </div>
-      <div class="grid2">
+      <div class="balance-grid">
         <div class="card">
-          <h2>資產</h2><p class="hint">現金、存款、股票/基金/ETF、不動產等。勾「可動用」＝現金類（計入緊急預備金、預測中不滾投資報酬）；未勾＝投資類（預設以全域預期報酬成長，<b>開啟上方「實際報酬」後改用此處每筆的「預期年報酬」</b>）。勾「不計退休」＝計入淨值但<b>不</b>納入退休/時間軸推估（適合自住房，因為你還要住、通常不會變現）。</p>
+          <h2>資產</h2>
+          <details class="hint-details">
+            <summary>勾「可動用」＝現金類・未勾＝投資類・勾「不計退休」＝排除退休推估</summary>
+            <p>現金、存款、股票/基金/ETF、不動產等。勾「可動用」＝現金類（計入緊急預備金、預測中不滾投資報酬）；未勾＝投資類（預設以全域預期報酬成長，<b>開啟上方「實際報酬」後改用此處每筆的「預期年報酬」</b>）。勾「不計退休」＝計入淨值但<b>不</b>納入退休/時間軸推估（適合自住房，因為你還要住、通常不會變現）。</p>
+          </details>
           <div id="tbl-assets"></div>
           <div class="tot">資產合計 <b id="sum-asset"></b></div>
         </div>
         <div class="card">
-          <h2>負債</h2><p class="hint">房貸、車貸、信貸、卡循等。每月還款會自動計入「每月結餘」與資產預測（並依年利率試算到還清為止），請勿再到支出重複輸入。</p>
+          <h2>負債</h2>
+          <p class="hint">房貸、車貸、信貸、卡循等。每月還款會自動計入「每月結餘」與資產預測（並依年利率試算到還清為止），請勿再到支出重複輸入。</p>
           <div id="tbl-liabilities"></div>
           <div class="tot">負債合計 <b id="sum-liab"></b></div>
         </div>
@@ -3292,6 +3310,15 @@ document.addEventListener('drop', async e=>{
   } else { cleanupDrag(); }
 });
 document.addEventListener('dragend', cleanupDrag);
+
+// 資產負債欄位動態展開：點哪側哪側變寬
+document.getElementById('tab-balance').addEventListener('focusin', e=>{
+  const grid=document.querySelector('#tab-balance .balance-grid');
+  if(!grid) return;
+  const [aCard, lCard]=grid.children;
+  if(aCard.contains(e.target)){ aCard.classList.add('bal-active'); lCard.classList.remove('bal-active'); }
+  else if(lCard.contains(e.target)){ lCard.classList.add('bal-active'); aCard.classList.remove('bal-active'); }
+});
 
 // 名目/實質切換
 document.getElementById('toggleReal').addEventListener('click',e=>{
