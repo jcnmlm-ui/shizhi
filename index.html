@@ -1349,7 +1349,7 @@ function cellInput(key,r,c){
     let lim=''; let step=(c.type==='money'?'1000':'1');
     if(c.key==='pay_day') lim='min="1" max="31" placeholder="—"';
     else if(c.key==='pay_month') lim='min="1" max="12" placeholder="—"';
-    else if(c.key==='cycle_years'){ step='0.5'; lim='min="0" placeholder="空=一次"'; }
+    else if(c.key==='cycle_years'){ step='0.5'; lim='min="0" placeholder="—"'; }
     return `<input class="num" type="number" step="${step}" ${da} value="${show}" ${lim}>`;
   }
   return `<input type="text" ${da} value="${escapeHtml(v||'')}" placeholder="${c.ph||''}">`;
