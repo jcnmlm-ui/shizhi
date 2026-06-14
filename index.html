@@ -178,6 +178,10 @@
   .paywall-gate .pg-btn:hover{background:var(--primary-2)}
 
   /* report */
+  .obs-item{padding:14px 0;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:flex-start}
+  .obs-item:last-child{border-bottom:0;padding-bottom:0}
+  .obs-num{flex-shrink:0;width:24px;height:24px;background:var(--primary);color:#fff;border-radius:50%;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:2px}
+  .obs-q{font-size:14.5px;line-height:1.72;color:var(--ink)}
   .rep-meta{font-size:12.5px;color:var(--muted);margin:-6px 0 18px}
   .rep-section{margin-bottom:18px}
   .rep-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
@@ -1526,12 +1530,171 @@ function buildRecommendations(){
   return recs;
 }
 
+// ===== 財務行為觀察引擎（疑問句，不給答案）=====
+function buildBehaviorObservations(){
+  const s=state.settings, m=metrics(), obs=[];
+  const age=Number(s.current_age)||30;
+  const retAge=Number(s.retirement_age)||65;
+  const ytr=retAge-age; // years to retirement
+  const er=Number(s.expected_return)||0.06;
+  const inf=Number(s.inflation_rate)||0.02;
+  const mi=Number(s.monthly_invest)||0;
+  const mInc=m.mIncome;
+
+  // 配置數值
+  const pfS=Number(s.pf_stock)||0, pfB=Number(s.pf_bond)||0,
+        pfR=Number(s.pf_reit)||0, pfG=Number(s.pf_gold)||0,
+        pfC=Number(s.pf_cash)||0;
+  const pfTotal=pfS+pfB+pfR+pfG+pfC;
+  const pfGrowth=pfS+pfR; // 成長型資產
+
+  // 加權組合報酬
+  const arS=Number(s.ar_stock)||0.07, arB=Number(s.ar_bond)||0.035,
+        arR=Number(s.ar_reit)||0.06, arG=Number(s.ar_gold)||0.03,
+        arC=Number(s.ar_cash)||0.01;
+  const pfWR=pfTotal>0?(pfS*arS+pfB*arB+pfR*arR+pfG*arG+pfC*arC)/pfTotal:0;
+
+  // 目標分析
+  const emGoal=state.goals.find(g=>g.name&&(g.name.includes('緊急')||g.name.includes('預備金')));
+  const hasRetGoal=state.goals.some(g=>g.name&&(g.name.includes('退休')||g.name.includes('FIRE')));
+  const depGoal=state.goals.find(g=>g.name&&/車|機車|電腦|手機|電器/.test(g.name));
+  const homeGoal=state.goals.find(g=>g.name&&/房|購屋|宅|頭期/.test(g.name));
+  const totalGoalReq=state.goals.reduce((x,g)=>x+requiredMonthly(g),0);
+
+  // 負債分析
+  const highRateDebt=state.liabilities.find(l=>Number(l.balance||0)>0&&Number(l.interest_rate||0)>0.05);
+  const liqAss=liquidAssets();
+
+  // 分期採購月付金合計（近似）
+  const purMonthly=state.purchases.reduce((sum,p)=>{
+    const loan=Number(p.price||0)*(1-Number(p.down_payment_pct||0)/100);
+    const r=Number(p.interest_rate||0)/12, n=Number(p.loan_years||0)*12;
+    if(n<=0) return sum;
+    return sum+(r>0?loan*r*Math.pow(1+r,n)/(Math.pow(1+r,n)-1):loan/n);
+  },0);
+
+  // 固定支出佔收入比
+  const fixedMonthly=state.expenses.filter(e=>e.is_fixed).reduce((s,e)=>s+annualOf(e),0)/12;
+
+  // ── 目標類 ──────────────────────────────────────────────
+  // 1. 緊急預備金優先序不是1
+  if(emGoal && Number(emGoal.priority)>1)
+    obs.push({p:9, q:`你的緊急預備金目標排在優先序 ${emGoal.priority}——如果這個月突然失去收入，你目前的存款能撐幾個月？`});
+  // 2. 可動用資產不足3個月
+  if(!emGoal && m.emMonths<3)
+    obs.push({p:9, q:`你的可動用資產只夠支應 ${m.emMonths.toFixed(1)} 個月的支出——如果突然失業或生病，你有足夠的緩衝時間嗎？`});
+  // 3. 折舊性消費目標
+  if(depGoal)
+    obs.push({p:5, q:`你的目標清單中有「${escapeHtml(depGoal.name)}」——這個採購幾年後還有多少價值？它對你的資產累積有什麼影響？`});
+  // 4. 無退休目標
+  if(!hasRetGoal && ytr>10)
+    obs.push({p:6, q:`你的目標清單看不到退休相關規劃——你有想過退休那天需要多少錢、現在的速度夠嗎？`});
+  // 5. 目標需求 > 結餘
+  if(state.goals.length && totalGoalReq>Math.max(0,m.net)*1.15)
+    obs.push({p:7, q:`你的目標加起來每月需要 ${fmtMoney(totalGoalReq)}，但月結餘只有 ${fmtMoney(m.net)}——當資金不夠分配時，你打算先放棄哪一個目標？`});
+
+  // ── 資產負債類 ──────────────────────────────────────────
+  // 6. 高利率負債 + 大量現金
+  if(highRateDebt && liqAss>50000)
+    obs.push({p:8, q:`你有年利率 ${fmtPct(Number(highRateDebt.interest_rate))} 的「${escapeHtml(highRateDebt.name||'負債')}」，同時持有 ${fmtMoney(liqAss)} 的可動用現金——優先還款等同保證賺 ${fmtPct(Number(highRateDebt.interest_rate))}，你有考慮過這個選擇嗎？`});
+  // 7. 淨值為負
+  if(m.netWorth<0)
+    obs.push({p:7, q:`你目前的負債超過資產（淨值 ${fmtMoney(m.netWorth)}）——如果需要緊急借款，這對你的信用狀況有什麼影響？`});
+
+  // ── 收支類 ──────────────────────────────────────────────
+  // 8. 儲蓄率過低
+  if(m.savingsRate>0 && m.savingsRate<0.10)
+    obs.push({p:7, q:`你目前每賺 100 元大約存了 ${(m.savingsRate*100).toFixed(0)} 元——按這個速度，10 年後你的財務狀況會有什麼不同？`});
+  // 9. 固定支出佔比過高
+  if(mInc>0 && fixedMonthly/mInc>0.70)
+    obs.push({p:6, q:`你有 ${((fixedMonthly/mInc)*100).toFixed(0)}% 的收入被固定支出鎖住——如果收入突然少了 20%，你的生活還能維持嗎？`});
+  // 10. 單一收入來源
+  if(state.incomes.length===1)
+    obs.push({p:5, q:`你的收入只來自一個來源——如果這份收入突然中斷，你有備案嗎？`});
+
+  // ── 設定假設類 ──────────────────────────────────────────
+  // 11. 預期報酬過高
+  if(er>0.10)
+    obs.push({p:6, q:`你的預期報酬假設是 ${fmtPct(er)}——歷史上要穩定達到這個報酬通常需要承受多大的波動？`});
+  // 12. 每月投入佔收入比過低
+  if(mInc>0 && mi>0 && mi/mInc<0.05)
+    obs.push({p:6, q:`你每月定期投入 ${fmtMoney(mi)}，佔月收入約 ${((mi/mInc)*100).toFixed(0)}%——複利需要時間，你認為這個比例足以在退休前讓資產達到目標嗎？`});
+
+  // ── 投資配置類 ──────────────────────────────────────────
+  // 13. 年輕但過度保守
+  if(pfTotal>0 && age<35 && pfGrowth<30)
+    obs.push({p:7, q:`你 ${age} 歲，但成長型資產（股票＋REITs）只佔 ${pfGrowth.toFixed(0)}%——時間是複利最強的武器，你有考慮過提高成長型配置的長期效果嗎？`});
+  // 14. 接近退休但過度積極（序列風險）
+  if(pfTotal>0 && ytr<10 && pfGrowth>70)
+    obs.push({p:8, q:`你距退休還有 ${ytr} 年，但成長型資產佔 ${pfGrowth.toFixed(0)}%——如果退休前市場大跌 40%，你的計畫還撐得住嗎？`});
+  // 15. 高現金配置 + 高通膨假設
+  if(pfTotal>0 && pfC>30 && inf>=0.02)
+    obs.push({p:6, q:`你有 ${pfC.toFixed(0)}% 的配置在現金，同時假設通膨 ${fmtPct(inf)}——這部分現金的購買力每年都在縮水，你是否有意識到這個確定性損失？`});
+  // 16. 高現金 + 低定期投入（閒置資金）
+  if(pfTotal>0 && pfC>25 && mInc>0 && mi<mInc*0.05)
+    obs.push({p:5, q:`你的配置中現金比例偏高，但每月定期投入偏少——這些閒置資金在等什麼時機？你有沒有考慮過不擇時、定期投入的可能？`});
+  // 17. 黃金過重
+  if(pfTotal>0 && pfG>15)
+    obs.push({p:4, q:`你的黃金配置達 ${pfG.toFixed(0)}%——黃金的長期實質報酬接近通膨而非超越它，你持有這麼多黃金的主要目的是什麼？`});
+  // 18. 黃金 > 股票（且年輕）
+  if(pfTotal>0 && pfG>pfS && age<50)
+    obs.push({p:5, q:`你的黃金配置（${pfG.toFixed(0)}%）比股票（${pfS.toFixed(0)}%）還多——這是長期的資產策略，還是對市場的短期反應？`});
+  // 19. 年輕但債券過重
+  if(pfTotal>0 && age<30 && pfB>40)
+    obs.push({p:6, q:`你 ${age} 歲，但債券佔配置 ${pfB.toFixed(0)}%——債券能提供穩定，但它的長期報酬能追上你的財務目標嗎？`});
+  // 20. 配置加權報酬 vs 全域預期報酬 落差 > 2%（用戶假設不一致）
+  if(pfTotal>0 && (er-pfWR)>0.02)
+    obs.push({p:7, q:`你設定的預期報酬（${fmtPct(er)}）比你目前配置的加權理論報酬（${fmtPct(pfWR)}）高 ${fmtPct(er-pfWR)}——你的退休計算用的是哪個假設？這個落差會讓結果差很多。`});
+  // 21. REITs + 購屋目標
+  if(pfTotal>0 && pfR>15 && homeGoal)
+    obs.push({p:4, q:`你的配置中有 ${pfR.toFixed(0)}% REITs，同時有購屋目標「${escapeHtml(homeGoal.name)}」——你如何區分這兩者在財務計畫裡的不同角色？`});
+  // 22. 高成長配置但每月投入很少
+  if(pfTotal>0 && pfGrowth>70 && mi<2000)
+    obs.push({p:5, q:`你的配置策略是積極成長型，但每月定期投入只有 ${fmtMoney(mi)}——是還沒找到時機，還是有其他安排？`});
+  // 23. 各類別報酬率都很保守
+  if(pfTotal>0 && arS<0.04 && arB<0.02 && arR<0.04)
+    obs.push({p:5, q:`你對所有投資類別的報酬預期都很保守——你的財務目標是保本，還是期望資產真正成長？如果通膨是 ${fmtPct(inf)}，你的錢有在增值嗎？`});
+  // 24. 啟用實際報酬但資產預期報酬仍是預設值
+  if(Number(s.use_real_return)>0){
+    const invAssets=state.assets.filter(a=>!a.is_liquid&&!a.exclude_projection);
+    if(invAssets.length>0 && invAssets.every(a=>Math.abs(Number(a.expected_return||0)-0.05)<0.001))
+      obs.push({p:6, q:`你已開啟「實際報酬」模式，但各資產的預期年報酬都還是預設值 5%——這些數字反映的是你真實的持倉假設嗎？`});
+  }
+  // 25. 只有1-2個配置類別
+  const activeCats=[pfS,pfB,pfR,pfG,pfC].filter(v=>v>0).length;
+  if(pfTotal>0 && activeCats<=2)
+    obs.push({p:4, q:`你的投資幾乎集中在 ${activeCats} 個類別——在特定市場情境下，你有意識到這個集中配置的風險嗎？`});
+
+  // ── 分期採購類 ──────────────────────────────────────────
+  // 26. 分期月付金 > 結餘 40%
+  if(purMonthly>0 && m.net>0 && purMonthly/m.net>0.40)
+    obs.push({p:6, q:`你的分期還款合計每月約 ${fmtMoney(purMonthly)}，佔月結餘 ${((purMonthly/m.net)*100).toFixed(0)}%——如果臨時有急需，你的財務彈性還剩多少？`});
+  // 27. 分期利率 > 投資預期報酬
+  const hiRatePur=state.purchases.find(p=>Number(p.interest_rate||0)>er);
+  if(hiRatePur)
+    obs.push({p:7, q:`你有一筆分期（「${escapeHtml(hiRatePur.name||'採購')}」）的利率（${fmtPct(Number(hiRatePur.interest_rate))}）高於你的預期投資報酬（${fmtPct(er)}）——借錢的代價比投資賺的還多，這筆採購從財務角度划算嗎？`});
+  // 28. 有分期計畫但緊急預備金不足
+  if(state.purchases.length>0 && m.emMonths<3)
+    obs.push({p:6, q:`你有分期採購計畫，但緊急預備金只夠撐 ${m.emMonths.toFixed(1)} 個月——如果期間遭遇意外，你能同時維持還款嗎？`});
+  // 29. 已有高利率負債 + 新增分期採購
+  if(highRateDebt && state.purchases.length>0)
+    obs.push({p:5, q:`你已有高利率負債（${escapeHtml(highRateDebt.name||'負債')}），同時還有分期採購計畫——多重還款對你的財務彈性影響你清楚嗎？`});
+
+  // 依優先序排序，取前5條
+  obs.sort((a,b)=>b.p-a.p);
+  return obs.slice(0,5);
+}
+
 function renderReport(){
   const m=metrics();
   const base=projection(false), target=retirementTarget(false);
   const today=new Date().toLocaleDateString('zh-TW',{year:'numeric',month:'long',day:'numeric'});
   const alloc=allocateGoals();
   const recs=buildRecommendations();
+  const behaviorObs=buildBehaviorObservations();
+  const behaviorHtml=behaviorObs.length
+    ? behaviorObs.map((o,i)=>`<div class="obs-item"><div class="obs-num">${i+1}</div><div class="obs-q">${o.q}</div></div>`).join('')
+    : '<p class="hint" style="margin:0;color:var(--muted)">目前資料均衡，沒有特別需要關注的財務行為訊號。</p>';
   const emTarget=Number(state.settings.emergency_target_months)||6;
   const emCls=m.emMonths>=emTarget?'':(m.emMonths>=emTarget/2?'warn':'bad');
   const kpi=(l,v,cls)=>`<div class="rep-kpi ${cls||''}"><div class="l">${l}</div><div class="v">${v}</div></div>`;
@@ -1582,7 +1745,7 @@ function renderReport(){
       <div class="paywall-gate">
         <div class="pg-icon">🔒</div>
         <div class="pg-title">解鎖完整財務報告</div>
-        <div class="pg-sub">升級後可查看退休準備度分析、目標可行性、行動建議，以及完整財務體檢報告。</div>
+        <div class="pg-sub">升級後可查看退休準備度分析、目標可行性、行動建議，以及專屬的財務行為觀察（從你的資料找出值得深思的問題）。</div>
         <button class="pg-btn" onclick="showPaymentUpgrade('report')">立即升級</button>
       </div>
     </div>` : `
@@ -1606,6 +1769,11 @@ function renderReport(){
     <div class="card">
       <h2>四、行動建議</h2>
       <div class="recs">${recHtml}</div>
+    </div>
+    <div class="card">
+      <h2>五、財務行為觀察</h2>
+      <p class="hint">以下是從你的財務資料中觀察到的值得思考的現象。這些不是診斷或建議，而是邀請你自問的問題。</p>
+      <div>${behaviorHtml}</div>
     </div>`;
 
   document.getElementById('report-body').innerHTML=`
