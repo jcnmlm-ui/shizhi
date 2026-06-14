@@ -662,9 +662,11 @@ const fmtMoney = n => new Intl.NumberFormat('zh-TW',{style:'currency',currency:'
 const fmtPct = x => (x*100).toFixed(1)+'%';
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id-'+Date.now()+Math.random().toString(16).slice(2));
 
-const DEFAULT_SETTINGS = { current_age:30, retirement_age:60, life_expectancy:90, inflation_rate:0.02, expected_return:0.05, salary_growth:0.02, emergency_target_months:6, monthly_invest:0, ar_stock:0.07, ar_bond:0.035, ar_cash:0.01,
-  li_on:0, li_salary:45800, li_years:35, li_age:65,
-  lp_on:0, lp_wage:45800, lp_self:0, lp_bal:0, lp_ret:0.03,
+// 預設值依據：主計總處 25–29 歲受僱人員平均月薪約 NT$35,411（2023）
+// 目標受眾：25–28 歲社會新鮮人 / 職場早期
+const DEFAULT_SETTINGS = { current_age:27, retirement_age:65, life_expectancy:90, inflation_rate:0.02, expected_return:0.06, salary_growth:0.03, emergency_target_months:6, monthly_invest:3000, ar_stock:0.07, ar_bond:0.035, ar_cash:0.01,
+  li_on:0, li_salary:34800, li_years:38, li_age:65,
+  lp_on:0, lp_wage:34800, lp_self:0, lp_bal:0, lp_ret:0.03,
   ins_life:0, ins_years:10, ins_funeral:1000000, use_real_return:0,
   ar_reit:0.06, ar_gold:0.03,
   pf_stock:38, pf_bond:35, pf_reit:12, pf_gold:5, pf_cash:10 };
@@ -715,7 +717,8 @@ const POSTAL_BANDS = [
 ];
 // 各職階封頂薪級
 const POSTAL_BAND_CAP = { mgmt1:1, mgmt2:6, ops:17, prof1:29, prof2:36 };
-const DEFAULT_POSTAL = { enabled:false, level:50, layer:8, step:1, max_level:36, bonus_months:0, band:'prof2', join_year:0 };
+// 郵局預設：專業職(二)・薪級55・115年入局新進人員
+const DEFAULT_POSTAL = { enabled:false, level:55, layer:1, step:1, max_level:36, bonus_months:0, band:'prof2', join_year:115 };
 
 let state = { settings:{...DEFAULT_SETTINGS}, incomes:[], expenses:[], assets:[], liabilities:[], goals:[], children:[], purchases:[], childCosts:deepClone(DEFAULT_CHILD_COSTS), postal:{...DEFAULT_POSTAL} };
 let sb = null;            // supabase client
@@ -872,19 +875,33 @@ function loadLocal(){
 }
 function persistLocal(){ if(Store.mode!=='cloud') localStorage.setItem(LS_KEY, JSON.stringify(state)); }
 
+// 範例資料來源：主計總處 25–29 歲薪資統計、家庭收支調查（2023）
 function seedSample(){
-  state.settings = {...DEFAULT_SETTINGS, monthly_invest:10000};
+  state.settings = {...DEFAULT_SETTINGS};
   state.children = [];
   state.purchases = [];
   state.childCosts = deepClone(DEFAULT_CHILD_COSTS);
   state.postal = {...DEFAULT_POSTAL};
-  state.incomes = [ row({name:'本薪',amount:50000,frequency:'monthly',growth_rate:0.02}) ];
-  state.expenses = [ row({name:'生活開銷',category:'生活',amount:25000,frequency:'monthly',is_fixed:false}),
-                     row({name:'房租',category:'居住',amount:12000,frequency:'monthly',is_fixed:true}) ];
-  state.assets = [ row({name:'活存',type:'現金',value:300000,expected_return:0.01,is_liquid:true}),
-                   row({name:'股票/ETF',type:'投資',value:500000,expected_return:0.06,is_liquid:false}) ];
-  state.liabilities = [];
-  state.goals = [ row({name:'買房頭期款',target_amount:2000000,target_years:7,priority:1,start_amount:200000}) ];
+  state.incomes = [
+    row({name:'月薪（含勞健保）',amount:34000,frequency:'monthly',growth_rate:0.03}),
+  ];
+  state.expenses = [
+    row({name:'飲食',category:'生活',amount:7000,frequency:'monthly',is_fixed:false}),
+    row({name:'房租',category:'居住',amount:8500,frequency:'monthly',is_fixed:true}),
+    row({name:'交通',category:'交通',amount:2500,frequency:'monthly',is_fixed:false}),
+    row({name:'手機／網路',category:'生活',amount:1000,frequency:'monthly',is_fixed:true}),
+    row({name:'娛樂／社交',category:'娛樂',amount:2000,frequency:'monthly',is_fixed:false}),
+  ];
+  state.assets = [
+    row({name:'緊急備用金（活存）',type:'現金',value:120000,expected_return:0.01,is_liquid:true}),
+    row({name:'台股／ETF',type:'投資',value:50000,expected_return:0.07,is_liquid:false}),
+  ];
+  state.liabilities = [
+    row({name:'就學貸款',type:'學貸',balance:150000,interest_rate:0.013,monthly_payment:3000}),
+  ];
+  state.goals = [
+    row({name:'購屋頭期款',target_amount:1500000,target_years:10,priority:1,start_amount:50000}),
+  ];
 }
 function row(o){ return { id: uid(), created_at:new Date().toISOString(), ...o }; }
 
