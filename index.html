@@ -718,7 +718,7 @@ const POSTAL_BANDS = [
 // 各職階封頂薪級
 const POSTAL_BAND_CAP = { mgmt1:1, mgmt2:6, ops:17, prof1:29, prof2:36 };
 // 郵局預設：專業職(二)・薪級55・115年入局新進人員
-const DEFAULT_POSTAL = { enabled:false, level:55, layer:1, step:1, max_level:36, bonus_months:0, band:'prof2', join_year:115 };
+const DEFAULT_POSTAL = { enabled:false, level:55, layer:3, step:1, max_level:36, bonus_months:0, band:'prof2', join_year:115 };
 
 let state = { settings:{...DEFAULT_SETTINGS}, incomes:[], expenses:[], assets:[], liabilities:[], goals:[], children:[], purchases:[], childCosts:deepClone(DEFAULT_CHILD_COSTS), postal:{...DEFAULT_POSTAL} };
 let sb = null;            // supabase client
