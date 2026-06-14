@@ -1,4 +1,4 @@
-# 時值 (Lifetime Finance) — Claude Code 工作說明
+# 時值 · 財務地圖 — Claude Code 工作說明
 
 ## 專案概述
 個人理財規劃 Web App，台灣用戶，繁體中文介面。
