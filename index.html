@@ -135,6 +135,19 @@
   .tr.drop-after,.card.drop-after{box-shadow:inset 0 -3px 0 -1px var(--primary)}
   .add{margin-top:14px;border:1px dashed var(--line-2);background:transparent;color:var(--primary-2);border-radius:10px;padding:9px 15px;cursor:pointer;font-size:13.5px;font-weight:500;transition:.15s}
   .add:hover{border-color:var(--primary);background:var(--primary-soft)}
+  .ro-enter{margin-top:14px;margin-left:8px;border:1px solid var(--line-2);background:transparent;color:var(--muted);border-radius:10px;padding:9px 15px;cursor:pointer;font-size:13px;font-weight:500;transition:.15s}
+  .ro-enter:hover{border-color:var(--primary-2);color:var(--primary-2);background:var(--primary-soft)}
+  .ro-list{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+  .ro-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2)}
+  .ro-arrows{display:flex;flex-direction:column;gap:2px;flex-shrink:0}
+  .ro-arrows button{border:1px solid var(--line-2);background:var(--surface);color:var(--muted);border-radius:6px;width:26px;height:22px;cursor:pointer;font-size:12px;line-height:1;padding:0;transition:.15s}
+  .ro-arrows button:hover:not(:disabled){border-color:var(--primary);color:var(--primary-2);background:var(--primary-soft)}
+  .ro-arrows button:disabled{opacity:.3;cursor:default}
+  .ro-name{flex:1;font-size:14px;color:var(--ink);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ro-name .ro-amt{color:var(--muted);font-size:12.5px;margin-left:8px}
+  .ro-footer{display:flex;gap:8px;margin-top:12px;align-items:center}
+  .ro-cancel-btn{border:1px solid var(--line-2);background:transparent;color:var(--muted);border-radius:10px;padding:9px 15px;cursor:pointer;font-size:13.5px;font-weight:500;transition:.15s}
+  .ro-cancel-btn:hover{border-color:var(--danger);color:var(--danger)}
   .tot{margin-top:14px;font-size:14px;display:flex;justify-content:flex-end;gap:8px;align-items:baseline}
   .tot b{font-family:var(--font-display);font-size:18px;color:var(--primary-2)}
 
@@ -1343,10 +1356,10 @@ function cellInput(key,r,c){
   }
   if(c.type==='percent'){
     if(c.key==='return_rate'){
-      const show=(v===null||v===undefined||v==='')?'':(Number(v)*100);
-      return `<input class="num" type="number" step="0.1" ${da} value="${show}" placeholder="預設">`;
+      const show=(v===null||v===undefined||v==='')?'':parseFloat((Number(v)*100).toFixed(3));
+      return `<input class="num" type="number" step="0.001" ${da} value="${show}" placeholder="預設">`;
     }
-    return `<input class="num" type="number" step="0.1" ${da} value="${(Number(v||0)*100)}">`;
+    return `<input class="num" type="number" step="0.001" ${da} value="${parseFloat((Number(v||0)*100).toFixed(3))}">`;
   }
   if(c.type==='money'||c.type==='number'){
     const show=(v===null||v===undefined||v==='')?'':Number(v);
@@ -1354,6 +1367,10 @@ function cellInput(key,r,c){
     if(c.key==='pay_day') lim='min="1" max="31" placeholder="—"';
     else if(c.key==='pay_month') lim='min="1" max="12" placeholder="—"';
     else if(c.key==='cycle_years'){ step='0.5'; lim='min="0" placeholder="—"'; }
+    if(c.type==='money'){
+      const fmtVal=show===''?'':Number(show).toLocaleString('en-US');
+      return `<input class="num money-fmt" type="text" inputmode="numeric" ${da} value="${fmtVal}" placeholder="0">`;
+    }
     return `<input class="num" type="number" step="${step}" ${da} value="${show}" ${lim}>`;
   }
   return `<input type="text" ${da} value="${escapeHtml(v||'')}" placeholder="${c.ph||''}">`;
@@ -1363,8 +1380,34 @@ function escapeHtml(s){ return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<'
 // 拖曳排序握把（6 點 grip）
 const DRAG_HANDLE = '<span class="drag-h" draggable="true" title="拖曳排序"><svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor"><circle cx="2.5" cy="3" r="1.25"/><circle cx="7.5" cy="3" r="1.25"/><circle cx="2.5" cy="8" r="1.25"/><circle cx="7.5" cy="8" r="1.25"/><circle cx="2.5" cy="13" r="1.25"/><circle cx="7.5" cy="13" r="1.25"/></svg></span>';
 
+// 整理模式（buffered reorder + delete）
+const reorderMode = {};
+function enterReorder(key){ reorderMode[key]={active:true,draft:state[key].map(r=>({...r}))}; renderEntity(key); }
+function cancelReorder(key){ reorderMode[key]={active:false}; renderEntity(key); }
+async function saveReorder(key){ if(!reorderMode[key]) return; state[key]=reorderMode[key].draft; reorderMode[key]={active:false}; await persistOrder(key); renderEntity(key); recalc(); }
+function reorderDraft(key,idx,dir){ const arr=reorderMode[key].draft; const to=idx+dir; if(to<0||to>=arr.length) return; [arr[idx],arr[to]]=[arr[to],arr[idx]]; renderEntity(key); }
+function deleteDraft(key,id){ const arr=reorderMode[key].draft; const i=arr.findIndex(r=>r.id===id); if(i>=0) arr.splice(i,1); renderEntity(key); }
+
 function renderEntity(key){
   const sc=SCHEMAS[key], el=document.getElementById('tbl-'+key);
+  const rm=reorderMode[key];
+  const inReorder=rm&&rm.active;
+
+  if(inReorder){
+    const rows=rm.draft;
+    let h=`<div class="ro-list">`;
+    rows.forEach((r,idx)=>{
+      const nameCol=sc.cols.find(c=>c.type==='text');
+      const name=escapeHtml(r[nameCol?nameCol.key:'name']||'（無名稱）');
+      const amtCol=sc.cols.find(c=>c.type==='money');
+      const amtHtml=amtCol?`<span class="ro-amt">${fmtMoney(r[amtCol.key]||0)}</span>`:'';
+      h+=`<div class="ro-item"><div class="ro-arrows"><button class="ro-up" data-ro-key="${key}" data-ro-idx="${idx}" ${idx===0?'disabled':''}>↑</button><button class="ro-dn" data-ro-key="${key}" data-ro-idx="${idx}" ${idx===rows.length-1?'disabled':''}>↓</button></div><div class="ro-name">${name}${amtHtml}</div><button class="del" data-ro-del-key="${key}" data-ro-del-id="${r.id}">✕</button></div>`;
+    });
+    h+=`</div><div class="ro-footer"><button class="add ro-save" data-ro-save-key="${key}" style="margin-top:0">✓ 儲存順序</button><button class="ro-cancel-btn" data-ro-cancel-key="${key}">取消</button><span style="font-size:12.5px;color:var(--muted)">（刪除將在儲存後生效）</span></div>`;
+    el.innerHTML=h;
+    return;
+  }
+
   const grid=`grid-template-columns:22px ${sc.grid}`;
   let h=`<div class="tbl">`;
   h+=`<div class="tr th" style="${grid}"><div></div>`+sc.cols.map(c=>`<div>${c.label}</div>`).join('')
@@ -1374,7 +1417,7 @@ function renderEntity(key){
     if(sc.computed){ h+=`<div class="computed" id="req-${r.id}"></div><div style="text-align:center"><span id="badge-${r.id}"></span></div>`; }
     h+=`<div><button class="del" data-del-key="${key}" data-del-id="${r.id}">✕</button></div></div>`;
   });
-  h+=`</div><button class="add" data-add-key="${key}">＋ 新增一列</button>`;
+  h+=`</div><button class="add" data-add-key="${key}">＋ 新增一列</button><button class="ro-enter" data-ro-enter-key="${key}" title="調整順序或刪除列">整理</button>`;
   el.innerHTML=h;
   if(sc.computed) updateGoalComputed();
 }
@@ -3274,6 +3317,20 @@ function upgradeCard(tab){
   </div>`;
 }
 
+// 千位符號格式化（money-fmt 輸入框）
+document.addEventListener('focus', e=>{
+  if(e.target.classList&&e.target.classList.contains('money-fmt')){
+    e.target.value=e.target.value.replace(/,/g,'');
+    e.target.select();
+  }
+},true);
+document.addEventListener('blur', e=>{
+  if(e.target.classList&&e.target.classList.contains('money-fmt')){
+    const n=parseFloat(e.target.value.replace(/,/g,''));
+    e.target.value=isNaN(n)||e.target.value===''?'':n.toLocaleString('en-US');
+  }
+},true);
+
 // 表格輸入變更（含設定）
 document.addEventListener('input', e=>{
   const t=e.target;
@@ -3293,7 +3350,7 @@ document.addEventListener('change', async e=>{
   if(t.matches('[data-field]')){
     const {key,id,field,type}=t.dataset;
     let val;
-    if(type==='money'||type==='number') val = (field==='cycle_years' && t.value==='') ? null : (parseFloat(t.value)||0);
+    if(type==='money'||type==='number') val = (field==='cycle_years' && t.value==='') ? null : (parseFloat(type==='money'?t.value.replace(/,/g,''):t.value)||0);
     else if(type==='percent') val = (field==='return_rate' && t.value==='') ? null : (parseFloat(t.value)||0)/100;
     else if(type==='check') val=t.checked;
     else val=t.value;
@@ -3408,6 +3465,19 @@ document.addEventListener('click', async e=>{
   if(add){ const key=add.dataset.addKey; await Store.addItem(key, JSON.parse(JSON.stringify(SCHEMAS[key].def))); renderEntity(key); recalc(); return; }
   const del=e.target.closest('[data-del-key]');
   if(del){ await Store.deleteItem(del.dataset.delKey, del.dataset.delId); renderEntity(del.dataset.delKey); recalc(); return; }
+  // 整理模式按鈕
+  const roEnter=e.target.closest('[data-ro-enter-key]');
+  if(roEnter){ enterReorder(roEnter.dataset.roEnterKey); return; }
+  const roUp=e.target.closest('.ro-up[data-ro-key]');
+  if(roUp){ reorderDraft(roUp.dataset.roKey, parseInt(roUp.dataset.roIdx), -1); return; }
+  const roDn=e.target.closest('.ro-dn[data-ro-key]');
+  if(roDn){ reorderDraft(roDn.dataset.roKey, parseInt(roDn.dataset.roIdx), 1); return; }
+  const roDel=e.target.closest('[data-ro-del-key]');
+  if(roDel){ deleteDraft(roDel.dataset.roDelKey, roDel.dataset.roDelId); return; }
+  const roSave=e.target.closest('[data-ro-save-key]');
+  if(roSave){ await saveReorder(roSave.dataset.roSaveKey); return; }
+  const roCancel=e.target.closest('[data-ro-cancel-key]');
+  if(roCancel){ cancelReorder(roCancel.dataset.roCancelKey); return; }
 });
 
 /* ===== 拖曳排序（收入/支出/資產/負債/目標/子女/分期） ===== */
