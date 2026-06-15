@@ -148,6 +148,19 @@
   .ro-footer{display:flex;gap:8px;margin-top:12px;align-items:center}
   .ro-cancel-btn{border:1px solid var(--line-2);background:transparent;color:var(--muted);border-radius:10px;padding:9px 15px;cursor:pointer;font-size:13.5px;font-weight:500;transition:.15s}
   .ro-cancel-btn:hover{border-color:var(--danger);color:var(--danger)}
+  /* 分類管理 */
+  .cat-group{border:1px solid var(--line);border-radius:10px;margin-bottom:6px;overflow:hidden}
+  .cat-group-head{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;background:var(--surface-2);list-style:none;font-size:14px;font-weight:500;user-select:none}
+  .cat-group-head::-webkit-details-marker{display:none}
+  .cat-group[open] .cat-group-head{border-bottom:1px solid var(--line)}
+  .cat-sub-body{padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+  .cat-sub-tags{display:flex;flex-wrap:wrap;gap:6px;min-height:20px}
+  .cat-tag{display:inline-flex;align-items:center;gap:3px;background:var(--primary-soft);color:var(--primary-2);border-radius:99px;padding:3px 10px 3px 12px;font-size:12.5px;font-weight:500}
+  .cat-tag button{border:none;background:none;cursor:pointer;color:var(--muted);font-size:13px;line-height:1;padding:0 2px;transition:.1s}
+  .cat-tag button:hover{color:var(--danger)}
+  .cat-input-row{display:flex;gap:8px;align-items:center}
+  .cat-input-row input{border:1px solid var(--line-2);background:var(--surface-2);border-radius:8px;padding:6px 10px;font-size:13px;font-family:inherit;color:var(--ink);flex:1;min-width:0}
+  .cat-input-row input:focus{outline:none;border-color:var(--primary)}
   .tot{margin-top:14px;font-size:14px;display:flex;justify-content:flex-end;gap:8px;align-items:baseline}
   .tot b{font-family:var(--font-display);font-size:18px;color:var(--primary-2)}
 
@@ -417,6 +430,12 @@
       <div class="card">
         <h2>計算假設</h2><p class="hint">這些假設驅動所有推估。所有報酬率皆為「假設」，非保證；數字越保守，規劃越穩健。</p>
         <div class="fields" id="settings-fields"></div>
+      </div>
+
+      <div class="card">
+        <h2>分類管理</h2>
+        <p class="hint">自訂支出分類、資產類型、負債類型。主分類可展開新增子分類，子分類會在表格中以選單方式選取。</p>
+        <div id="cat-settings"></div>
       </div>
 
       <div class="card">
@@ -738,7 +757,40 @@ const POSTAL_BAND_CAP = { mgmt1:1, mgmt2:6, ops:17, prof1:29, prof2:36 };
 // 郵局預設：專業職(二)・薪級55・115年入局新進人員
 const DEFAULT_POSTAL = { enabled:false, level:55, layer:3, step:1, max_level:36, bonus_months:0, band:'prof2', join_year:115 };
 
-let state = { settings:{...DEFAULT_SETTINGS}, incomes:[], expenses:[], assets:[], liabilities:[], goals:[], children:[], purchases:[], childCosts:deepClone(DEFAULT_CHILD_COSTS), postal:{...DEFAULT_POSTAL} };
+const DEFAULT_CAT_CONFIG = {
+  expenses:[
+    {m:'居住',s:['房租','房貸','管理費','水電瓦斯']},
+    {m:'餐飲',s:['飲食','外食','咖啡飲料']},
+    {m:'交通',s:['油費','停車費','大眾運輸','車貸']},
+    {m:'醫療保健',s:['保費','門診','藥品','健身']},
+    {m:'娛樂購物',s:['訂閱','旅遊','購物','電影']},
+    {m:'子女',s:['教育','才藝','保母']},
+    {m:'其他',s:[]},
+  ],
+  assets:[
+    {m:'現金存款',s:['活存','定存','外幣']},
+    {m:'投資',s:['台股','美股','ETF','基金']},
+    {m:'不動產',s:['自住房','出租房']},
+    {m:'其他',s:[]},
+  ],
+  liabilities:[
+    {m:'房貸',s:[]},
+    {m:'車貸',s:[]},
+    {m:'信貸',s:[]},
+    {m:'信用卡',s:[]},
+    {m:'其他',s:[]},
+  ],
+};
+function sanitizeCatConfig(o){
+  if(!o||typeof o!=='object') return deepClone(DEFAULT_CAT_CONFIG);
+  const out={};
+  for(const k of ['expenses','assets','liabilities']){
+    out[k]=Array.isArray(o[k])?o[k].map(g=>({m:String(g.m||''),s:Array.isArray(g.s)?g.s.map(String):[]})):deepClone(DEFAULT_CAT_CONFIG[k]);
+  }
+  return out;
+}
+
+let state = { settings:{...DEFAULT_SETTINGS}, incomes:[], expenses:[], assets:[], liabilities:[], goals:[], children:[], purchases:[], childCosts:deepClone(DEFAULT_CHILD_COSTS), postal:{...DEFAULT_POSTAL}, catConfig:deepClone(DEFAULT_CAT_CONFIG) };
 let sb = null;            // supabase client
 let session = null;
 let pwRecovery = false;
@@ -769,6 +821,7 @@ const Store = {
       state.settings = st ? cleanSettings(st) : {...DEFAULT_SETTINGS};
       state.childCosts = sanitizeChildCosts(st ? st.child_costs : null);
       state.postal = sanitizePostal(st ? st.postal : null);
+      state.catConfig = sanitizeCatConfig(st ? st.cat_config : null);
       for(const key of Object.keys(TABLES)){
         const { data } = await sb.from(TABLES[key]).select('*').eq('user_id',uidv).order('created_at',{ascending:true});
         state[key] = data || [];
@@ -808,7 +861,7 @@ const Store = {
 
   async saveSettings(){
     if(this.mode==='cloud' && session){
-      const payload = { user_id: session.user.id, ...state.settings, child_costs: state.childCosts, postal: state.postal, updated_at:new Date().toISOString() };
+      const payload = { user_id: session.user.id, ...state.settings, child_costs: state.childCosts, postal: state.postal, cat_config: state.catConfig, updated_at:new Date().toISOString() };
       const { error } = await sb.from('fp_settings').upsert(payload);
       if(error) console.error(error);
     } else { persistLocal(); }
@@ -888,7 +941,7 @@ function sanitizePostal(o){
 
 function loadLocal(){
   const raw = localStorage.getItem(LS_KEY);
-  if(raw){ try{ const d=JSON.parse(raw); state={...state,...d}; state.settings={...DEFAULT_SETTINGS,...(d.settings||{})}; state.childCosts=sanitizeChildCosts(d.childCosts); state.postal=sanitizePostal(d.postal); return; }catch(e){} }
+  if(raw){ try{ const d=JSON.parse(raw); state={...state,...d}; state.settings={...DEFAULT_SETTINGS,...(d.settings||{})}; state.childCosts=sanitizeChildCosts(d.childCosts); state.postal=sanitizePostal(d.postal); state.catConfig=sanitizeCatConfig(d.catConfig); return; }catch(e){} }
   seedSample(); persistLocal();
 }
 function persistLocal(){ if(Store.mode!=='cloud') localStorage.setItem(LS_KEY, JSON.stringify(state)); }
@@ -900,6 +953,7 @@ function seedSample(){
   state.purchases = [];
   state.childCosts = deepClone(DEFAULT_CHILD_COSTS);
   state.postal = {...DEFAULT_POSTAL};
+  state.catConfig = deepClone(DEFAULT_CAT_CONFIG);
   state.incomes = [
     row({name:'月薪（含勞健保）',amount:34000,frequency:'monthly',growth_rate:0.03}),
   ];
@@ -1309,7 +1363,7 @@ const SCHEMAS = {
 
   expenses:{ cols:[
     {key:'name',label:'項目',type:'text',ph:'例：房租'},
-    {key:'category',label:'分類',type:'text',ph:'居住/生活…'},
+    {key:'category',label:'分類',type:'cat'},
     {key:'amount',label:'金額',type:'money'},
     {key:'frequency',label:'頻率',type:'select',options:[['monthly','每月'],['quarterly','每季'],['yearly','每年']]},
     {key:'is_fixed',label:'固定',type:'check'},
@@ -1319,7 +1373,7 @@ const SCHEMAS = {
 
   assets:{ cols:[
     {key:'name',label:'名稱',type:'text',ph:'例：股票/ETF'},
-    {key:'type',label:'類型',type:'text',ph:'現金/投資…'},
+    {key:'type',label:'類型',type:'cat'},
     {key:'value',label:'現值',type:'money'},
     {key:'expected_return',label:'預期年報酬',type:'percent'},
     {key:'is_liquid',label:'可動用',type:'check'},
@@ -1328,7 +1382,7 @@ const SCHEMAS = {
 
   liabilities:{ cols:[
     {key:'name',label:'名稱',type:'text',ph:'例：房貸'},
-    {key:'type',label:'類型',type:'text',ph:'房貸/信貸…'},
+    {key:'type',label:'類型',type:'cat'},
     {key:'balance',label:'餘額',type:'money'},
     {key:'interest_rate',label:'年利率',type:'percent'},
     {key:'monthly_payment',label:'每月還款',type:'money'},
@@ -1345,9 +1399,31 @@ const SCHEMAS = {
   ], def:{name:'',target_amount:0,target_years:5,cycle_years:null,start_amount:0,return_rate:null,priority:3}, grid:'1.2fr 1.1fr .55fr .55fr 1fr .6fr .55fr .9fr .8fr 40px', computed:true },
 };
 
+function buildCatSelect(entityKey, currentVal, da){
+  const cats=(state.catConfig&&state.catConfig[entityKey])||[];
+  const allVals=new Set();
+  cats.forEach(g=>{ if(g.s.length===0) allVals.add(g.m); else g.s.forEach(s=>allVals.add(s)); });
+  let opts='';
+  if(currentVal && !allVals.has(currentVal)) opts+=`<option value="${escapeHtml(currentVal)}" selected>${escapeHtml(currentVal)}</option>`;
+  cats.forEach(g=>{
+    if(g.s.length===0){
+      opts+=`<option value="${escapeHtml(g.m)}" ${currentVal===g.m?'selected':''}>${escapeHtml(g.m)}</option>`;
+    } else {
+      opts+=`<optgroup label="${escapeHtml(g.m)}">`;
+      g.s.forEach(s=>{ opts+=`<option value="${escapeHtml(s)}" ${currentVal===s?'selected':''}>${escapeHtml(s)}</option>`; });
+      opts+=`</optgroup>`;
+    }
+  });
+  return `<select ${da}>${opts}</select>`;
+}
+
 function cellInput(key,r,c){
   const v=r[c.key];
   const da=`data-key="${key}" data-id="${r.id}" data-field="${c.key}" data-type="${c.type}"`;
+  if(c.type==='cat'){
+    const entKey=key==='expenses'?'expenses':(key==='assets'?'assets':'liabilities');
+    return buildCatSelect(entKey, v||'', da);
+  }
   if(c.type==='select'){
     return `<select ${da}>`+c.options.map(o=>`<option value="${o[0]}" ${v===o[0]?'selected':''}>${o[1]}</option>`).join('')+`</select>`;
   }
@@ -1380,12 +1456,18 @@ function escapeHtml(s){ return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<'
 // 拖曳排序握把（6 點 grip）
 const DRAG_HANDLE = '<span class="drag-h" draggable="true" title="拖曳排序"><svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor"><circle cx="2.5" cy="3" r="1.25"/><circle cx="7.5" cy="3" r="1.25"/><circle cx="2.5" cy="8" r="1.25"/><circle cx="7.5" cy="8" r="1.25"/><circle cx="2.5" cy="13" r="1.25"/><circle cx="7.5" cy="13" r="1.25"/></svg></span>';
 
-// 整理模式（buffered reorder + delete）
+// 排序/刪除模式（拖曳排序在此模式進行，儲存後才生效）
 const reorderMode = {};
 function enterReorder(key){ reorderMode[key]={active:true,draft:state[key].map(r=>({...r}))}; renderEntity(key); }
 function cancelReorder(key){ reorderMode[key]={active:false}; renderEntity(key); }
-async function saveReorder(key){ if(!reorderMode[key]) return; state[key]=reorderMode[key].draft; reorderMode[key]={active:false}; await persistOrder(key); renderEntity(key); recalc(); }
-function reorderDraft(key,idx,dir){ const arr=reorderMode[key].draft; const to=idx+dir; if(to<0||to>=arr.length) return; [arr[idx],arr[to]]=[arr[to],arr[idx]]; renderEntity(key); }
+async function saveReorder(key){
+  if(!reorderMode[key]) return;
+  const draft=reorderMode[key].draft;
+  const draftIds=new Set(draft.map(r=>r.id));
+  for(const r of state[key]){ if(!draftIds.has(r.id)) await Store.deleteItem(key,r.id); }
+  state[key]=draft; reorderMode[key]={active:false};
+  await persistOrder(key); renderEntity(key); recalc();
+}
 function deleteDraft(key,id){ const arr=reorderMode[key].draft; const i=arr.findIndex(r=>r.id===id); if(i>=0) arr.splice(i,1); renderEntity(key); }
 
 function renderEntity(key){
@@ -1396,28 +1478,28 @@ function renderEntity(key){
   if(inReorder){
     const rows=rm.draft;
     let h=`<div class="ro-list">`;
-    rows.forEach((r,idx)=>{
+    rows.forEach(r=>{
       const nameCol=sc.cols.find(c=>c.type==='text');
       const name=escapeHtml(r[nameCol?nameCol.key:'name']||'（無名稱）');
       const amtCol=sc.cols.find(c=>c.type==='money');
       const amtHtml=amtCol?`<span class="ro-amt">${fmtMoney(r[amtCol.key]||0)}</span>`:'';
-      h+=`<div class="ro-item"><div class="ro-arrows"><button class="ro-up" data-ro-key="${key}" data-ro-idx="${idx}" ${idx===0?'disabled':''}>↑</button><button class="ro-dn" data-ro-key="${key}" data-ro-idx="${idx}" ${idx===rows.length-1?'disabled':''}>↓</button></div><div class="ro-name">${name}${amtHtml}</div><button class="del" data-ro-del-key="${key}" data-ro-del-id="${r.id}">✕</button></div>`;
+      h+=`<div class="ro-item" data-row-id="${r.id}" data-row-key="${key}">${DRAG_HANDLE}<span class="ro-name">${name}${amtHtml}</span><button class="del" data-ro-del-key="${key}" data-ro-del-id="${r.id}">✕</button></div>`;
     });
-    h+=`</div><div class="ro-footer"><button class="add ro-save" data-ro-save-key="${key}" style="margin-top:0">✓ 儲存順序</button><button class="ro-cancel-btn" data-ro-cancel-key="${key}">取消</button><span style="font-size:12.5px;color:var(--muted)">（刪除將在儲存後生效）</span></div>`;
+    h+=`</div><div class="ro-footer"><button class="add ro-save" data-ro-save-key="${key}" style="margin-top:0">✓ 儲存</button><button class="ro-cancel-btn" data-ro-cancel-key="${key}">取消</button><span style="font-size:12.5px;color:var(--muted)">拖曳調整順序，點 ✕ 刪除（儲存後生效）</span></div>`;
     el.innerHTML=h;
     return;
   }
 
-  const grid=`grid-template-columns:22px ${sc.grid}`;
+  const grid=`grid-template-columns:${sc.grid}`;
   let h=`<div class="tbl">`;
-  h+=`<div class="tr th" style="${grid}"><div></div>`+sc.cols.map(c=>`<div>${c.label}</div>`).join('')
+  h+=`<div class="tr th" style="${grid}">`+sc.cols.map(c=>`<div>${c.label}</div>`).join('')
      +(sc.computed?`<div style="text-align:right">每月應投入</div><div style="text-align:center">可行性</div>`:'')+`<div></div></div>`;
   state[key].forEach(r=>{
-    h+=`<div class="tr" data-row-id="${r.id}" data-row-key="${key}" style="${grid}"><div class="chk">${DRAG_HANDLE}</div>`+sc.cols.map(c=>`<div>${cellInput(key,r,c)}</div>`).join('');
+    h+=`<div class="tr" style="${grid}">`+sc.cols.map(c=>`<div>${cellInput(key,r,c)}</div>`).join('');
     if(sc.computed){ h+=`<div class="computed" id="req-${r.id}"></div><div style="text-align:center"><span id="badge-${r.id}"></span></div>`; }
     h+=`<div><button class="del" data-del-key="${key}" data-del-id="${r.id}">✕</button></div></div>`;
   });
-  h+=`</div><button class="add" data-add-key="${key}">＋ 新增一列</button><button class="ro-enter" data-ro-enter-key="${key}" title="調整順序或刪除列">整理</button>`;
+  h+=`</div><button class="add" data-add-key="${key}">＋ 新增一列</button><button class="ro-enter" data-ro-enter-key="${key}" title="拖曳排序或刪除列">排序/刪除</button>`;
   el.innerHTML=h;
   if(sc.computed) updateGoalComputed();
 }
@@ -2503,6 +2585,33 @@ function renderSettings(){
   }).join('');
 }
 
+function renderCatConfig(){
+  const el=document.getElementById('cat-settings');
+  if(!el) return;
+  const labels={expenses:'支出分類',assets:'資產類型',liabilities:'負債類型'};
+  let h='';
+  for(const ent of ['expenses','assets','liabilities']){
+    const cats=state.catConfig[ent]||[];
+    h+=`<div style="margin-bottom:22px"><div style="font-weight:600;font-size:14px;margin-bottom:8px;color:var(--ink)">${labels[ent]}</div>`;
+    cats.forEach((g,mi)=>{
+      h+=`<details class="cat-group"><summary class="cat-group-head"><span>${escapeHtml(g.m)}</span>
+        <button class="btn cat-del-main" data-cat-ent="${ent}" data-cat-mi="${mi}" style="font-size:11.5px;padding:3px 9px;color:var(--danger);border-color:var(--danger);margin-left:auto">刪除</button>
+        </summary><div class="cat-sub-body">
+        <div class="cat-sub-tags">`;
+      if(g.s.length===0) h+=`<span style="font-size:12.5px;color:var(--faint)">無子分類，分類本身作為選項</span>`;
+      g.s.forEach((s,si)=>{ h+=`<span class="cat-tag">${escapeHtml(s)}<button class="cat-del-sub" data-cat-ent="${ent}" data-cat-mi="${mi}" data-cat-si="${si}" title="移除">×</button></span>`; });
+      h+=`</div><div class="cat-input-row"><input type="text" class="cat-sub-inp" data-cat-ent="${ent}" data-cat-mi="${mi}" placeholder="子分類名稱…" maxlength="20">
+        <button class="btn cat-add-sub-btn" data-cat-ent="${ent}" data-cat-mi="${mi}" style="padding:6px 14px;font-size:12.5px;white-space:nowrap">＋ 子分類</button>
+        </div></div></details>`;
+    });
+    h+=`<div class="cat-input-row" style="margin-top:8px">
+      <input type="text" class="cat-main-inp" data-cat-ent="${ent}" placeholder="新主分類名稱…" maxlength="20">
+      <button class="btn cat-add-main-btn" data-cat-ent="${ent}" style="padding:6px 14px;font-size:12.5px;white-space:nowrap">＋ 主分類</button>
+    </div></div>`;
+  }
+  el.innerHTML=h;
+}
+
 function renderModeBadge(){
   const b=document.getElementById('modebadge');
   if(Store.mode==='cloud' && session){ b.textContent='雲端同步中 · '+session.user.email; b.className='modebadge cloud'; }
@@ -2892,6 +3001,7 @@ function renderAll(){
   syncPrintBtn();
   Object.keys(SCHEMAS).forEach(renderEntity);
   renderSettings();
+  renderCatConfig();
   updateSummaries();
   updateChart();
   renderCashflow();
@@ -3465,13 +3575,18 @@ document.addEventListener('click', async e=>{
   if(add){ const key=add.dataset.addKey; await Store.addItem(key, JSON.parse(JSON.stringify(SCHEMAS[key].def))); renderEntity(key); recalc(); return; }
   const del=e.target.closest('[data-del-key]');
   if(del){ await Store.deleteItem(del.dataset.delKey, del.dataset.delId); renderEntity(del.dataset.delKey); recalc(); return; }
-  // 整理模式按鈕
+  // 分類管理
+  const catDelMain=e.target.closest('.cat-del-main');
+  if(catDelMain){ const ent=catDelMain.dataset.catEnt,mi=parseInt(catDelMain.dataset.catMi); const g=state.catConfig[ent][mi]; if(g.s.length>0&&!confirm(`刪除「${g.m}」及其${g.s.length}個子分類？`)) return; state.catConfig[ent].splice(mi,1); await Store.saveSettings(); renderCatConfig(); renderEntity(ent); return; }
+  const catDelSub=e.target.closest('.cat-del-sub');
+  if(catDelSub){ const {catEnt,catMi,catSi}=catDelSub.dataset; state.catConfig[catEnt][parseInt(catMi)].s.splice(parseInt(catSi),1); await Store.saveSettings(); renderCatConfig(); renderEntity(catEnt); return; }
+  const catAddSub=e.target.closest('.cat-add-sub-btn');
+  if(catAddSub){ const ent=catAddSub.dataset.catEnt,mi=parseInt(catAddSub.dataset.catMi); const inp=catAddSub.previousElementSibling; const val=(inp&&inp.value.trim())||''; if(!val){inp&&inp.focus();return;} state.catConfig[ent][mi].s.push(val); inp.value=''; await Store.saveSettings(); renderCatConfig(); renderEntity(ent); return; }
+  const catAddMain=e.target.closest('.cat-add-main-btn');
+  if(catAddMain){ const ent=catAddMain.dataset.catEnt; const inp=catAddMain.previousElementSibling; const val=(inp&&inp.value.trim())||''; if(!val){inp&&inp.focus();return;} state.catConfig[ent].push({m:val,s:[]}); inp.value=''; await Store.saveSettings(); renderCatConfig(); renderEntity(ent); return; }
+  // 排序/刪除模式按鈕
   const roEnter=e.target.closest('[data-ro-enter-key]');
   if(roEnter){ enterReorder(roEnter.dataset.roEnterKey); return; }
-  const roUp=e.target.closest('.ro-up[data-ro-key]');
-  if(roUp){ reorderDraft(roUp.dataset.roKey, parseInt(roUp.dataset.roIdx), -1); return; }
-  const roDn=e.target.closest('.ro-dn[data-ro-key]');
-  if(roDn){ reorderDraft(roDn.dataset.roKey, parseInt(roDn.dataset.roIdx), 1); return; }
   const roDel=e.target.closest('[data-ro-del-key]');
   if(roDel){ deleteDraft(roDel.dataset.roDelKey, roDel.dataset.roDelId); return; }
   const roSave=e.target.closest('[data-ro-save-key]');
@@ -3491,10 +3606,13 @@ async function persistOrder(key){
   } else { persistLocal(); }
 }
 async function reorderEntity(key, draggedId, targetId, after){
-  const arr=state[key]; const from=arr.findIndex(r=>r.id===draggedId); if(from<0) return;
+  const inRo=reorderMode[key]&&reorderMode[key].active;
+  const arr=inRo?reorderMode[key].draft:state[key];
+  const from=arr.findIndex(r=>r.id===draggedId); if(from<0) return;
   const [moved]=arr.splice(from,1);
   let to=arr.findIndex(r=>r.id===targetId);
   if(to<0){ arr.push(moved); } else { if(after) to++; arr.splice(to,0,moved); }
+  if(inRo){ renderEntity(key); return; }
   await persistOrder(key);
   if(SCHEMAS[key]) renderEntity(key);
   else if(key==='children') renderChildren();
