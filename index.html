@@ -1451,10 +1451,16 @@ function cellInput(key,r,c){
     return `<input class="num" type="number" step="0.001" ${da} value="${parseFloat((Number(v||0)*100).toFixed(3))}">`;
   }
   if(c.type==='money'||c.type==='number'){
-    const show=(v===null||v===undefined||v==='')?'':Number(v);
+    // pay_month/pay_day: 0 視為空
+    const isPayField=(c.key==='pay_month'||c.key==='pay_day');
+    const show=(v===null||v===undefined||v===''||(isPayField&&Number(v)===0))?'':Number(v);
     let lim=''; let step=(c.type==='money'?'1000':'1');
     if(c.key==='pay_day') lim='min="1" max="31" placeholder="—"';
-    else if(c.key==='pay_month') lim='min="1" max="12" placeholder="—"';
+    else if(c.key==='pay_month'){
+      // monthly 頻率：月份欄不可用
+      if(r.frequency==='monthly') return `<span style="color:var(--faint);font-size:13px;display:block;text-align:center">—</span>`;
+      lim='min="1" max="12" placeholder="—"';
+    }
     else if(c.key==='cycle_years'){ step='0.5'; lim='min="0" placeholder="—"'; }
     if(c.type==='money'){
       const fmtVal=show===''?'':Number(show).toLocaleString('en-US');
