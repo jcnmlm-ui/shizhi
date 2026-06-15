@@ -3568,6 +3568,7 @@ document.addEventListener('change', async e=>{
     else if(type==='check') val=t.checked;
     else val=t.value;
     await Store.updateItem(key,id,{[field]:val});
+    if(field==='frequency') renderEntity(key);
     recalc();
   }
   if(t.matches('[data-setting]')){
