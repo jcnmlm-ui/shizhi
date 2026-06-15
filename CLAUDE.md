@@ -71,7 +71,7 @@
 > 勿在此處或程式碼中硬寫金額（`payment.price_full`、`payment.price_sub`）。
 
 ### 付款流程
-匯款末五碼 → 填申請表 → 管理員在 admin.html 確認 → 手動開通
+匯款末五碼 → 填申請表 → 依訂購月數計算失效日 → 管理員在 admin.html 確認 → 手動開通→ 自動帶入訂購月數失效日
 
 ### 相關資料表
 - `fp_plans`, `fp_subscriptions`, `fp_user_overrides`（方案管理）
@@ -110,10 +110,11 @@ git push origin main
 每次回覆結束後，若任務難易度值得說明，請在最後附上一行評估：
 
 ```
-難易度：★★☆☆☆ | Token 估計：~2,000（約佔 200K 上限的 1%）| 建議：可繼續對話
+難易度：★★☆☆☆ | Token 估計：~2,000（約佔 200K 上限的 1%）| 建議：可繼續對話 模組適配性
 ```
 
 - **難易度**：1–5 顆星（★ = 簡單修改，★★★★★ = 跨多檔、DB 異動、架構重構）
+- **模組選擇適配性**：1–5 顆星（★ = 差，★★★★★ = 非常適合）判斷邏輯為各模組的擅長領域
 - **Token 估計**：本次回覆大概消耗多少 token（含程式碼讀取）
 - **累計估算**：長對話累積接近上限（約 150K+）時，主動提醒用戶「建議開新對話」
 - **上限**：claude-sonnet-4-6 的 context window 為 200K tokens
@@ -123,6 +124,8 @@ git push origin main
 ## 不要做的事
 - 不要修改 `supabase_setup.sql`（用獨立 migration 檔案）
 - 不要把 `admin.html` push 到 GitHub（含 service_role 相關功能）
+- 不要把 `時值_產品規劃書` push 到 GitHub（不論是.md或是.pdf;任何版本都適用）
+- 不要把 `CLAUDE.md` push 到 GitHub
 - 不要在 HTML 裡放 service_role key
 - 不要改 `fp_plans.id`（源碼有硬寫對應）
 - 不要改 RLS policies（從 Supabase MCP 工具操作）
