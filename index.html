@@ -145,6 +145,10 @@
   .ro-arrows button:disabled{opacity:.3;cursor:default}
   .ro-name{flex:1;font-size:14px;color:var(--ink);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .ro-name .ro-amt{color:var(--muted);font-size:12.5px;margin-left:8px}
+  .ro-item-body{flex:1;min-width:0}
+  .ro-item-name{font-size:14px;color:var(--ink);font-weight:500;margin-bottom:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ro-item-meta{display:flex;flex-wrap:wrap;gap:4px}
+  .ro-meta-tag{font-size:11.5px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:1px 7px;white-space:nowrap}
   .ro-footer{display:flex;gap:8px;margin-top:12px;align-items:center}
   .ro-cancel-btn{border:1px solid var(--line-2);background:transparent;color:var(--muted);border-radius:10px;padding:9px 15px;cursor:pointer;font-size:13.5px;font-weight:500;transition:.15s}
   .ro-cancel-btn:hover{border-color:var(--danger);color:var(--danger)}
@@ -152,6 +156,8 @@
   .cat-group{border:1px solid var(--line);border-radius:10px;margin-bottom:6px;overflow:hidden}
   .cat-group-head{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;background:var(--surface-2);list-style:none;font-size:14px;font-weight:500;user-select:none}
   .cat-group-head::-webkit-details-marker{display:none}
+  .cat-group-head::before{content:'▸';color:var(--muted);flex-shrink:0;font-size:12px;transition:.15s}
+  .cat-group[open]>.cat-group-head::before{content:'▾';color:var(--primary)}
   .cat-group[open] .cat-group-head{border-bottom:1px solid var(--line)}
   .cat-sub-body{padding:10px 12px;display:flex;flex-direction:column;gap:8px}
   .cat-sub-tags{display:flex;flex-wrap:wrap;gap:6px;min-height:20px}
@@ -1401,18 +1407,22 @@ const SCHEMAS = {
 
 function buildCatSelect(entityKey, currentVal, da){
   const cats=(state.catConfig&&state.catConfig[entityKey])||[];
+  // 收集所有可選值（子分類，或無子分類時的主分類名）
   const allVals=new Set();
   cats.forEach(g=>{ if(g.s.length===0) allVals.add(g.m); else g.s.forEach(s=>allVals.add(s)); });
-  let opts='';
+  let opts=`<option value="" disabled ${!currentVal?'selected':''}>── 選擇分類 ──</option>`;
+  // 若現有值不在清單中（舊資料），加入為可選項
   if(currentVal && !allVals.has(currentVal)) opts+=`<option value="${escapeHtml(currentVal)}" selected>${escapeHtml(currentVal)}</option>`;
   cats.forEach(g=>{
+    // 所有主分類都用 optgroup（標題不可選）
+    opts+=`<optgroup label="${escapeHtml(g.m)}">`;
     if(g.s.length===0){
+      // 無子分類時，主分類名本身作為唯一選項
       opts+=`<option value="${escapeHtml(g.m)}" ${currentVal===g.m?'selected':''}>${escapeHtml(g.m)}</option>`;
     } else {
-      opts+=`<optgroup label="${escapeHtml(g.m)}">`;
       g.s.forEach(s=>{ opts+=`<option value="${escapeHtml(s)}" ${currentVal===s?'selected':''}>${escapeHtml(s)}</option>`; });
-      opts+=`</optgroup>`;
     }
+    opts+=`</optgroup>`;
   });
   return `<select ${da}>${opts}</select>`;
 }
@@ -1456,6 +1466,20 @@ function escapeHtml(s){ return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<'
 // 拖曳排序握把（6 點 grip）
 const DRAG_HANDLE = '<span class="drag-h" draggable="true" title="拖曳排序"><svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor"><circle cx="2.5" cy="3" r="1.25"/><circle cx="7.5" cy="3" r="1.25"/><circle cx="2.5" cy="8" r="1.25"/><circle cx="7.5" cy="8" r="1.25"/><circle cx="2.5" cy="13" r="1.25"/><circle cx="7.5" cy="13" r="1.25"/></svg></span>';
 
+// 排序模式列：各欄顯示文字
+function cellDisplayStr(key,r,c){
+  const v=r[c.key];
+  if(v===null||v===undefined||v==='') return null;
+  if(c.type==='money') return v!==0?fmtMoney(v):null;
+  if(c.type==='percent') return v!==0?parseFloat((Number(v)*100).toFixed(3))+'%':null;
+  if(c.type==='number') return (v!==0&&v!==null)?String(v):null;
+  if(c.type==='check') return v?c.label:null;
+  if(c.type==='select'){ const o=c.options&&c.options.find(o=>o[0]===v); return o?o[1]:String(v); }
+  if(c.type==='cat') return String(v)||null;
+  if(c.type==='text') return null; // 名稱欄已獨立顯示
+  return null;
+}
+
 // 排序/刪除模式（拖曳排序在此模式進行，儲存後才生效）
 const reorderMode = {};
 function enterReorder(key){ reorderMode[key]={active:true,draft:state[key].map(r=>({...r}))}; renderEntity(key); }
@@ -1481,9 +1505,11 @@ function renderEntity(key){
     rows.forEach(r=>{
       const nameCol=sc.cols.find(c=>c.type==='text');
       const name=escapeHtml(r[nameCol?nameCol.key:'name']||'（無名稱）');
-      const amtCol=sc.cols.find(c=>c.type==='money');
-      const amtHtml=amtCol?`<span class="ro-amt">${fmtMoney(r[amtCol.key]||0)}</span>`:'';
-      h+=`<div class="ro-item" data-row-id="${r.id}" data-row-key="${key}">${DRAG_HANDLE}<span class="ro-name">${name}${amtHtml}</span><button class="del" data-ro-del-key="${key}" data-ro-del-id="${r.id}">✕</button></div>`;
+      const metaTags=sc.cols
+        .filter(c=>c.type!=='text')
+        .map(c=>{ const s=cellDisplayStr(key,r,c); return s?`<span class="ro-meta-tag">${escapeHtml(s)}</span>`:''; })
+        .join('');
+      h+=`<div class="ro-item" data-row-id="${r.id}" data-row-key="${key}">${DRAG_HANDLE}<div class="ro-item-body"><div class="ro-item-name">${name}</div>${metaTags?`<div class="ro-item-meta">${metaTags}</div>`:''}</div><button class="del" data-ro-del-key="${key}" data-ro-del-id="${r.id}">✕</button></div>`;
     });
     h+=`</div><div class="ro-footer"><button class="add ro-save" data-ro-save-key="${key}" style="margin-top:0">✓ 儲存</button><button class="ro-cancel-btn" data-ro-cancel-key="${key}">取消</button><span style="font-size:12.5px;color:var(--muted)">拖曳調整順序，點 ✕ 刪除（儲存後生效）</span></div>`;
     el.innerHTML=h;
@@ -2588,19 +2614,24 @@ function renderSettings(){
 function renderCatConfig(){
   const el=document.getElementById('cat-settings');
   if(!el) return;
+  // 記錄目前展開的群組，渲染後還原
+  const openKeys=new Set();
+  el.querySelectorAll('details.cat-group[open]').forEach(d=>openKeys.add(d.dataset.cgKey));
   const labels={expenses:'支出分類',assets:'資產類型',liabilities:'負債類型'};
   let h='';
   for(const ent of ['expenses','assets','liabilities']){
     const cats=state.catConfig[ent]||[];
     h+=`<div style="margin-bottom:22px"><div style="font-weight:600;font-size:14px;margin-bottom:8px;color:var(--ink)">${labels[ent]}</div>`;
     cats.forEach((g,mi)=>{
-      h+=`<details class="cat-group"><summary class="cat-group-head"><span>${escapeHtml(g.m)}</span>
+      const cgKey=`${ent}-${g.m}`;
+      h+=`<details class="cat-group" data-cg-key="${cgKey}"><summary class="cat-group-head"><span>${escapeHtml(g.m)}</span>
         <button class="btn cat-del-main" data-cat-ent="${ent}" data-cat-mi="${mi}" style="font-size:11.5px;padding:3px 9px;color:var(--danger);border-color:var(--danger);margin-left:auto">刪除</button>
         </summary><div class="cat-sub-body">
         <div class="cat-sub-tags">`;
-      if(g.s.length===0) h+=`<span style="font-size:12.5px;color:var(--faint)">無子分類，分類本身作為選項</span>`;
+      if(g.s.length===0) h+=`<span style="font-size:12.5px;color:var(--faint)">（尚無子分類，分類本身作為選項）</span>`;
       g.s.forEach((s,si)=>{ h+=`<span class="cat-tag">${escapeHtml(s)}<button class="cat-del-sub" data-cat-ent="${ent}" data-cat-mi="${mi}" data-cat-si="${si}" title="移除">×</button></span>`; });
-      h+=`</div><div class="cat-input-row"><input type="text" class="cat-sub-inp" data-cat-ent="${ent}" data-cat-mi="${mi}" placeholder="子分類名稱…" maxlength="20">
+      h+=`</div><div class="cat-input-row">
+        <input type="text" class="cat-sub-inp" data-cat-ent="${ent}" data-cat-mi="${mi}" placeholder="子分類名稱…" maxlength="20">
         <button class="btn cat-add-sub-btn" data-cat-ent="${ent}" data-cat-mi="${mi}" style="padding:6px 14px;font-size:12.5px;white-space:nowrap">＋ 子分類</button>
         </div></div></details>`;
     });
@@ -2610,6 +2641,8 @@ function renderCatConfig(){
     </div></div>`;
   }
   el.innerHTML=h;
+  // 還原展開狀態
+  el.querySelectorAll('details.cat-group').forEach(d=>{ if(openKeys.has(d.dataset.cgKey)) d.open=true; });
 }
 
 function renderModeBadge(){
@@ -3426,6 +3459,15 @@ function upgradeCard(tab){
     <p class="hint">目前方案：<b>${planLabel2}</b>　｜　如已升級請重新登入或<a href="javascript:void(0)" onclick="location.reload()">重新整理</a></p>
   </div>`;
 }
+
+// 分類輸入框按 Enter 新增（不關閉手風琴）
+document.addEventListener('keydown', e=>{
+  if(e.key!=='Enter') return;
+  const subInp=e.target.closest('.cat-sub-inp');
+  if(subInp){ e.preventDefault(); const btn=document.querySelector(`.cat-add-sub-btn[data-cat-ent="${subInp.dataset.catEnt}"][data-cat-mi="${subInp.dataset.catMi}"]`); if(btn) btn.click(); return; }
+  const mainInp=e.target.closest('.cat-main-inp');
+  if(mainInp){ e.preventDefault(); const btn=document.querySelector(`.cat-add-main-btn[data-cat-ent="${mainInp.dataset.catEnt}"]`); if(btn) btn.click(); return; }
+});
 
 // 千位符號格式化（money-fmt 輸入框）
 document.addEventListener('focus', e=>{
