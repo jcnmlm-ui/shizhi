@@ -889,6 +889,9 @@ const Store = {
       net_worth: Math.round(m.netWorth),
       annual_income: Math.round(aInc),
       annual_expense: Math.round(aExp),
+      monthly_surplus: Math.round(m.net),
+      savings_rate: parseFloat(m.savingsRate.toFixed(4)),
+      em_months: parseFloat(m.emMonths.toFixed(2)),
     };
     const { error } = await sb.from('fp_snapshots').insert(payload);
     return { error };
@@ -897,7 +900,7 @@ const Store = {
   async listSnapshots(){
     if(this.mode!=='cloud' || !session) return [];
     const { data, error } = await sb.from('fp_snapshots')
-      .select('id,name,note,net_worth,annual_income,annual_expense,created_at')
+      .select('id,name,note,net_worth,annual_income,annual_expense,monthly_surplus,savings_rate,em_months,created_at')
       .eq('user_id', session.user.id)
       .order('created_at', { ascending:false });
     if(error){ console.error(error); return []; }
@@ -2783,6 +2786,7 @@ async function renderSnapshots(){
   await renderSnapshotList();
 }
 
+let snapTrendChart=null;
 async function renderSnapshotList(){
   const wrap=document.getElementById('snap-list-wrap'); if(!wrap) return;
   const list=await Store.listSnapshots();
@@ -2792,8 +2796,24 @@ async function renderSnapshotList(){
   }
   const fmt=v=>v!=null?fmtMoney(v):'—';
   const fmtDate=s=>{ const d=new Date(s); return d.getFullYear()+'/'+(d.getMonth()+1).toString().padStart(2,'0')+'/'+d.getDate().toString().padStart(2,'0')+' '+d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0'); };
-  const rows=list.map(s=>`
-    <div class="card" style="margin-bottom:10px" data-snap-id="${s.id}">
+  const fmtSR=v=>v!=null?(v*100).toFixed(1)+'%':'—';
+  const fmtEM=v=>v!=null?v.toFixed(1)+' 個月':'—';
+  const delta=(cur,prev,isMoney=true)=>{
+    if(prev==null||cur==null) return '';
+    const d=cur-prev;
+    const cls=d>=0?'color:var(--primary-2)':'color:var(--danger)';
+    const sign=d>=0?'▲':'▼';
+    const val=isMoney?fmtMoney(Math.abs(d)):Math.abs(d).toFixed(1);
+    return `<span style="font-size:11.5px;${cls};margin-left:5px">${sign}${val}</span>`;
+  };
+  // list 是 desc（新→舊），prev = index+1
+  const rows=list.map((s,i)=>{
+    const prev=list[i+1];
+    const nwDelta=prev?delta(s.net_worth,prev.net_worth):'' ;
+    const srClass=s.savings_rate>=0.2?'':(s.savings_rate>=0?'warn':'bad');
+    const emTarget=Number(state.settings.emergency_target_months)||6;
+    const emClass=s.em_months>=emTarget?'':(s.em_months>=emTarget/2?'warn':'bad');
+    return `<div class="card" style="margin-bottom:12px" data-snap-id="${s.id}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
         <div>
           <div style="font-weight:700;font-size:16px">${escapeHtml(s.name)}</div>
@@ -2806,12 +2826,47 @@ async function renderSnapshotList(){
         </div>
       </div>
       <div class="rep-grid" style="grid-template-columns:repeat(3,1fr);margin-top:12px">
-        <div class="rep-kpi"><div class="l">淨值</div><div class="v" style="font-size:16px">${fmt(s.net_worth)}</div></div>
-        <div class="rep-kpi"><div class="l">年收入</div><div class="v" style="font-size:16px">${fmt(s.annual_income)}</div></div>
-        <div class="rep-kpi"><div class="l">年支出</div><div class="v" style="font-size:16px">${fmt(s.annual_expense)}</div></div>
+        <div class="rep-kpi"><div class="l">淨值（資產－負債）</div><div class="v" style="font-size:16px">${fmt(s.net_worth)}${nwDelta}</div></div>
+        <div class="rep-kpi ${srClass}"><div class="l">儲蓄率（月結餘÷月收入）</div><div class="v" style="font-size:16px">${fmtSR(s.savings_rate)}<span style="font-size:12px;color:var(--muted);margin-left:5px">月結餘 ${fmt(s.monthly_surplus)}</span></div></div>
+        <div class="rep-kpi ${emClass}"><div class="l">緊急預備金（可撐幾個月）</div><div class="v" style="font-size:16px">${fmtEM(s.em_months)}<span style="font-size:12px;color:var(--muted);margin-left:5px">目標 ${emTarget} 個月</span></div></div>
+        <div class="rep-kpi"><div class="l">年收入（所有收入年化）</div><div class="v" style="font-size:16px">${fmt(s.annual_income)}</div></div>
+        <div class="rep-kpi"><div class="l">年支出（所有支出年化）</div><div class="v" style="font-size:16px">${fmt(s.annual_expense)}</div></div>
+        <div class="rep-kpi"><div class="l">收支差距（年收入－年支出）</div><div class="v" style="font-size:16px;${s.annual_income-s.annual_expense>=0?'color:var(--primary-2)':'color:var(--danger)'}">${fmt(s.annual_income-(s.annual_expense||0))}</div></div>
       </div>
-    </div>`).join('');
-  wrap.innerHTML=`<h2 style="margin:16px 0 10px">歷史快照（共 ${list.length} 份）</h2>${rows}`;
+    </div>`;
+  }).join('');
+
+  // 趨勢圖（≥2 份才顯示）
+  const trendHtml=list.length>=2?`<div class="card" style="margin-bottom:16px">
+    <h2 style="margin-bottom:4px">財務成長趨勢</h2>
+    <p class="hint" style="margin-bottom:12px">各快照時間點的淨值、年收入、年支出變化（由舊至新）</p>
+    <canvas id="snap-trend-chart" style="max-height:220px"></canvas>
+  </div>`:'';
+
+  wrap.innerHTML=`<h2 style="margin:16px 0 10px">歷史快照（共 ${list.length} 份）</h2>${trendHtml}${rows}`;
+
+  // 初始化趨勢圖
+  if(list.length>=2){
+    if(snapTrendChart){ snapTrendChart.destroy(); snapTrendChart=null; }
+    const chrono=[...list].reverse(); // asc
+    const labels=chrono.map(s=>fmtDate(s.created_at).slice(0,10));
+    const base={tension:0.35,pointRadius:5,pointHoverRadius:7,fill:false};
+    snapTrendChart=new Chart(document.getElementById('snap-trend-chart'),{
+      type:'line',
+      data:{ labels, datasets:[
+        {...base,label:'淨值',data:chrono.map(s=>s.net_worth),borderColor:'#1E6B50',backgroundColor:'rgba(30,107,80,0.08)',fill:true,borderWidth:2},
+        {...base,label:'年收入',data:chrono.map(s=>s.annual_income),borderColor:'#C0863A',borderDash:[5,3],borderWidth:1.5},
+        {...base,label:'年支出',data:chrono.map(s=>s.annual_expense),borderColor:'#B14430',borderDash:[5,3],borderWidth:1.5},
+      ]},
+      options:{responsive:true,interaction:{mode:'index',intersect:false},
+        plugins:{legend:{labels:{font:{size:12},color:'#5C5449',boxWidth:16}}},
+        scales:{
+          y:{ticks:{callback:v=>fmtMoney(v),font:{size:11}},grid:{color:'rgba(0,0,0,0.05)'}},
+          x:{ticks:{font:{size:11}},grid:{display:false}}
+        }
+      }
+    });
+  }
 
   // 還原按鈕
   wrap.querySelectorAll('.snap-restore').forEach(btn=>{
@@ -3623,9 +3678,9 @@ document.addEventListener('click', async e=>{
   const catDelSub=e.target.closest('.cat-del-sub');
   if(catDelSub){ const {catEnt,catMi,catSi}=catDelSub.dataset; state.catConfig[catEnt][parseInt(catMi)].s.splice(parseInt(catSi),1); await Store.saveSettings(); renderCatConfig(); renderEntity(catEnt); return; }
   const catAddSub=e.target.closest('.cat-add-sub-btn');
-  if(catAddSub){ const ent=catAddSub.dataset.catEnt,mi=parseInt(catAddSub.dataset.catMi); const inp=catAddSub.previousElementSibling; const val=(inp&&inp.value.trim())||''; if(!val){inp&&inp.focus();return;} state.catConfig[ent][mi].s.push(val); inp.value=''; await Store.saveSettings(); renderCatConfig(); renderEntity(ent); return; }
+  if(catAddSub){ const ent=catAddSub.dataset.catEnt,mi=parseInt(catAddSub.dataset.catMi); const inp=catAddSub.previousElementSibling; const val=(inp&&inp.value.trim())||''; if(!val){inp&&inp.focus();return;} state.catConfig[ent][mi].s.push(val); inp.value=''; await Store.saveSettings(); renderCatConfig(); renderEntity(ent); document.querySelector(`.cat-sub-inp[data-cat-ent="${ent}"][data-cat-mi="${mi}"]`)?.focus(); return; }
   const catAddMain=e.target.closest('.cat-add-main-btn');
-  if(catAddMain){ const ent=catAddMain.dataset.catEnt; const inp=catAddMain.previousElementSibling; const val=(inp&&inp.value.trim())||''; if(!val){inp&&inp.focus();return;} state.catConfig[ent].push({m:val,s:[]}); inp.value=''; await Store.saveSettings(); renderCatConfig(); renderEntity(ent); return; }
+  if(catAddMain){ const ent=catAddMain.dataset.catEnt; const inp=catAddMain.previousElementSibling; const val=(inp&&inp.value.trim())||''; if(!val){inp&&inp.focus();return;} state.catConfig[ent].push({m:val,s:[]}); inp.value=''; await Store.saveSettings(); renderCatConfig(); renderEntity(ent); document.querySelector(`.cat-main-inp[data-cat-ent="${ent}"]`)?.focus(); return; }
   // 排序/刪除模式按鈕
   const roEnter=e.target.closest('[data-ro-enter-key]');
   if(roEnter){ enterReorder(roEnter.dataset.roEnterKey); return; }
@@ -3671,10 +3726,18 @@ document.addEventListener('dragstart', e=>{
 });
 document.addEventListener('dragover', e=>{
   if(!dragState) return;
-  const item=e.target.closest('[data-row-id]');
-  if(!item || item.dataset.rowKey!==dragState.key){ return; }
   e.preventDefault(); e.dataTransfer.dropEffect='move';
+  // 游標在列間隙時往上下各找 12px，確保整列都能感測
+  let item=e.target.closest('[data-row-id]');
+  if(!item){
+    for(const dy of [-8,8,-16,16,-24,24]){
+      const el=document.elementFromPoint(e.clientX, e.clientY+dy);
+      const found=el&&el.closest('[data-row-id]');
+      if(found){ item=found; break; }
+    }
+  }
   clearDropMarks();
+  if(!item || item.dataset.rowKey!==dragState.key) return;
   if(item.dataset.rowId===dragState.id) return;
   const r=item.getBoundingClientRect(); const after=(e.clientY - r.top) > r.height/2;
   item.classList.add(after?'drop-after':'drop-before');
