@@ -719,8 +719,10 @@ const DEFAULT_CHILD_COSTS = {
     monthly:5000,       // 養育照顧/成長津貼：育兒津貼、托育補助等（每月，長期）
     monthly_from:0,     // 按月補助 起始年齡
     monthly_to:4,       // 按月補助 結束年齡（含）→ 育兒津貼一般 0–未滿5歲，即 0–4
-    junior:0,           // 國中 教育補助/年（扣學雜費）
-    senior:12000,       // 高中職 教育補助/年（扣學雜費，2024起公私立學費全免）
+    leave_salary_a:34800,  // 育嬰留職停薪：父／申請人 平均月投保薪資
+    leave_salary_b:0,      // 育嬰留職停薪：母／配偶 平均月投保薪資（若不適用填0）
+    leave_rate:80,         // 育嬰留職停薪：津貼比例（%）。現制60%勞保＋20%就業保險＝80%
+    leave_months:6,        // 育嬰留職停薪：每人最多可請月數（需在子女滿3歲前請完）
   },
 };
 const deepClone = o => JSON.parse(JSON.stringify(o));
@@ -920,8 +922,6 @@ function sanitizeChildCosts(o){
   });
   out.subsidy={...d.subsidy};
   if(o.subsidy && typeof o.subsidy==='object') Object.keys(d.subsidy).forEach(k=>{ if(o.subsidy[k]!=null) out.subsidy[k]=Number(o.subsidy[k]); });
-  if(o.subsidy_junior!=null) out.subsidy.junior=Number(o.subsidy_junior);   // 舊資料遷移
-  if(o.subsidy_senior!=null) out.subsidy.senior=Number(o.subsidy_senior);
   return out;
 }
 
@@ -2125,8 +2125,8 @@ function childAnnualToday(ch,a,gross){
   if(a>=0&&a<=2) c+=cc.care[ch.care_0_2] ?? 0;
   if(a>=3&&a<=5) c+=cc.preschool[ch.preschool] ?? 0;
   if(a>=6&&a<=11){ c+=cc.tuition[ch.school_type] ?? 0; }                                                  // 國小 學雜費
-  if(a>=12&&a<=14){ c+=Math.max(0,(cc.tuition_junior[ch.school_type] ?? 0)-(Number(sub.junior)||0)); }    // 國中（扣教育補助＝自付）
-  if(a>=15&&a<=17){ c+=Math.max(0,(cc.tuition_senior[ch.school_type] ?? 0)-(Number(sub.senior)||0)); }    // 高中（扣教育補助＝自付）
+  if(a>=12&&a<=14){ c+=cc.tuition_junior[ch.school_type] ?? 0; }    // 國中學雜費（已是免學費後的金額，不再另扣教育補助）
+  if(a>=15&&a<=17){ c+=cc.tuition_senior[ch.school_type] ?? 0; }    // 高中學雜費（已是免學費後的金額，不再另扣教育補助）
   if(a>=6&&a<=17){ c+=cc.cram[ch.cram_level] ?? 0; }                                                       // 補習/才藝
   if(a>=18&&a<=21 && goesCollege(ch)) c+=(cc.college_tuition[ch.college]||0)+(cc.college_living[ch.college]||0);
   if(!gross){   // 養育照顧/成長津貼（按月、有年齡上限）→ 從當年支出扣抵
@@ -2147,9 +2147,19 @@ function childSummary(ch){
     const net=Math.max(0,(Number(cc.birth_onetime)||0)-bSub);
     subsidyToday+=bSub; today+=net; nominal+=net; stages.birth+=net; series.push({t:0,nominal:net});
   }
+  // 育嬰留職停薪津貼：父母各最多請 N 個月（需在子女滿3歲前請完），簡化為一筆額度，
+  // 依序扣抵 0–2 歲的養育成本（額度用不完不會「倒貼」，超過部分不影響其他年齡）。
+  let leavePool = cur<=2
+    ? ((Number(sub.leave_salary_a)||0)+(Number(sub.leave_salary_b)||0)) * ((Number(sub.leave_rate)||0)/100) * (Number(sub.leave_months)||0)
+    : 0;
   for(let a=cur;a<=endAge;a++){
-    const t=a-cur, td=childAnnualToday(ch,a), tg=childAnnualToday(ch,a,true);
+    const t=a-cur, tg=childAnnualToday(ch,a,true);
+    let td=childAnnualToday(ch,a);
     subsidyToday += Math.max(0, tg-td);    // 按月補助實際扣抵金額
+    if(a<=2 && leavePool>0){
+      const used=Math.min(leavePool, td);
+      leavePool-=used; td-=used; subsidyToday+=used;
+    }
     if(td<=0) continue;
     const nom=td*Math.pow(1+infl,t); today+=td; nominal+=nom; series.push({t,nominal:nom});
     if(a<=2) stages.infant+=td; else if(a<=5) stages.preschool+=td; else if(a<=11) stages.elem+=td; else if(a<=14) stages.junior+=td; else if(a<=17) stages.senior+=td; else stages.college+=td;
@@ -2197,8 +2207,13 @@ const CHILD_SUBSIDY_FIELDS=[
   {p:'subsidy.monthly',label:'育兒津貼／托育補助／成長津貼（每月）',step:500},
   {p:'subsidy.monthly_from',label:'按月補助　起始年齡',step:1},
   {p:'subsidy.monthly_to',label:'按月補助　結束年齡（含）',step:1},
-  {p:'subsidy.junior',label:'國中 教育補助 / 年（扣學雜費）',step:1000},
-  {p:'subsidy.senior',label:'高中 教育補助 / 年（扣學雜費）',step:1000},
+];
+// 育嬰留職停薪津貼：父母各可請，需在子女滿3歲前請完，簡化為一筆額度扣抵0–2歲費用
+const CHILD_LEAVE_FIELDS=[
+  {p:'subsidy.leave_salary_a',label:'父／申請人　平均月投保薪資',step:1000},
+  {p:'subsidy.leave_salary_b',label:'母／配偶　平均月投保薪資',step:1000},
+  {p:'subsidy.leave_rate',label:'津貼比例（%，現制80）',step:5},
+  {p:'subsidy.leave_months',label:'每人可請月數',step:1},
 ];
 const ccGet=p=>p.split('.').reduce((o,k)=>(o&&o[k]!=null)?o[k]:undefined, state.childCosts);
 function ccSet(p,v){ const ks=p.split('.'); let o=state.childCosts; for(let i=0;i<ks.length-1;i++) o=o[ks[i]]; o[ks[ks.length-1]]=v; }
@@ -2211,11 +2226,15 @@ function renderChildCostEditor(){
     </div>
     <div class="card" style="background:#F2F7F4;border:1px solid #CFE3D7">
       <h2 style="font-size:16px;color:#1E6B50">政府補助／津貼（自動從支出扣抵，不會與支出混在一起）</h2>
-      <p class="hint" style="margin:0 0 10px">補助分兩種性質——<b>一次性給付</b>（懷孕生產）只在出生當年抵用；<b>按月長期津貼</b>（養育照顧、成長津貼）有<b>年齡上限</b>，只在指定年齡區間每年扣抵。系統會把「支出 − 補助」的<b>實際自付</b>計入各年齡的花費與流量。
-      <br>· <b>生育給付/獎勵金</b>：勞保生育給付＋地方生育獎勵金，一次性。
-      <br>· <b>育兒津貼/托育補助/成長津貼</b>：按月發放、通常有年齡上限。育兒津貼一般 <b>0–未滿5歲（即 0–4 歲）</b>；送托之托育補助多為 <b>0–2 歲</b>；兩者通常擇一。可在下方設定發放的起訖年齡。
-      <br>· <b>國中／高中 教育補助</b>：直接扣抵該階段學雜費（高中職自 2024 起公私立學費全免）。</p>
+      <p class="hint" style="margin:0 0 8px">補助分「一次性給付」與「按月／限期津貼」，系統會把「支出 − 補助」的實際自付計入對應年齡，不會與支出重複呈現。</p>
+      <ul style="margin:0 0 16px;padding-left:18px;font-size:12.5px;color:var(--muted);line-height:1.7">
+        <li><b>生育給付/獎勵金</b>：勞保生育給付＋地方生育獎勵金，一次性，於出生當年抵用。</li>
+        <li><b>育兒津貼/托育補助/成長津貼</b>：按月發放，通常有年齡上限（育兒津貼一般 0–未滿5歲；送托補助多為 0–2 歲，兩者通常擇一），可在下方設定發放區間。</li>
+      </ul>
       <div class="cgrid">${CHILD_SUBSIDY_FIELDS.map(fld).join('')}</div>
+      <h3 style="font-size:13.5px;color:#1E6B50;margin:20px 0 6px">育嬰留職停薪津貼</h3>
+      <p class="hint" style="margin:0 0 10px">以平均月投保薪資 × 津貼比例計算，父母各最多可請數月，需在子女滿 3 歲前請完。若僅一方申請，另一方投保薪資填 0。</p>
+      <div class="cgrid">${CHILD_LEAVE_FIELDS.map(fld).join('')}</div>
     </div>
     <div class="row-actions" style="margin-top:8px"><button class="btn" data-cc-reset>全部重設為預設值</button></div>`;
 }
