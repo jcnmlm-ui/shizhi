@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
 <style>
   :root{
     --bg:#F6F2E9; --bg2:#EFE9DC; --surface:#FFFDF8; --surface-2:#FBF7EE;
@@ -130,9 +131,9 @@
   .drag-h{cursor:grab;color:var(--faint);display:inline-flex;align-items:center;justify-content:center;line-height:0;touch-action:none}
   .drag-h:hover{color:var(--primary)}
   .drag-h:active{cursor:grabbing}
-  .tr.dragging,.card.dragging{opacity:.45}
-  .tr.drop-before,.card.drop-before{box-shadow:inset 0 3px 0 -1px var(--primary)}
-  .tr.drop-after,.card.drop-after{box-shadow:inset 0 -3px 0 -1px var(--primary)}
+  .tr.dragging,.card.dragging,.ro-item.dragging{opacity:.45}
+  .sortable-ghost{opacity:.35;background:var(--primary-soft)!important}
+  .sortable-chosen{box-shadow:0 4px 20px rgba(30,107,80,.18)}
   .add{margin-top:14px;border:1px dashed var(--line-2);background:transparent;color:var(--primary-2);border-radius:10px;padding:9px 15px;cursor:pointer;font-size:13.5px;font-weight:500;transition:.15s}
   .add:hover{border-color:var(--primary);background:var(--primary-soft)}
   .ro-enter{margin-top:14px;margin-left:8px;border:1px solid var(--line-2);background:transparent;color:var(--muted);border-radius:10px;padding:9px 15px;cursor:pointer;font-size:13px;font-weight:500;transition:.15s}
@@ -150,6 +151,7 @@
   .ro-item-meta{display:flex;flex-wrap:wrap;gap:4px}
   .ro-meta-tag{font-size:11.5px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:1px 7px;white-space:nowrap}
   .ro-footer{display:flex;gap:8px;margin-top:12px;align-items:center}
+  .children-list{margin-top:20px}
   .ro-cancel-btn{border:1px solid var(--line-2);background:transparent;color:var(--muted);border-radius:10px;padding:9px 15px;cursor:pointer;font-size:13.5px;font-weight:500;transition:.15s}
   .ro-cancel-btn:hover{border-color:var(--danger);color:var(--danger)}
   /* 分類管理 */
@@ -1473,7 +1475,7 @@ function cellInput(key,r,c){
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
 // 拖曳排序握把（6 點 grip）
-const DRAG_HANDLE = '<span class="drag-h" draggable="true" title="拖曳排序"><svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor"><circle cx="2.5" cy="3" r="1.25"/><circle cx="7.5" cy="3" r="1.25"/><circle cx="2.5" cy="8" r="1.25"/><circle cx="7.5" cy="8" r="1.25"/><circle cx="2.5" cy="13" r="1.25"/><circle cx="7.5" cy="13" r="1.25"/></svg></span>';
+const DRAG_HANDLE = '<span class="drag-h" title="拖曳排序"><svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor"><circle cx="2.5" cy="3" r="1.25"/><circle cx="7.5" cy="3" r="1.25"/><circle cx="2.5" cy="8" r="1.25"/><circle cx="7.5" cy="8" r="1.25"/><circle cx="2.5" cy="13" r="1.25"/><circle cx="7.5" cy="13" r="1.25"/></svg></span>';
 
 // 排序模式列：各欄顯示文字
 function cellDisplayStr(key,r,c){
@@ -1522,8 +1524,10 @@ function renderEntity(key){
     });
     h+=`</div><div class="ro-footer"><button class="add ro-save" data-ro-save-key="${key}" style="margin-top:0">✓ 儲存</button><button class="ro-cancel-btn" data-ro-cancel-key="${key}">取消</button><span style="font-size:12.5px;color:var(--muted)">拖曳調整順序，點 ✕ 刪除（儲存後生效）</span></div>`;
     el.innerHTML=h;
+    initSortable(key, el.querySelector('.ro-list'));
     return;
   }
+  destroySortable(key);
 
   const grid=`grid-template-columns:${sc.grid}`;
   let h=`<div class="tbl">`;
@@ -2318,6 +2322,7 @@ function renderChildren(){
   const body=document.getElementById('children-body'); if(!body) return;
   if(!state.children.length){
     if(childrenChart){ childrenChart.destroy(); childrenChart=null; }
+    destroySortable('children');
     body.innerHTML=`<div class="card" style="text-align:center;padding:42px 22px">
       <h2 style="border:0;margin:0 0 6px">還沒有子女資料</h2>
       <p class="hint" style="margin:0 auto 18px;max-width:520px">養一個孩子從孕期、托嬰、幼兒園、補習到大學牽涉許多階段費用。新增一位，系統會估算各階段成本、未來每年支出，以及大學教育金每月該存多少，並可一鍵把大學教育金加入「目標」。</p>
@@ -2339,7 +2344,7 @@ function renderChildren(){
       <div class="rep-chart" style="margin-top:16px"><canvas id="childrenChart"></canvas></div>
       <p class="hint" style="margin-top:10px">上圖為各未來年度所有子女的養育支出（預估實付），可看到托嬰、補習與大學的支出高峰。</p>
     </div>
-    ${state.children.map(childCard).join('')}
+    <div class="children-list">${state.children.map(childCard).join('')}</div>
     <div style="margin:4px 0 18px"><button class="btn primary" data-add-child>＋ 新增子女</button></div>
     <div class="card" style="background:var(--surface-2)">
       <h2 style="font-size:16px">費用假設（今日價格，可自訂）</h2>
@@ -2347,6 +2352,7 @@ function renderChildren(){
       ${renderChildCostEditor()}
     </div>
     <div class="disclaimer">本頁為養育成本「估算」工具，金額為依內建假設與你的選擇所做的概略推估，會因地區、學校與生活方式大幅不同，非實際費用承諾，亦非投資或財務建議。</div>`;
+  initSortable('children', body.querySelector('.children-list'));
   const cs=combinedChildSeries();
   if(childrenChart) childrenChart.destroy();
   childrenChart=new Chart(document.getElementById('childrenChart'),{
@@ -2408,6 +2414,7 @@ function purchaseCard(p){
 function renderPurchases(){
   const body=document.getElementById('purchases-body'); if(!body) return;
   if(!(state.purchases||[]).length){
+    destroySortable('purchases');
     body.innerHTML=`<div class="card" style="text-align:center;padding:42px 22px">
       <h2 style="border:0;margin:0 0 6px">還沒有分期採購計畫</h2>
       <p class="hint" style="margin:0 auto 18px;max-width:540px">規劃購車等分期項目：填入總價、頭期款比例、貸款年限、利率與預計購買時間，系統會算出每月月付與利息，並把它折進「儀表板」的人生時間軸（購買當年扣頭期款、之後逐月扣分期金、繳清後釋放）。</p>
@@ -2415,12 +2422,13 @@ function renderPurchases(){
     return;
   }
   body.innerHTML=`
-    ${state.purchases.map(purchaseCard).join('')}
+    <div class="purchases-list">${state.purchases.map(purchaseCard).join('')}</div>
     <div style="margin:4px 0 18px"><button class="btn primary" data-add-purchase>＋ 新增分期採購</button></div>
     <div class="card" style="background:var(--surface-2)">
       <h2 style="font-size:16px">這會如何影響你的規劃？</h2>
       <p class="hint" style="margin:0">分期採購會反映在「儀表板」的人生時間軸與「建議報告／投資配置」的退休推估中：購買當年一次扣除頭期款，接著在貸款年限內逐月扣分期金，繳清後現金流自動釋放。<br><br>它<b>不會</b>改動「儀表板」上方的「每月結餘」（那代表你現在的狀況）。若車貸<b>已經</b>在繳，請改到「資產負債」用「負債」登錄，才會計入目前的每月現金流。「頭期款加入目標」會建立一筆儲蓄目標，幫你在購買前存到頭期款。</p>
     </div>`;
+  initSortable('purchases', body.querySelector('.purchases-list'));
 }
 
 /* ===== 郵局薪資（薪級成長） ===== */
@@ -3699,68 +3707,42 @@ document.addEventListener('click', async e=>{
   if(roCancel){ cancelReorder(roCancel.dataset.roCancelKey); return; }
 });
 
-/* ===== 拖曳排序（收入/支出/資產/負債/目標/子女/分期） ===== */
-let dragState=null;
-function clearDropMarks(){ document.querySelectorAll('.drop-before,.drop-after').forEach(el=>el.classList.remove('drop-before','drop-after')); }
-function cleanupDrag(){ clearDropMarks(); document.querySelectorAll('.dragging').forEach(el=>el.classList.remove('dragging')); dragState=null; }
+/* ===== 拖曳排序（收入/支出/資產/負債/目標/子女/分期）— SortableJS ===== */
 async function persistOrder(key){
   state[key].forEach((r,i)=>{ r.sort_order=i; });
   if(Store.mode==='cloud' && session){
     for(const r of state[key]){ const {error}=await sb.from(TABLES[key]).update({sort_order:r.sort_order}).eq('id',r.id); if(error){ console.warn('排序未能同步雲端（可能尚未建立 sort_order 欄位）',error.message); break; } }
   } else { persistLocal(); }
 }
-async function reorderEntity(key, draggedId, targetId, after){
-  const inRo=reorderMode[key]&&reorderMode[key].active;
-  const arr=inRo?reorderMode[key].draft:state[key];
-  const from=arr.findIndex(r=>r.id===draggedId); if(from<0) return;
-  const [moved]=arr.splice(from,1);
-  let to=arr.findIndex(r=>r.id===targetId);
-  if(to<0){ arr.push(moved); } else { if(after) to++; arr.splice(to,0,moved); }
-  if(inRo){ renderEntity(key); return; }
-  await persistOrder(key);
-  if(SCHEMAS[key]) renderEntity(key);
-  else if(key==='children') renderChildren();
-  else if(key==='purchases') renderPurchases();
-  recalc();
+const _sortableInstances={};
+function destroySortable(key){
+  if(_sortableInstances[key]){ _sortableInstances[key].destroy(); delete _sortableInstances[key]; }
 }
-document.addEventListener('dragstart', e=>{
-  const h=e.target.closest('.drag-h'); if(!h) return;
-  const item=h.closest('[data-row-id]'); if(!item) return;
-  dragState={ key:item.dataset.rowKey, id:item.dataset.rowId };
-  e.dataTransfer.effectAllowed='move';
-  try{ e.dataTransfer.setData('text/plain', dragState.id); }catch(_){}
-  item.classList.add('dragging');
-});
-document.addEventListener('dragover', e=>{
-  if(!dragState) return;
-  e.preventDefault(); e.dataTransfer.dropEffect='move';
-  // 游標在列間隙時往上下各找 12px，確保整列都能感測
-  let item=e.target.closest('[data-row-id]');
-  if(!item){
-    for(const dy of [-8,8,-16,16,-24,24]){
-      const el=document.elementFromPoint(e.clientX, e.clientY+dy);
-      const found=el&&el.closest('[data-row-id]');
-      if(found){ item=found; break; }
+function initSortable(key, containerEl){
+  destroySortable(key);
+  if(!containerEl || typeof Sortable==='undefined') return;
+  _sortableInstances[key]=Sortable.create(containerEl,{
+    handle:'.drag-h',
+    animation:180,
+    ghostClass:'sortable-ghost',
+    chosenClass:'sortable-chosen',
+    dragClass:'dragging',
+    touchStartThreshold:5,
+    onEnd:async function(){
+      const ids=Array.from(containerEl.querySelectorAll('[data-row-id]')).map(el=>el.dataset.rowId);
+      const inRo=reorderMode[key]&&reorderMode[key].active;
+      if(inRo){
+        const draft=reorderMode[key].draft;
+        reorderMode[key].draft=ids.map(id=>draft.find(r=>r.id===id)).filter(Boolean);
+        return; // 排序模式：先不持久化，等按「儲存」才寫入
+      }
+      const arr=state[key];
+      state[key]=ids.map(id=>arr.find(r=>r.id===id)).filter(Boolean);
+      await persistOrder(key);
+      recalc();
     }
-  }
-  clearDropMarks();
-  if(!item || item.dataset.rowKey!==dragState.key) return;
-  if(item.dataset.rowId===dragState.id) return;
-  const r=item.getBoundingClientRect(); const after=(e.clientY - r.top) > r.height/2;
-  item.classList.add(after?'drop-after':'drop-before');
-});
-document.addEventListener('drop', async e=>{
-  if(!dragState) return;
-  const item=e.target.closest('[data-row-id]');
-  e.preventDefault();
-  const ds=dragState;
-  if(item && item.dataset.rowKey===ds.key && item.dataset.rowId!==ds.id){
-    const r=item.getBoundingClientRect(); const after=(e.clientY - r.top) > r.height/2;
-    cleanupDrag();
-    await reorderEntity(ds.key, ds.id, item.dataset.rowId, after);
-  } else { cleanupDrag(); }
-});
-document.addEventListener('dragend', cleanupDrag);
+  });
+}
 
 // 名目/實質切換
 document.getElementById('toggleReal').addEventListener('click',e=>{
