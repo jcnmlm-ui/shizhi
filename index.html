@@ -131,6 +131,7 @@
   .drag-h{cursor:grab;color:var(--faint);display:inline-flex;align-items:center;justify-content:center;line-height:0;touch-action:none}
   .drag-h:hover{color:var(--primary)}
   .drag-h:active{cursor:grabbing}
+  .tip{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--line);color:var(--muted);font-size:10px;font-weight:700;cursor:help;vertical-align:middle;margin-left:3px;flex-shrink:0;user-select:none;line-height:1}
   .tr.dragging,.card.dragging{opacity:.45}
   .sortable-ghost{opacity:.35;background:var(--primary-soft)!important}
   .sortable-chosen{box-shadow:0 4px 20px rgba(30,107,80,.18)}
@@ -1352,8 +1353,8 @@ const SCHEMAS = {
     {key:'amount',label:'金額',type:'money'},
     {key:'frequency',label:'頻率',type:'select',options:[['monthly','每月'],['quarterly','每季'],['yearly','每年']]},
     {key:'growth_rate',label:'年成長率',type:'percent'},
-    {key:'pay_month',label:'月',type:'number'},
-    {key:'pay_day',label:'日',type:'number'},
+    {key:'pay_month',label:'月 <span class="tip" data-tip="幾月發生（1–12），僅「每年」和「每季」需填。\n每季：從填入的月份起每3個月發生一次。\n每年：只有那個月才計算。\n每月頻率自動顯示「—」，不需填月份。">ⓘ</span>',type:'number'},
+    {key:'pay_day',label:'日 <span class="tip" data-tip="幾號入帳／扣款（1–31）。\n只有「每月」且有填日的項目，\n才會進入下方每日資金流量圖。\n未填日期只納入年度統計，不影響現金流圖。">ⓘ</span>',type:'number'},
   ], def:{name:'',amount:0,frequency:'monthly',growth_rate:0,pay_month:null,pay_day:null}, grid:'1.4fr 1.1fr .85fr .85fr .55fr .55fr 40px' },
 
   expenses:{ cols:[
@@ -1362,8 +1363,8 @@ const SCHEMAS = {
     {key:'amount',label:'金額',type:'money'},
     {key:'frequency',label:'頻率',type:'select',options:[['monthly','每月'],['quarterly','每季'],['yearly','每年']]},
     {key:'is_fixed',label:'固定',type:'check'},
-    {key:'pay_month',label:'月',type:'number'},
-    {key:'pay_day',label:'日',type:'number'},
+    {key:'pay_month',label:'月 <span class="tip" data-tip="幾月發生（1–12），僅「每年」和「每季」需填。\n每季：從填入的月份起每3個月發生一次。\n每年：只有那個月才計算。\n每月頻率自動顯示「—」，不需填月份。">ⓘ</span>',type:'number'},
+    {key:'pay_day',label:'日 <span class="tip" data-tip="幾號入帳／扣款（1–31）。\n只有「每月」且有填日的項目，\n才會進入下方每日資金流量圖。\n未填日期只納入年度統計，不影響現金流圖。">ⓘ</span>',type:'number'},
   ], def:{name:'',category:'其他',amount:0,frequency:'monthly',is_fixed:true,pay_month:null,pay_day:null}, grid:'1.2fr .8fr .9fr .8fr .45fr .5fr .5fr 40px' },
 
   assets:{ cols:[
@@ -1371,7 +1372,7 @@ const SCHEMAS = {
     {key:'type',label:'類型',type:'cat'},
     {key:'value',label:'現值',type:'money'},
     {key:'expected_return',label:'預期年報酬',type:'percent'},
-    {key:'is_liquid',label:'可動用',type:'check'},
+    {key:'is_liquid',label:'可動用 <span class="tip" data-tip="勾選＝流動資產（現金、活存等）\n· 計入緊急預備金月數\n· 計入收支頁「月初可動用」\n不勾選＝投資部位，進入長期\n報酬推估，不算緊急備用金。">ⓘ</span>',type:'check'},
     {key:'exclude_projection',label:'不計退休',type:'check'},
   ], def:{name:'',type:'投資',value:0,expected_return:0.05,is_liquid:false,exclude_projection:false}, grid:'2.5fr 1fr 1.4fr 1.2fr .8fr .9fr 40px' },
 
@@ -1466,7 +1467,7 @@ function renderEntity(key){
   const grid=`grid-template-columns:22px ${sc.grid}`;
   let h=`<div class="tbl">`;
   h+=`<div class="tr th" style="${grid}"><div></div>`+sc.cols.map(c=>`<div>${c.label}</div>`).join('')
-     +(sc.computed?`<div style="text-align:right">每月應投入</div><div style="text-align:center">可行性</div>`:'')+`<div></div></div>`;
+     +(sc.computed?`<div style="text-align:right">每月應投入 <span class="tip" data-tip="以「現有金額」複利至目標年限後，\n算出距目標金額的缺口，\n再以定期定額公式回推每月需存多少。\n報酬率留空＝沿用設定頁全域值。">ⓘ</span></div><div style="text-align:center">可行性 <span class="tip" data-tip="可負擔：此目標每月應投入\n≤ 目前月結餘\n吃緊：超過目前月結餘\n（月結餘＝月收入－月支出－月還款）">ⓘ</span></div>`:'')+`<div></div></div>`;
   h+=`<div class="tbl-rows">`;
   state[key].forEach(r=>{
     h+=`<div class="tr" data-row-id="${r.id}" data-row-key="${key}" style="${grid}"><div class="chk">${DRAG_HANDLE}</div>`+sc.cols.map(c=>`<div>${cellInput(key,r,c)}</div>`).join('');
@@ -1501,8 +1502,8 @@ function statCards(m){
   return `
     <div class="stat"><div class="lbl">淨值</div><div class="val">${fmtMoney(m.netWorth)}</div><div class="sub">資產 ${fmtMoney(m.assets)}　負債 ${fmtMoney(m.liab)}</div></div>
     <div class="stat ${netClass}"><div class="lbl">平均每月結餘</div><div class="val">${fmtMoney(m.net)}</div><div class="sub">收入 ${fmtMoney(m.mIncome)}　支出 ${fmtMoney(m.mExpense)}${m.mDebt>0?'　還款 '+fmtMoney(m.mDebt):''}</div><div class="sub"${F.minNet<0?' style="color:var(--danger);font-weight:600"':''}>流量最緊 ${MN[F.minIdx]}：${F.minNet>=0?'+':''}${fmtMoney(F.minNet)}/月</div></div>
-    <div class="stat ${srClass}"><div class="lbl">儲蓄率</div><div class="val">${fmtPct(m.savingsRate)}</div><div class="sub">建議 ≥ 20%</div></div>
-    <div class="stat ${emClass}"><div class="lbl">緊急預備金</div><div class="val">${m.emMonths.toFixed(1)} 個月</div><div class="sub">目標 ${emTarget} 個月（可動用資產）</div></div>`;
+    <div class="stat ${srClass}"><div class="lbl">儲蓄率 <span class="tip" data-tip="（年收入－年支出－年還款）÷ 年收入\n建議維持20%以上。\n低於10%代表財富累積速度偏慢。">ⓘ</span></div><div class="val">${fmtPct(m.savingsRate)}</div><div class="sub">建議 ≥ 20%</div></div>
+    <div class="stat ${emClass}"><div class="lbl">緊急預備金 <span class="tip" data-tip="可動用資產 ÷ 月支出\n可動用資產＝資產表勾選「可動用」的合計。\n一般建議3–6個月；\n自雇或工作不穩定者建議6–12個月。">ⓘ</span></div><div class="val">${m.emMonths.toFixed(1)} 個月</div><div class="sub">目標 ${emTarget} 個月（可動用資產）</div></div>`;
 }
 
 function updateGoalComputed(){
@@ -2210,10 +2211,10 @@ const CHILD_SUBSIDY_FIELDS=[
 ];
 // 育嬰留職停薪津貼：父母各可請，需在子女滿3歲前請完，簡化為一筆額度扣抵0–2歲費用
 const CHILD_LEAVE_FIELDS=[
-  {p:'subsidy.leave_salary_a',label:'父／申請人　平均月投保薪資',step:1000},
-  {p:'subsidy.leave_salary_b',label:'母／配偶　平均月投保薪資',step:1000},
-  {p:'subsidy.leave_rate',label:'津貼比例（%，現制80）',step:5},
-  {p:'subsidy.leave_months',label:'每人可請月數',step:1},
+  {p:'subsidy.leave_salary_a',label:'父／申請人　平均月投保薪資 <span class="tip" data-tip="填勞保或就業保險的「平均月投保薪資」，\n非實際月薪，可至勞保局官網查詢。">ⓘ</span>',step:1000},
+  {p:'subsidy.leave_salary_b',label:'母／配偶　平均月投保薪資 <span class="tip" data-tip="配偶不申請或非受雇者填0。">ⓘ</span>',step:1000},
+  {p:'subsidy.leave_rate',label:'津貼比例（%，現制80）<span class="tip" data-tip="現制：勞保60%＋就業保險20%＝80%">ⓘ</span>',step:5},
+  {p:'subsidy.leave_months',label:'每人可請月數 <span class="tip" data-tip="父母各自最多可請N個月，預設6個月，\n需在子女滿3歲前請完。\n兩人合計最多共12個月。">ⓘ</span>',step:1},
 ];
 const ccGet=p=>p.split('.').reduce((o,k)=>(o&&o[k]!=null)?o[k]:undefined, state.childCosts);
 function ccSet(p,v){ const ks=p.split('.'); let o=state.childCosts; for(let i=0;i<ks.length-1;i++) o=o[ks[i]]; o[ks[ks.length-1]]=v; }
@@ -2259,8 +2260,8 @@ function childCard(ch){
     </div>
     <div class="cgrid">${CHILD_FIELDS.map(field).join('')}</div>
     <div class="cgrid2">
-      <div class="rep-kpi"><div class="l">剩餘成本（今日價格，已扣補助）</div><div class="v" style="font-size:18px">${fmtMoney(s.today)}</div></div>
-      <div class="rep-kpi"><div class="l">已扣政府補助（今日價格）</div><div class="v" style="font-size:18px;color:#1E6B50">${fmtMoney(s.subsidyToday)}</div></div>
+      <div class="rep-kpi"><div class="l">剩餘成本（今日價格，已扣補助）<span class="tip" data-tip="從子女現齡至結束年齡的全部成本，\n以今日幣值計算，已扣除：\n· 生育給付（出生當年）\n· 按月補助（設定年齡區間）\n· 育嬰留停津貼（扣抵0–2歲）">ⓘ</span></div><div class="v" style="font-size:18px">${fmtMoney(s.today)}</div></div>
+      <div class="rep-kpi"><div class="l">已扣政府補助（今日價格）<span class="tip" data-tip="三項補助合計（今日幣值）：\n· 生育給付＋獎勵金（一次性）\n· 按月津貼（育兒/托育/成長）\n· 育嬰留停津貼（父母合計額度）">ⓘ</span></div><div class="v" style="font-size:18px;color:#1E6B50">${fmtMoney(s.subsidyToday)}</div></div>
       <div class="rep-kpi"><div class="l">預估實付（含通膨）</div><div class="v" style="font-size:18px">${fmtMoney(s.nominal)}</div></div>
       <div class="rep-kpi"><div class="l">目前每月（淨）</div><div class="v" style="font-size:18px">${fmtMoney(s.monthlyNow)}</div></div>
       <div class="rep-kpi"><div class="l">大學金每月需存</div><div class="v" style="font-size:18px">${fmtMoney(s.collegeFundMonthly)}</div></div>
@@ -2474,10 +2475,10 @@ function renderPension(){
     </div>
     ${liAdjBadge(claim)}
     <div class="cgrid2" style="margin-top:8px">
-      <div class="rep-kpi"><div class="l">每月可領（含增減給）</div><div class="v" style="font-size:18px">${fmtMoney(liM)}</div></div>
+      <div class="rep-kpi"><div class="l">每月可領（含增減給）<span class="tip" data-tip="兩公式擇優後乘以增減給係數。\n公式一：月投保薪資×年資×1.55%\n公式二：月投保薪資×年資×0.775%＋3,000\n取較高者再乘以增減給係數。">ⓘ</span></div><div class="v" style="font-size:18px">${fmtMoney(liM)}</div></div>
       <div class="rep-kpi"><div class="l">每年可領</div><div class="v" style="font-size:18px">${fmtMoney(liA)}</div></div>
-      <div class="rep-kpi"><div class="l">採用公式</div><div class="v" style="font-size:15px">${f1>=f2?'1.55% 式':'0.775%+3000 式'}</div></div>
-      <div class="rep-kpi"><div class="l">增減給係數</div><div class="v" style="font-size:18px">${(laborInsAdjustFactor()*100).toFixed(0)}%</div></div>
+      <div class="rep-kpi"><div class="l">採用公式 <span class="tip" data-tip="系統自動比較兩公式取較高者。\n年資短或投保薪資低→公式二較優\n（含固定3,000加給）\n年資長且薪資高→公式一較優">ⓘ</span></div><div class="v" style="font-size:15px">${f1>=f2?'1.55% 式':'0.775%+3000 式'}</div></div>
+      <div class="rep-kpi"><div class="l">增減給係數 <span class="tip" data-tip="法定65歲請領＝100%\n提前：每提前1年減4%（最多-20%）\n延後：每延後1年增4%（最多+20%）">ⓘ</span></div><div class="v" style="font-size:18px">${(laborInsAdjustFactor()*100).toFixed(0)}%</div></div>
     </div>
   </div>
   <div class="card">
@@ -2492,10 +2493,10 @@ function renderPension(){
       <div class="cfield"><label>帳戶預估年化報酬</label><input type="number" step="0.1" data-setting="lp_ret" data-pct="true" value="${(Number(s.lp_ret)||0)*100}"></div>
     </div>
     <div class="cgrid2" style="margin-top:8px">
-      <div class="rep-kpi"><div class="l">每月共提繳（雇主＋自提）</div><div class="v" style="font-size:18px">${fmtMoney(monthlyContrib)}</div></div>
-      <div class="rep-kpi"><div class="l">其中自提（月扣薪資）</div><div class="v" style="font-size:18px">${fmtMoney(laborPenSelfContribMonthly())}</div></div>
-      <div class="rep-kpi"><div class="l">退休時帳戶價值（估）</div><div class="v" style="font-size:18px">${fmtMoney(acc)}</div></div>
-      <div class="rep-kpi"><div class="l">估算每月可領</div><div class="v" style="font-size:18px">${fmtMoney(lpM)}</div></div>
+      <div class="rep-kpi"><div class="l">每月共提繳（雇主＋自提）<span class="tip" data-tip="雇主固定提繳月提繳工資的6%，\n你可自願再提0–6%。\n兩者合計即每月流入帳戶的金額。">ⓘ</span></div><div class="v" style="font-size:18px">${fmtMoney(monthlyContrib)}</div></div>
+      <div class="rep-kpi"><div class="l">其中自提（月扣薪資）<span class="tip" data-tip="自提從薪資扣除，\n但可列舉扣除減少當年應稅所得。\n節稅後，實際成本比帳面更低。">ⓘ</span></div><div class="v" style="font-size:18px">${fmtMoney(laborPenSelfContribMonthly())}</div></div>
+      <div class="rep-kpi"><div class="l">退休時帳戶價值（估）<span class="tip" data-tip="以目前帳戶餘額為基礎，\n加計每月提繳額，\n以預估年化報酬率複利至退休年齡。">ⓘ</span></div><div class="v" style="font-size:18px">${fmtMoney(acc)}</div></div>
+      <div class="rep-kpi"><div class="l">估算每月可領 <span class="tip" data-tip="帳戶總值÷（平均餘命－退休年齡）÷12\n為簡化估算，未計入年金給付利率。\n實際金額以勞動部核發為準。">ⓘ</span></div><div class="v" style="font-size:18px">${fmtMoney(lpM)}</div></div>
     </div>
   </div>
   <div class="card" style="background:var(--surface-2)">
@@ -3092,9 +3093,9 @@ function renderCashflow(){
   for(let d=1; d<=31; d++){ if(byDay[d]!=null) running+=byDay[d]; labels.push(String(d)); data.push(Math.round(running)); if(running<minBal){ minBal=running; minDay=d; } }
   const endBal=running;
   statsEl.innerHTML=`
-    <div class="rep-kpi"><div class="l">月初可動用</div><div class="v">${fmtMoney(start)}</div></div>
-    <div class="rep-kpi ${minBal<0?'bad':''}"><div class="l">當月最低餘額${minDay?'（'+minDay+'號）':''}</div><div class="v">${fmtMoney(minBal)}</div></div>
-    <div class="rep-kpi ${endBal<start?'warn':''}"><div class="l">月底結餘</div><div class="v">${fmtMoney(endBal)}</div></div>`;
+    <div class="rep-kpi"><div class="l">月初可動用 <span class="tip" data-tip="資產表中所有勾選「可動用 ✓」的資產加總。\n（現金、活存、可隨時變現的部位）\n這是每月現金流模擬的起點。">ⓘ</span></div><div class="v">${fmtMoney(start)}</div></div>
+    <div class="rep-kpi ${minBal<0?'bad':''}"><div class="l">當月最低餘額${minDay?'（'+minDay+'號）':''} <span class="tip" data-tip="從月初可動用出發，\n依每筆「每月」且有填「日」的收支，\n逐日累加後的最低點。\n括號內為幾號跌到最低。\n數字變紅表示當天會透支。">ⓘ</span></div><div class="v">${fmtMoney(minBal)}</div></div>
+    <div class="rep-kpi ${endBal<start?'warn':''}"><div class="l">月底結餘 <span class="tip" data-tip="月初可動用＋本月所有\n「每月」且有填日期的收支合計。\n低於月初可動用＝本月現金淨流出。">ⓘ</span></div><div class="v">${fmtMoney(endBal)}</div></div>`;
   document.getElementById('cashflow-table').innerHTML = evs.length
     ? `<table class="rep"><thead><tr><th>日期</th><th>項目</th><th class="n">金額</th></tr></thead><tbody>${evs.map(e=>`<tr><td>${e.day} 號</td><td>${escapeHtml(e.name)}</td><td class="n" style="color:${e.amt>=0?'var(--primary)':'var(--danger)'}">${e.amt>=0?'+':''}${fmtMoney(e.amt)}</td></tr>`).join('')}</tbody></table>`
     : `<p class="hint">尚無「每月且有填日期」的項目。到上方收入／支出表，把每月項目填上「入帳日／扣款日」，這裡就會顯示當月資金流量。</p>`;
@@ -3788,6 +3789,33 @@ async function loadSiteConfig(){
     document.querySelector('#nav button[data-tab="settings"]')?.click();
     setTimeout(()=>{ document.getElementById('cloud-area')?.scrollIntoView({behavior:'smooth',block:'center'}); }, 300);
   }
+})();
+// Tooltip manager for .tip icons — fixed-position, works inside overflow:hidden containers
+(function(){
+  const box=document.createElement('div');
+  Object.assign(box.style,{position:'fixed',zIndex:'9999',maxWidth:'260px',background:'#2D3830',color:'#F6F2E9',fontSize:'12px',lineHeight:'1.6',padding:'10px 13px',borderRadius:'10px',whiteSpace:'pre-wrap',pointerEvents:'none',opacity:'0',transition:'opacity .15s',boxShadow:'0 4px 16px rgba(0,0,0,.22)',wordBreak:'break-word'});
+  document.body.appendChild(box);
+  let tm;
+  function showTip(el){
+    clearTimeout(tm);
+    box.textContent=el.dataset.tip||'';
+    box.style.opacity='0'; box.style.left='0'; box.style.top='0';
+    requestAnimationFrame(()=>{
+      const r=el.getBoundingClientRect(), bw=box.offsetWidth||260, bh=box.offsetHeight||80;
+      let l=r.left+r.width/2-bw/2, t=r.top-bh-8;
+      if(l<8) l=8; if(l+bw>innerWidth-8) l=innerWidth-bw-8;
+      if(t<8) t=r.bottom+8;
+      box.style.left=l+'px'; box.style.top=t+'px'; box.style.opacity='1';
+    });
+  }
+  function hideTip(){ tm=setTimeout(()=>{ box.style.opacity='0'; },80); }
+  document.addEventListener('mouseover',e=>{ const t=e.target.closest('.tip'); if(t) showTip(t); });
+  document.addEventListener('mouseout',e=>{ if(e.target.closest('.tip')) hideTip(); });
+  document.addEventListener('click',e=>{
+    const t=e.target.closest('.tip');
+    if(t){ box.style.opacity==='1'?hideTip():showTip(t); e.stopPropagation(); }
+    else hideTip();
+  });
 })();
 </script>
 </body>
