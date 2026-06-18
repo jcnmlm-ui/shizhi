@@ -254,6 +254,22 @@
   }
 
   /* mobile */
+  /* Tour guide */
+  .tour-spotlight{position:fixed;z-index:8001;border-radius:12px;border:2.5px solid var(--primary);box-shadow:0 0 0 9999px rgba(27,38,32,.58);transition:top .32s ease,left .32s ease,width .32s ease,height .32s ease,opacity .2s;pointer-events:none}
+  .tour-card{position:fixed;bottom:0;left:0;right:0;z-index:8002;background:var(--surface);border-top:2.5px solid var(--primary);padding:18px 28px;display:flex;align-items:center;gap:20px;box-shadow:0 -4px 28px rgba(0,0,0,.14);animation:slideUp .3s cubic-bezier(.2,.8,.3,1)}
+  @keyframes slideUp{from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1}}
+  .tour-card-info{flex:1;min-width:0}
+  .tour-progress{display:flex;gap:5px;margin-bottom:8px}
+  .tour-dot{width:6px;height:6px;border-radius:50%;background:var(--line-2);transition:.25s}
+  .tour-dot.active{background:var(--primary);width:18px;border-radius:3px}
+  .tour-card-step{font-size:11.5px;color:var(--muted);font-weight:500;letter-spacing:.4px;margin-bottom:3px}
+  .tour-card-title{font-family:var(--font-display);font-size:17px;font-weight:600;color:var(--ink);margin-bottom:5px}
+  .tour-card-text{font-size:13.5px;color:var(--ink);line-height:1.65}
+  .tour-card-btns{display:flex;gap:10px;align-items:center;flex-shrink:0}
+  .tour-btn-prev{border:1px solid var(--line-2);background:var(--surface);color:var(--muted);border-radius:8px;padding:8px 16px;cursor:pointer;font-size:13.5px;white-space:nowrap}
+  .tour-btn-next{background:var(--primary);color:#fff;border:0;border-radius:8px;padding:8px 22px;cursor:pointer;font-size:13.5px;font-weight:500;white-space:nowrap}
+  .tour-btn-skip{background:transparent;border:0;color:var(--faint);font-size:12px;cursor:pointer;padding:4px 8px;white-space:nowrap}
+
   @media (max-width:860px){
     .rep-grid{grid-template-columns:repeat(2,1fr)}
     .pf-layout{grid-template-columns:1fr}
@@ -269,6 +285,8 @@
     .stats{grid-template-columns:repeat(2,1fr)}
     .grid2,.fields{grid-template-columns:1fr}
     .pagehead h1{font-size:25px}
+    .tour-card{flex-direction:column;align-items:flex-start;padding:14px 16px 20px}
+    .tour-card-btns{width:100%;justify-content:flex-end}
   }
 </style>
 </head>
@@ -804,7 +822,7 @@ const Store = {
         this.mode='cloud';
         const { data } = await sb.auth.getSession();
         session = data.session;
-        sb.auth.onAuthStateChange(async (e,s)=>{ session=s; if(e==='PASSWORD_RECOVERY') pwRecovery=true; renderCloudArea(); if(s){ await fetchFeatures(); renderNav(); await Store.loadAll(); renderAll(); rerenderActiveTab(); } else { allowedFeatures=['dash','flow','balance','goals','report','settings','addon-store']; currentPlan='free'; allowedAddons=[]; closeUpgradeModal(); syncPrintBtn(); renderAll(); } });
+        sb.auth.onAuthStateChange(async (e,s)=>{ session=s; if(e==='PASSWORD_RECOVERY') pwRecovery=true; renderCloudArea(); if(s){ await fetchFeatures(); renderNav(); await Store.loadAll(); renderAll(); rerenderActiveTab(); maybeShowTourPrompt(); } else { allowedFeatures=['dash','flow','balance','goals','report','settings','addon-store']; currentPlan='free'; allowedAddons=[]; closeUpgradeModal(); syncPrintBtn(); renderAll(); } });
       }catch(err){ console.error('Supabase 載入失敗，改用本地模式',err); this.mode='local'; }
     }
   },
@@ -2582,6 +2600,7 @@ function renderSettings(){
       <div class="inp"><input type="number" step="${f.step}" data-setting="${f.key}" data-pct="${!!f.pct}" value="${val}"><span class="unit">${f.unit}</span></div>
       ${f.desc?`<div class="desc">${f.desc}</div>`:''}</div>`;
   }).join('');
+  el.insertAdjacentHTML('afterend','<button onclick="localStorage.removeItem(TOUR_KEY);startTour()" style="margin-top:14px;background:transparent;border:0;color:var(--primary-2);font-size:12.5px;cursor:pointer;padding:0;text-decoration:underline">▶ 重新開始導覽</button>');
 }
 
 function renderCatConfig(){
@@ -3785,11 +3804,103 @@ async function loadSiteConfig(){
   await Store.init();
   await Store.loadAll();
   renderAll();
+  maybeShowTourPrompt();
   if(location.hash==='#login'){
     document.querySelector('#nav button[data-tab="settings"]')?.click();
     setTimeout(()=>{ document.getElementById('cloud-area')?.scrollIntoView({behavior:'smooth',block:'center'}); }, 300);
   }
 })();
+// ── Tour guide ─────────────────────────────────────────────────────────────
+const TOUR_STEPS=[
+  {tab:'settings',sel:'#settings-fields',title:'基本設定',        text:'先填入年齡、退休年齡、預期報酬率等計算假設。這些數字驅動所有推估，建議報酬率保守一點（4–6%），通膨率約 2%，薪資成長率約 1–3%。'},
+  {tab:'flow',    sel:'#tbl-incomes',    title:'收入來源',         text:'把薪資、獎金、租金等收入加進來。頻率「每月」最常見；年終或季獎金選「每年」或「每季」並填入月份，系統會自動在那個月計入。'},
+  {tab:'flow',    sel:'#tbl-expenses',   title:'日常支出',         text:'填入每月固定支出和不定期大額支出。「日」欄位填幾號扣款，下方資金流量圖才能精確顯示每天的現金狀況。'},
+  {tab:'flow',    sel:'#cashflow-stats', title:'每月資金流量',      text:'填完收支後這裡會顯示典型月份的現金走勢。可以看哪天現金最緊、月底還剩多少。數字變紅代表當天可能透支——這就是要備緊急備用金的原因。'},
+  {tab:'balance', sel:'#tbl-assets',    title:'資產',             text:'存款、股票、ETF、不動產都填進來。勾「可動用」代表流動資產（計入緊急預備金）；不勾代表長期投資部位，系統會另外計算複利成長。'},
+  {tab:'balance', sel:'#tbl-liabilities',title:'負債',            text:'房貸、車貸、信貸填進來。系統根據利率和每月還款推算還清時間，還款也自動計入現金流，讓你知道「還完之後才真正自由」的時間點。'},
+  {tab:'goals',   sel:'#tbl-goals',     title:'人生目標',         text:'設定人生目標：買房頭期款、旅遊基金、退休準備都可以。優先序 1 最重要。系統會計算每月需存多少，並告訴你目前月結餘夠不夠支撐所有目標。'},
+  {tab:'dash',    sel:'#stats',         title:'財務全貌',         text:'所有資料的綜合結果都在這裡。淨值＝資產－負債；儲蓄率建議 20% 以上；緊急預備金建議 3–6 個月。每次修改任何數字，這裡都會即時更新——這就是你的財務地圖。'},
+];
+const TOUR_KEY='shizhi_tour_done';
+let _tourStep=0;
+function isTourDone(){ return localStorage.getItem(TOUR_KEY)==='1'; }
+function markTourDone(){ localStorage.setItem(TOUR_KEY,'1'); }
+
+function _tourNav(tab,cb){
+  const btn=document.querySelector(`#nav button[data-tab="${tab}"]`);
+  const cur=document.querySelector('#nav button.active');
+  if(!btn||cur?.dataset.tab===tab){ setTimeout(cb,60); return; }
+  btn.click(); setTimeout(cb,420);
+}
+function _posSpotlight(){
+  const step=TOUR_STEPS[_tourStep];
+  const el=document.querySelector(step.sel);
+  const sp=document.getElementById('tour-sp');
+  if(!el||!sp) return;
+  el.scrollIntoView({behavior:'smooth',block:'center'});
+  setTimeout(()=>{
+    const r=el.getBoundingClientRect(), pad=14;
+    Object.assign(sp.style,{top:r.top-pad+'px',left:r.left-pad+'px',width:r.width+pad*2+'px',height:r.height+pad*2+'px',opacity:'1'});
+  },520);
+}
+function _renderTourCard(){
+  const s=TOUR_STEPS[_tourStep], n=TOUR_STEPS.length;
+  const isFirst=_tourStep===0, isLast=_tourStep===n-1;
+  const dots=TOUR_STEPS.map((_,i)=>`<div class="tour-dot${i===_tourStep?' active':''}"></div>`).join('');
+  const card=document.getElementById('tour-card'); if(!card) return;
+  card.innerHTML=`
+    <div class="tour-card-info">
+      <div class="tour-progress">${dots}</div>
+      <div class="tour-card-step">步驟 ${_tourStep+1} ／ ${n}</div>
+      <div class="tour-card-title">${s.title}</div>
+      <div class="tour-card-text">${s.text}</div>
+    </div>
+    <div class="tour-card-btns">
+      ${!isFirst?'<button class="tour-btn-prev" id="t-prev">← 上一步</button>':''}
+      <button class="tour-btn-next" id="t-next">${isLast?'完成 ✓':'下一步 →'}</button>
+      <button class="tour-btn-skip" id="t-skip">跳過導覽</button>
+    </div>`;
+  document.getElementById('t-next').onclick=()=>isLast?endTour():goTourStep(_tourStep+1);
+  if(!isFirst) document.getElementById('t-prev').onclick=()=>goTourStep(_tourStep-1);
+  document.getElementById('t-skip').onclick=endTour;
+}
+function goTourStep(idx){
+  _tourStep=idx;
+  const sp=document.getElementById('tour-sp');
+  if(sp) sp.style.opacity='0';
+  _tourNav(TOUR_STEPS[idx].tab,()=>{ _posSpotlight(); _renderTourCard(); });
+}
+function startTour(){
+  if(document.getElementById('tour-sp')) return;
+  _tourStep=0;
+  const sp=document.createElement('div'); sp.id='tour-sp'; sp.className='tour-spotlight'; sp.style.opacity='0';
+  const card=document.createElement('div'); card.id='tour-card'; card.className='tour-card';
+  document.body.appendChild(sp); document.body.appendChild(card);
+  goTourStep(0);
+}
+function endTour(){
+  markTourDone();
+  document.getElementById('tour-sp')?.remove();
+  document.getElementById('tour-card')?.remove();
+}
+function maybeShowTourPrompt(){
+  if(isTourDone()||document.getElementById('tour-prompt')) return;
+  setTimeout(()=>{
+    if(isTourDone()||document.getElementById('tour-prompt')) return;
+    const d=document.createElement('div'); d.id='tour-prompt';
+    d.style.cssText='position:fixed;bottom:24px;right:24px;z-index:8500;background:var(--surface);border:1.5px solid var(--primary);border-radius:14px;padding:18px 22px;max-width:300px;box-shadow:0 6px 32px rgba(30,107,80,.2);animation:rise .4s cubic-bezier(.2,.7,.3,1)';
+    d.innerHTML=`<div style="font-family:var(--font-display);font-size:15px;font-weight:600;color:var(--ink);margin-bottom:7px">第一次來嗎？👋</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:14px">讓我帶你填對地方，大概 3 分鐘，分析才會準。</div>
+      <div style="display:flex;gap:10px">
+        <button id="t-prompt-yes" style="flex:1;background:var(--primary);color:#fff;border:0;border-radius:8px;padding:9px 0;font-size:13px;font-weight:500;cursor:pointer">開始導覽</button>
+        <button id="t-prompt-no" style="flex:1;background:var(--surface-2);color:var(--muted);border:1px solid var(--line-2);border-radius:8px;padding:9px 0;font-size:13px;cursor:pointer">先自己看</button>
+      </div>`;
+    document.body.appendChild(d);
+    document.getElementById('t-prompt-yes').onclick=()=>{ d.remove(); startTour(); };
+    document.getElementById('t-prompt-no').onclick=()=>{ d.remove(); markTourDone(); };
+  },1200);
+}
+
 // Tooltip manager for .tip icons — fixed-position, works inside overflow:hidden containers
 (function(){
   const box=document.createElement('div');
