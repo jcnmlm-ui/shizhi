@@ -2709,6 +2709,17 @@ function renderCloudArea(){
   }
   renderModeBadge();
 }
+function translateAuthError(m){
+  if(/validate.*email|email.*invalid|invalid.*email/i.test(m)) return '請輸入有效的電子信箱格式';
+  if(/already.*registered|email.*exists|already.*use/i.test(m)) return '此電子信箱已被註冊，請直接登入';
+  if(/invalid.*credentials|invalid.*login|wrong.*password|bad credentials/i.test(m)) return '電子信箱或密碼錯誤';
+  if(/user.*not.*found|no user/i.test(m)) return '找不到此帳號';
+  if(/password.*length|password.*short|at least/i.test(m)) return '密碼至少需要 6 個字元';
+  if(/rate.*limit|too many request/i.test(m)) return '操作太頻繁，請稍後再試';
+  if(/network|failed to fetch/i.test(m)) return '網路連線問題，請稍後再試';
+  if(/email.*confirm|confirm.*email/i.test(m)) return '請至信箱點擊驗證連結後再登入';
+  return m;
+}
 async function doAuth(kind){
   const email=document.getElementById('authEmail').value.trim();
   const password=document.getElementById('authPass').value;
@@ -2723,7 +2734,7 @@ async function doAuth(kind){
     ? sb.auth.signInWithPassword({email,password})
     : sb.auth.signUp({email,password,options:{data:{marketing_consent:marketingConsent}}});
   const { error } = await fn;
-  if(error){ msg.className='authmsg err'; msg.textContent=error.message; return; }
+  if(error){ msg.className='authmsg err'; msg.textContent=translateAuthError(error.message); return; }
   msg.className='authmsg ok'; msg.textContent= kind==='up' ? '註冊成功！若需 Email 驗證請至信箱確認後登入。' : '登入成功';
 }
 async function doChangePassword(){
@@ -3823,7 +3834,7 @@ async function loadSiteConfig(){
   await Store.init();
   await Store.loadAll();
   renderAll();
-  isWelcomeDone()?maybeShowTourPrompt():showWelcome();
+  maybeShowTourPrompt();
   if(location.hash==='#login'){
     document.querySelector('#nav button[data-tab="settings"]')?.click();
     setTimeout(()=>{ document.getElementById('cloud-area')?.scrollIntoView({behavior:'smooth',block:'center'}); }, 300);
