@@ -3130,7 +3130,20 @@ function syncRealReturnUI(){
   document.querySelectorAll('[data-setting="use_real_return"]').forEach(cb=>{ cb.checked=on; });
   document.querySelectorAll('[data-rr-status]').forEach(el=>{ el.textContent=on?'已開啟':'未開啟'; });
 }
-function recalc(){ mcCache=null; updateSummaries(); updateChart(); updateGoalComputed(); renderCashflow(); }
+// ── Level 2: debounce ─────────────────────────────────────────
+let _recalcTm=null;
+function recalcDebounced(ms=280){ clearTimeout(_recalcTm); _recalcTm=setTimeout(recalc,ms); }
+// ── Level 1: optimistic add 取消追蹤 ──────────────────────────
+const _cancelledInserts=new Set();
+// ── Level 3: lazy recalc ──────────────────────────────────────
+function recalc(){
+  mcCache=null;
+  const tab=document.querySelector('#nav button.active')?.dataset.tab||'dash';
+  updateSummaries();
+  updateGoalComputed();
+  if(tab==='dash') updateChart();
+  if(tab==='flow') renderCashflow();
+}
 function setText(id,t){ const el=document.getElementById(id); if(el) el.textContent=t; }
 
 /* ===== 本月資金流量行事曆 ===== */
@@ -3698,9 +3711,47 @@ document.addEventListener('click', async e=>{
     return;
   }
   const add=e.target.closest('[data-add-key]');
-  if(add){ const key=add.dataset.addKey; await Store.addItem(key, JSON.parse(JSON.stringify(SCHEMAS[key].def))); renderEntity(key); recalc(); return; }
+  if(add){
+    const key=add.dataset.addKey;
+    const def=JSON.parse(JSON.stringify(SCHEMAS[key].def));
+    if(Store.mode==='cloud' && session){
+      // Level 1: optimistic — 畫面立即出現，背景同步 Supabase
+      const tempId='__tmp__'+Date.now();
+      state[key].push({...def, id:tempId});
+      renderEntity(key); recalcDebounced();
+      sb.from(TABLES[key]).insert({...def, user_id:session.user.id}).select().single()
+        .then(({data,error})=>{
+          if(error){ state[key]=state[key].filter(r=>r.id!==tempId); renderEntity(key); alert('新增失敗：'+error.message); return; }
+          if(_cancelledInserts.has(tempId)){ _cancelledInserts.delete(tempId); sb.from(TABLES[key]).delete().eq('id',data.id); return; }
+          const idx=state[key].findIndex(r=>r.id===tempId);
+          if(idx!==-1) state[key][idx]=data;
+          // 用 DOM patch 取代重新渲染，避免打斷正在輸入的欄位
+          const row=document.querySelector(`.tr[data-row-id="${tempId}"]`);
+          if(row){
+            row.dataset.rowId=String(data.id);
+            row.querySelectorAll('[data-id]').forEach(el=>el.dataset.id=String(data.id));
+            const delBtn=row.querySelector('[data-del-id]');
+            if(delBtn) delBtn.dataset.delId=String(data.id);
+          }
+        });
+    } else {
+      await Store.addItem(key, def); renderEntity(key); recalcDebounced();
+    }
+    return;
+  }
   const del=e.target.closest('[data-del-key]');
-  if(del){ await Store.deleteItem(del.dataset.delKey, del.dataset.delId); renderEntity(del.dataset.delKey); recalc(); return; }
+  if(del){
+    const key=del.dataset.delKey, id=del.dataset.delId;
+    // Level 1: optimistic — 畫面立即消失，背景同步 Supabase
+    state[key]=state[key].filter(r=>String(r.id)!==String(id));
+    renderEntity(key); recalcDebounced();
+    if(String(id).startsWith('__tmp__')){
+      _cancelledInserts.add(id); // 告訴尚在飛行中的 INSERT：完成後請自行刪除
+    } else if(Store.mode==='cloud' && session){
+      sb.from(TABLES[key]).delete().eq('id',id).then(({error})=>{ if(error) console.error('刪除同步失敗',error); });
+    } else { persistLocal(); }
+    return;
+  }
   // 分類管理
   const catDelMain=e.target.closest('.cat-del-main');
   if(catDelMain){ const ent=catDelMain.dataset.catEnt,mi=parseInt(catDelMain.dataset.catMi); const g=state.catConfig[ent][mi]; if(g.s.length>0&&!confirm(`刪除「${g.m}」及其${g.s.length}個子分類？`)) return; state.catConfig[ent].splice(mi,1); await Store.saveSettings(); renderCatConfig(); renderEntity(ent); return; }
