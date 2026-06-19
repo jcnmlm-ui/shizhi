@@ -306,6 +306,9 @@
   .welcome-list .wl-desc{font-size:12.5px;color:var(--muted);margin-top:2px;line-height:1.5}
   .welcome-cta{width:100%;background:var(--primary);color:#fff;border:0;border-radius:12px;padding:15px;font-size:15px;font-weight:600;cursor:pointer;letter-spacing:.3px;transition:opacity .15s}
   .welcome-cta:hover{opacity:.88}
+  #side-about{padding:0 10px 6px;flex-shrink:0}
+  .side-about-btn{background:transparent;border:0;color:var(--faint);font-size:11.5px;cursor:pointer;padding:3px 4px;display:flex;align-items:center;gap:5px;border-radius:6px;width:100%;text-align:left}
+  .side-about-btn:hover{color:var(--muted);background:var(--line-2)}
 </style>
 </head>
 <body>
@@ -314,6 +317,7 @@
     <div class="brand"><span class="mark">時值</span><span class="sub">財務地圖</span></div>
     <nav class="nav" id="nav"><!-- 由 renderNav() 填入 --></nav>
     <div id="plan-widget"></div>
+    <div id="side-about"></div>
     <div class="foot">個人理財試算工具<br>所有數字皆為假設估算，非投資保證。</div>
   </aside>
 
@@ -703,6 +707,11 @@ function renderNav(){
 
   nav.innerHTML = html;
   renderPlanWidget();
+  renderSideAbout();
+}
+function renderSideAbout(){
+  const el=document.getElementById('side-about'); if(!el) return;
+  el.innerHTML=session?'<button class="side-about-btn" onclick="showWelcome()">📖 什麼是時值？</button>':'';
 }
 
 function renderPlanWidget(){
@@ -840,7 +849,7 @@ const Store = {
         this.mode='cloud';
         const { data } = await sb.auth.getSession();
         session = data.session;
-        sb.auth.onAuthStateChange(async (e,s)=>{ session=s; if(e==='PASSWORD_RECOVERY') pwRecovery=true; renderCloudArea(); if(s){ await fetchFeatures(); renderNav(); await Store.loadAll(); renderAll(); rerenderActiveTab(); if(e==='SIGNED_IN'){ const isNew=Date.now()-new Date(s.user.created_at).getTime()<600000; if(isNew){ localStorage.removeItem(WELCOME_KEY); localStorage.removeItem(TOUR_KEY); showWelcome(); } else { isWelcomeDone()?maybeShowTourPrompt():showWelcome(); } } } else { allowedFeatures=['dash','flow','balance','goals','report','settings','addon-store']; currentPlan='free'; allowedAddons=[]; closeUpgradeModal(); syncPrintBtn(); renderAll(); } });
+        sb.auth.onAuthStateChange(async (e,s)=>{ session=s; if(e==='PASSWORD_RECOVERY') pwRecovery=true; renderCloudArea(); if(s){ await fetchFeatures(); renderNav(); await Store.loadAll(); renderAll(); rerenderActiveTab(); if(e==='SIGNED_IN'){ maybeShowTourPrompt(); } } else { allowedFeatures=['dash','flow','balance','goals','report','settings','addon-store']; currentPlan='free'; allowedAddons=[]; closeUpgradeModal(); syncPrintBtn(); renderAll(); } });
       }catch(err){ console.error('Supabase 載入失敗，改用本地模式',err); this.mode='local'; }
     }
   },
@@ -3834,7 +3843,8 @@ async function loadSiteConfig(){
   await Store.init();
   await Store.loadAll();
   renderAll();
-  maybeShowTourPrompt();
+  if(!sessionStorage.getItem('shizhi_welcome_session')){ localStorage.removeItem(TOUR_KEY); showWelcome(); }
+  else maybeShowTourPrompt();
   if(location.hash==='#login'){
     document.querySelector('#nav button[data-tab="settings"]')?.click();
     setTimeout(()=>{ document.getElementById('cloud-area')?.scrollIntoView({behavior:'smooth',block:'center'}); }, 300);
@@ -3995,9 +4005,11 @@ function showWelcome(){
   </div>`;
   document.body.appendChild(ov);
   document.getElementById('welcome-cta').onclick=()=>{
-    markWelcomeDone();
     ov.style.animation='wFadeIn .2s ease reverse';
-    setTimeout(()=>{ ov.remove(); maybeShowTourPrompt(); },200);
+    setTimeout(()=>{
+      ov.remove();
+      if(!session){ sessionStorage.setItem('shizhi_welcome_session','1'); maybeShowTourPrompt(); }
+    },200);
   };
 }
 function maybeShowTourPrompt(){
