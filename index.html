@@ -2600,7 +2600,8 @@ function renderSettings(){
       <div class="inp"><input type="number" step="${f.step}" data-setting="${f.key}" data-pct="${!!f.pct}" value="${val}"><span class="unit">${f.unit}</span></div>
       ${f.desc?`<div class="desc">${f.desc}</div>`:''}</div>`;
   }).join('');
-  el.insertAdjacentHTML('afterend','<button onclick="localStorage.removeItem(TOUR_KEY);startTour()" style="margin-top:14px;background:transparent;border:0;color:var(--primary-2);font-size:12.5px;cursor:pointer;padding:0;text-decoration:underline">▶ 重新開始導覽</button>');
+  document.getElementById('tour-restart-btn')?.remove();
+  el.insertAdjacentHTML('afterend','<button id="tour-restart-btn" onclick="localStorage.removeItem(TOUR_KEY);startTour()" style="margin-top:14px;background:transparent;border:0;color:var(--primary-2);font-size:12.5px;cursor:pointer;padding:0;text-decoration:underline">▶ 重新開始導覽</button>');
 }
 
 function renderCatConfig(){
@@ -3849,6 +3850,7 @@ function _posSpotlight(){
     _tourRO?.disconnect();
     _tourRO=new ResizeObserver(setPos);
     _tourRO.observe(el);
+    document.body.style.overflow='hidden';
   },520);
 }
 function _renderTourCard(){
@@ -3875,6 +3877,7 @@ function _renderTourCard(){
 function goTourStep(idx){
   _tourStep=idx;
   _tourRO?.disconnect(); _tourRO=null;
+  document.body.style.overflow='';
   const sp=document.getElementById('tour-sp');
   if(sp) sp.style.opacity='0';
   _tourNav(TOUR_STEPS[idx].tab,()=>{ _posSpotlight(); _renderTourCard(); });
@@ -3901,6 +3904,7 @@ function startTour(){
 function endTour(){
   markTourDone();
   _tourRO?.disconnect(); _tourRO=null;
+  document.body.style.overflow='';
   document.removeEventListener('click',_tourBlock,true);
   document.removeEventListener('mousedown',_tourBlock,true);
   document.getElementById('tour-sp')?.remove();
