@@ -840,7 +840,7 @@ const Store = {
         this.mode='cloud';
         const { data } = await sb.auth.getSession();
         session = data.session;
-        sb.auth.onAuthStateChange(async (e,s)=>{ session=s; if(e==='PASSWORD_RECOVERY') pwRecovery=true; renderCloudArea(); if(s){ await fetchFeatures(); renderNav(); await Store.loadAll(); renderAll(); rerenderActiveTab(); isWelcomeDone()?maybeShowTourPrompt():showWelcome(); } else { allowedFeatures=['dash','flow','balance','goals','report','settings','addon-store']; currentPlan='free'; allowedAddons=[]; closeUpgradeModal(); syncPrintBtn(); renderAll(); } });
+        sb.auth.onAuthStateChange(async (e,s)=>{ session=s; if(e==='PASSWORD_RECOVERY') pwRecovery=true; renderCloudArea(); if(s){ await fetchFeatures(); renderNav(); await Store.loadAll(); renderAll(); rerenderActiveTab(); const _newReg=s&&(Date.now()-new Date(s.user.created_at).getTime()<600000); if(_newReg){localStorage.removeItem(WELCOME_KEY);showWelcome();}else{isWelcomeDone()?maybeShowTourPrompt():showWelcome();} } else { allowedFeatures=['dash','flow','balance','goals','report','settings','addon-store']; currentPlan='free'; allowedAddons=[]; closeUpgradeModal(); syncPrintBtn(); renderAll(); } });
       }catch(err){ console.error('Supabase 載入失敗，改用本地模式',err); this.mode='local'; }
     }
   },
@@ -2712,7 +2712,7 @@ function renderCloudArea(){
 function translateAuthError(m){
   if(/validate.*email|email.*invalid|invalid.*email/i.test(m)) return '請輸入有效的電子信箱格式';
   if(/already.*registered|email.*exists|already.*use/i.test(m)) return '此電子信箱已被註冊，請直接登入';
-  if(/invalid.*credentials|invalid.*login|wrong.*password|bad credentials/i.test(m)) return '電子信箱或密碼錯誤';
+  if(/invalid.*credentials|invalid.*login|wrong.*password|bad credentials/i.test(m)) return '電子信箱或密碼錯誤，若尚未有帳號請點「註冊」';
   if(/user.*not.*found|no user/i.test(m)) return '找不到此帳號';
   if(/password.*length|password.*short|at least/i.test(m)) return '密碼至少需要 6 個字元';
   if(/rate.*limit|too many request/i.test(m)) return '操作太頻繁，請稍後再試';
