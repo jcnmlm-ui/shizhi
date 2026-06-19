@@ -3822,7 +3822,7 @@ const TOUR_STEPS=[
   {tab:'dash',    sel:'#stats',         title:'財務全貌',         text:'所有資料的綜合結果都在這裡。淨值＝資產－負債；儲蓄率建議 20% 以上；緊急預備金建議 3–6 個月。每次修改任何數字，這裡都會即時更新——這就是你的財務地圖。'},
 ];
 const TOUR_KEY='shizhi_tour_done';
-let _tourStep=0;
+let _tourStep=0, _tourRO=null;
 function isTourDone(){ return localStorage.getItem(TOUR_KEY)==='1'; }
 function markTourDone(){ localStorage.setItem(TOUR_KEY,'1'); }
 
@@ -3834,13 +3834,21 @@ function _tourNav(tab,cb){
 }
 function _posSpotlight(){
   const step=TOUR_STEPS[_tourStep];
-  const el=document.querySelector(step.sel);
+  const rawEl=document.querySelector(step.sel);
+  const el=rawEl?.closest('.card')||rawEl;
   const sp=document.getElementById('tour-sp');
   if(!el||!sp) return;
   el.scrollIntoView({behavior:'smooth',block:'center'});
   setTimeout(()=>{
-    const r=el.getBoundingClientRect(), pad=14;
-    Object.assign(sp.style,{top:r.top-pad+'px',left:r.left-pad+'px',width:r.width+pad*2+'px',height:r.height+pad*2+'px',opacity:'1'});
+    const setPos=()=>{
+      if(!document.getElementById('tour-sp')) return;
+      const r=el.getBoundingClientRect(), pad=14;
+      Object.assign(sp.style,{top:r.top-pad+'px',left:r.left-pad+'px',width:r.width+pad*2+'px',height:r.height+pad*2+'px',opacity:'1'});
+    };
+    setPos();
+    _tourRO?.disconnect();
+    _tourRO=new ResizeObserver(setPos);
+    _tourRO.observe(el);
   },520);
 }
 function _renderTourCard(){
@@ -3866,6 +3874,7 @@ function _renderTourCard(){
 }
 function goTourStep(idx){
   _tourStep=idx;
+  _tourRO?.disconnect(); _tourRO=null;
   const sp=document.getElementById('tour-sp');
   if(sp) sp.style.opacity='0';
   _tourNav(TOUR_STEPS[idx].tab,()=>{ _posSpotlight(); _renderTourCard(); });
@@ -3873,13 +3882,16 @@ function goTourStep(idx){
 function startTour(){
   if(document.getElementById('tour-sp')) return;
   _tourStep=0;
+  const bd=document.createElement('div'); bd.id='tour-bd'; bd.style.cssText='position:fixed;inset:0;z-index:8000;cursor:default';
   const sp=document.createElement('div'); sp.id='tour-sp'; sp.className='tour-spotlight'; sp.style.opacity='0';
   const card=document.createElement('div'); card.id='tour-card'; card.className='tour-card';
-  document.body.appendChild(sp); document.body.appendChild(card);
+  document.body.appendChild(bd); document.body.appendChild(sp); document.body.appendChild(card);
   goTourStep(0);
 }
 function endTour(){
   markTourDone();
+  _tourRO?.disconnect(); _tourRO=null;
+  document.getElementById('tour-bd')?.remove();
   document.getElementById('tour-sp')?.remove();
   document.getElementById('tour-card')?.remove();
 }
