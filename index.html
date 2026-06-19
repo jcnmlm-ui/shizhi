@@ -3879,19 +3879,29 @@ function goTourStep(idx){
   if(sp) sp.style.opacity='0';
   _tourNav(TOUR_STEPS[idx].tab,()=>{ _posSpotlight(); _renderTourCard(); });
 }
+function _tourBlock(e){
+  const sp=document.getElementById('tour-sp'), card=document.getElementById('tour-card');
+  if(!sp||!card) return;
+  const sr=sp.getBoundingClientRect(), cr=card.getBoundingClientRect();
+  const inSp=e.clientX>=sr.left&&e.clientX<=sr.right&&e.clientY>=sr.top&&e.clientY<=sr.bottom;
+  const inCard=e.clientX>=cr.left&&e.clientX<=cr.right&&e.clientY>=cr.top&&e.clientY<=cr.bottom;
+  if(!inSp&&!inCard){ e.stopPropagation(); e.preventDefault(); }
+}
 function startTour(){
   if(document.getElementById('tour-sp')) return;
   _tourStep=0;
-  const bd=document.createElement('div'); bd.id='tour-bd'; bd.style.cssText='position:fixed;inset:0;z-index:8000;cursor:default';
   const sp=document.createElement('div'); sp.id='tour-sp'; sp.className='tour-spotlight'; sp.style.opacity='0';
   const card=document.createElement('div'); card.id='tour-card'; card.className='tour-card';
-  document.body.appendChild(bd); document.body.appendChild(sp); document.body.appendChild(card);
+  document.body.appendChild(sp); document.body.appendChild(card);
+  document.addEventListener('click',_tourBlock,true);
+  document.addEventListener('mousedown',_tourBlock,true);
   goTourStep(0);
 }
 function endTour(){
   markTourDone();
   _tourRO?.disconnect(); _tourRO=null;
-  document.getElementById('tour-bd')?.remove();
+  document.removeEventListener('click',_tourBlock,true);
+  document.removeEventListener('mousedown',_tourBlock,true);
   document.getElementById('tour-sp')?.remove();
   document.getElementById('tour-card')?.remove();
 }
