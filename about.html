@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>關於我們 · 時值</title>
+<meta name="description" content="時值財務地圖的製作者鄭家弦，分享為什麼打造這個個人財務規劃工具，以及對財務規劃的理念。" />
+<meta property="og:type" content="profile" />
+<meta property="og:site_name" content="時值 · 財務地圖" />
+<meta property="og:title" content="關於我們 · 時值" />
+<meta property="og:description" content="時值財務地圖的製作者鄭家弦，分享為什麼打造這個個人財務規劃工具，以及對財務規劃的理念。" />
+<meta property="og:url" content="https://jcnmlm-ui.github.io/shizhi/about.html" />
+<link rel="canonical" href="https://jcnmlm-ui.github.io/shizhi/about.html" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Person",
+  "name": "鄭家弦",
+  "email": "jcn.mlm@gmail.com",
+  "url": "https://jcnmlm-ui.github.io/shizhi/about.html",
+  "knowsAbout": ["個人財務規劃", "退休規劃", "資產配置", "台灣勞退勞保"],
+  "worksFor": {
+    "@type": "Organization",
+    "name": "時值 · 財務地圖",
+    "url": "https://jcnmlm-ui.github.io/shizhi/"
+  }
+}
+</script>
+<style>
+:root{
+  --bg:#F6F2E9;--surface:#FFFDF8;--ink:#1B2620;--muted:#6E7A71;--faint:#9AA39B;
+  --line:#E5DECE;--line-2:#D8CFBA;--primary:#1E6B50;--primary-2:#16523D;--primary-soft:#E4EFE9;
+  --accent:#C0863A;--accent-soft:#F4E7D2;
+  --font-display:'Fraunces','Georgia',serif;
+  --font-body:'Noto Sans TC',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:var(--font-body);color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased;line-height:1.7}
+a{color:var(--primary)}
+nav{
+  position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;
+  padding:0 40px;height:60px;background:rgba(246,242,233,.92);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line);
+}
+.nav-brand{font-family:var(--font-display);font-weight:600;font-size:20px;color:var(--primary-2);text-decoration:none}
+.nav-links{display:flex;align-items:center;gap:20px}
+.nav-link{font-size:13.5px;color:var(--muted);text-decoration:none}
+.nav-link:hover{color:var(--primary)}
+.nav-cta{font-size:13.5px;color:var(--primary);text-decoration:none;font-weight:500}
+.nav-cta:hover{text-decoration:underline}
+.wrap{max-width:740px;margin:0 auto;padding:56px 40px 100px}
+.hero{text-align:center;padding:8px 0 56px}
+.hero-avatar{width:80px;height:80px;border-radius:50%;background:var(--primary-soft);display:flex;align-items:center;justify-content:center;font-size:36px;margin:0 auto 20px}
+.hero-name{font-family:var(--font-display);font-size:32px;font-weight:500;margin-bottom:6px;color:var(--ink)}
+.hero-sub{font-size:14px;color:var(--muted)}
+h2{font-family:var(--font-display);font-size:24px;font-weight:500;margin:52px 0 16px;color:var(--ink)}
+p{margin-bottom:14px;font-size:15px;color:var(--ink)}
+ul{margin:0 0 14px 20px;font-size:15px}
+li{margin-bottom:6px}
+.highlight{background:var(--primary-soft);border-left:3px solid var(--primary);border-radius:0 8px 8px 0;padding:14px 18px;margin:20px 0;font-size:14.5px;line-height:1.7;color:var(--primary-2)}
+.card-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin:20px 0}
+.card-item{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+.card-item .icon{font-size:22px;margin-bottom:8px}
+.card-item .label{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:4px}
+.card-item .desc{font-size:12.5px;color:var(--muted);line-height:1.5}
+.divider{height:1px;background:var(--line);margin:56px 0}
+.contact-box{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:28px 32px;margin-top:20px}
+.contact-box h3{font-size:17px;font-weight:700;margin-bottom:14px}
+.contact-item{display:flex;align-items:center;gap:10px;margin-bottom:12px;font-size:14px}
+.contact-item .lbl{color:var(--muted);width:80px;flex-shrink:0}
+.links-row{display:flex;gap:14px;flex-wrap:wrap;margin-top:24px;padding-top:20px;border-top:1px solid var(--line)}
+.links-row a{font-size:13.5px;color:var(--primary);text-decoration:none;display:flex;align-items:center;gap:5px}
+.links-row a:hover{text-decoration:underline}
+footer{text-align:center;padding:28px 20px;font-size:13px;color:var(--faint);border-top:1px solid var(--line)}
+footer a{color:var(--primary);margin:0 6px}
+@media(max-width:600px){
+  nav{padding:0 16px}
+  .wrap{padding:36px 20px 80px}
+  .nav-links{gap:12px}
+  .contact-box{padding:20px}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-brand" href="index.html">時值</a>
+  <div class="nav-links">
+    <a class="nav-link" href="story.html">故事與案例</a>
+    <a class="nav-cta" href="index.html">前往工具 →</a>
+  </div>
+</nav>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="hero-avatar">🗺️</div>
+    <div class="hero-name">鄭家弦</div>
+    <div class="hero-sub">時值 · 財務地圖 製作者</div>
+  </div>
+
+  <h2>我是誰</h2>
+  <p>
+    我是鄭家弦，在金融與財務規劃領域深耕多年。接觸過許多人的財務困境後，
+    我發現大多數人缺的不是努力，而是一張清晰的「財務地圖」——
+    能幫助你看清楚現在在哪、未來要去哪、以及走哪條路最穩。
+  </p>
+  <p>
+    我擅長將複雜的財務概念轉化為具體可操作的數字，協助個人和家庭做出更好的財務決策。
+    相信財務規劃不應該只屬於高收入者，每個人都值得擁有自己的財務地圖。
+  </p>
+
+  <div class="highlight">
+    💡 如果你想了解我的實際服務案例，歡迎前往
+    <a href="story.html?filter=case_study">服務案例分享</a>，
+    所有案例均已去識別化處理。
+  </div>
+
+  <h2>為什麼做這個工具</h2>
+  <p>
+    在幫助許多人做財務規劃的過程中，我常常需要用 Excel 反覆試算不同情境。
+    每次都要重新建表，修改假設，再一格一格檢查公式——不僅耗時，
+    結果也難以直觀呈現給對方理解。
+  </p>
+  <p>
+    時值就是為了解決這個問題而誕生的。它把我在財務規劃工作中最常用的試算邏輯，
+    整合成一個視覺化、互動式的工具，讓你可以即時調整假設、立刻看到影響。
+  </p>
+  <p>
+    不是什麼花俏的投資分析平台，就是一張讓你看清楚「現在和未來」的財務地圖。
+  </p>
+
+  <h2>工具的設計理念</h2>
+  <div class="card-row">
+    <div class="card-item">
+      <div class="icon">🔒</div>
+      <div class="label">隱私第一</div>
+      <div class="desc">免費版資料只存在你的瀏覽器，永不上傳伺服器。雲端模式也啟用嚴格的存取控制。</div>
+    </div>
+    <div class="card-item">
+      <div class="icon">🇹🇼</div>
+      <div class="label">台灣本土化</div>
+      <div class="desc">勞退、勞保、二代健保補充費，完全按台灣法規設計，不是套用國外模板。</div>
+    </div>
+    <div class="card-item">
+      <div class="icon">📐</div>
+      <div class="label">誠實的估算</div>
+      <div class="desc">所有數字都是基於你的假設的試算，明確標示不確定性，不過度美化結果。</div>
+    </div>
+    <div class="card-item">
+      <div class="icon">🌱</div>
+      <div class="label">持續進化</div>
+      <div class="desc">根據用戶反饋和政策變化持續更新，買斷用戶永久享有新功能。</div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <h2>聯絡我</h2>
+  <p>無論是對工具的建議、財務規劃的諮詢，或是想分享你的使用心得，都歡迎來信。</p>
+
+  <div class="contact-box">
+    <h3>聯絡方式</h3>
+    <div class="contact-item">
+      <span class="lbl">📧 Email</span>
+      <a href="mailto:jcn.mlm@gmail.com">jcn.mlm@gmail.com</a>
+    </div>
+    <div class="contact-item">
+      <span class="lbl">⏱ 回覆時間</span>
+      <span>通常 1–3 個工作天</span>
+    </div>
+
+    <div class="links-row">
+      <a href="story.html">📖 故事與案例</a>
+      <a href="terms.html">📄 使用者條款與隱私政策</a>
+      <a href="index.html">🗺️ 前往時值工具</a>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <a href="story.html">故事與案例</a>
+  <a href="terms.html">使用者條款與隱私政策</a>
+  <a href="index.html">時值 · 財務地圖</a>
+</footer>
+
+</body>
+</html>

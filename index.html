@@ -310,6 +310,40 @@
   .side-about-btn{background:transparent;border:0;color:var(--faint);font-size:11.5px;cursor:pointer;padding:3px 4px;display:flex;align-items:center;gap:5px;border-radius:6px;width:100%;text-align:left}
   .side-about-btn:hover{color:var(--muted);background:var(--line-2)}
 </style>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "時值 · 財務地圖",
+  "url": "https://jcnmlm-ui.github.io/shizhi/",
+  "description": "個人財務規劃工具，提供收支管理、資產負債試算、退休規劃模擬、目標達成分析等功能。",
+  "applicationCategory": "FinanceApplication",
+  "operatingSystem": "Web",
+  "inLanguage": "zh-Hant",
+  "author": {
+    "@type": "Person",
+    "name": "鄭家弦",
+    "email": "jcn.mlm@gmail.com"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "時值 · 財務地圖",
+    "url": "https://jcnmlm-ui.github.io/shizhi/",
+    "contactPoint": {
+      "@type": "ContactPoint",
+      "email": "jcn.mlm@gmail.com",
+      "contactType": "customer support",
+      "availableLanguage": "zh-Hant"
+    }
+  },
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "TWD",
+    "description": "免費版提供基礎功能，完整版與訂閱制提供進階模組"
+  }
+}
+</script>
 </head>
 <body>
 <div class="app">
@@ -318,7 +352,7 @@
     <nav class="nav" id="nav"><!-- 由 renderNav() 填入 --></nav>
     <div id="plan-widget"></div>
     <div id="side-about"></div>
-    <div class="foot">個人理財試算工具<br>所有數字皆為假設估算，非投資保證。</div>
+    <div class="foot">個人理財試算工具<br>所有數字皆為假設估算，非投資保證。<br><a href="story.html" style="color:var(--faint);text-decoration:none" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--faint)'">📖 閱讀我們的故事 →</a></div>
   </aside>
 
   <main class="main">
