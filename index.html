@@ -3823,7 +3823,7 @@ const TOUR_STEPS=[
   {tab:'dash',    sel:'#stats',         title:'財務全貌',         text:'所有資料的綜合結果都在這裡。淨值＝資產－負債；儲蓄率建議 20% 以上；緊急預備金建議 3–6 個月。每次修改任何數字，這裡都會即時更新——這就是你的財務地圖。'},
 ];
 const TOUR_KEY='shizhi_tour_done';
-let _tourStep=0, _tourRO=null;
+let _tourStep=0, _tourRO=null, _tourScrollRAF=null, _tourScrollTm=null;
 function isTourDone(){ return localStorage.getItem(TOUR_KEY)==='1'; }
 function markTourDone(){ localStorage.setItem(TOUR_KEY,'1'); }
 
@@ -3850,7 +3850,6 @@ function _posSpotlight(){
     _tourRO?.disconnect();
     _tourRO=new ResizeObserver(setPos);
     _tourRO.observe(el);
-    document.body.style.overflow='hidden';
   },520);
 }
 function _renderTourCard(){
@@ -3877,7 +3876,6 @@ function _renderTourCard(){
 function goTourStep(idx){
   _tourStep=idx;
   _tourRO?.disconnect(); _tourRO=null;
-  document.body.style.overflow='';
   const sp=document.getElementById('tour-sp');
   if(sp) sp.style.opacity='0';
   _tourNav(TOUR_STEPS[idx].tab,()=>{ _posSpotlight(); _renderTourCard(); });
@@ -3891,6 +3889,31 @@ function _tourBlock(e){
   const inCard=e.clientX>=cr.left&&e.clientX<=cr.right&&e.clientY>=cr.top&&e.clientY<=cr.bottom;
   if(!inSp&&!inCard){ e.stopPropagation(); e.preventDefault(); }
 }
+function _tourWheelBlock(e){
+  if(!e.isTrusted) return;
+  const sp=document.getElementById('tour-sp'); if(!sp) return;
+  const r=sp.getBoundingClientRect();
+  if(!(e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom)) e.preventDefault();
+}
+function _tourTouchBlock(e){
+  if(!e.isTrusted||!e.touches.length) return;
+  const sp=document.getElementById('tour-sp'); if(!sp) return;
+  const r=sp.getBoundingClientRect(), t=e.touches[0];
+  if(!(t.clientX>=r.left&&t.clientX<=r.right&&t.clientY>=r.top&&t.clientY<=r.bottom)) e.preventDefault();
+}
+function _tourScrollUpdate(){
+  cancelAnimationFrame(_tourScrollRAF);
+  const sp=document.getElementById('tour-sp'); if(!sp) return;
+  sp.style.transition='none';
+  _tourScrollRAF=requestAnimationFrame(()=>{
+    const rawEl=document.querySelector(TOUR_STEPS[_tourStep].sel);
+    const el=rawEl?.closest('.card')||rawEl; if(!el) return;
+    const r=el.getBoundingClientRect(), pad=14;
+    Object.assign(sp.style,{top:r.top-pad+'px',left:r.left-pad+'px',width:r.width+pad*2+'px',height:r.height+pad*2+'px'});
+    clearTimeout(_tourScrollTm);
+    _tourScrollTm=setTimeout(()=>{ if(document.getElementById('tour-sp')) sp.style.transition=''; },200);
+  });
+}
 function startTour(){
   if(document.getElementById('tour-sp')) return;
   _tourStep=0;
@@ -3899,14 +3922,20 @@ function startTour(){
   document.body.appendChild(sp); document.body.appendChild(card);
   document.addEventListener('click',_tourBlock,true);
   document.addEventListener('mousedown',_tourBlock,true);
+  document.addEventListener('wheel',_tourWheelBlock,{passive:false});
+  document.addEventListener('touchmove',_tourTouchBlock,{passive:false});
+  window.addEventListener('scroll',_tourScrollUpdate,{passive:true,capture:true});
   goTourStep(0);
 }
 function endTour(){
   markTourDone();
   _tourRO?.disconnect(); _tourRO=null;
-  document.body.style.overflow='';
+  cancelAnimationFrame(_tourScrollRAF); clearTimeout(_tourScrollTm);
   document.removeEventListener('click',_tourBlock,true);
   document.removeEventListener('mousedown',_tourBlock,true);
+  document.removeEventListener('wheel',_tourWheelBlock);
+  document.removeEventListener('touchmove',_tourTouchBlock);
+  window.removeEventListener('scroll',_tourScrollUpdate,{capture:true});
   document.getElementById('tour-sp')?.remove();
   document.getElementById('tour-card')?.remove();
 }
