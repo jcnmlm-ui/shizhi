@@ -840,7 +840,7 @@ const Store = {
         this.mode='cloud';
         const { data } = await sb.auth.getSession();
         session = data.session;
-        sb.auth.onAuthStateChange(async (e,s)=>{ session=s; if(e==='PASSWORD_RECOVERY') pwRecovery=true; renderCloudArea(); if(s){ await fetchFeatures(); renderNav(); await Store.loadAll(); renderAll(); rerenderActiveTab(); const _newReg=s&&(Date.now()-new Date(s.user.created_at).getTime()<600000); if(_newReg){localStorage.removeItem(WELCOME_KEY);showWelcome();}else{isWelcomeDone()?maybeShowTourPrompt():showWelcome();} } else { allowedFeatures=['dash','flow','balance','goals','report','settings','addon-store']; currentPlan='free'; allowedAddons=[]; closeUpgradeModal(); syncPrintBtn(); renderAll(); } });
+        sb.auth.onAuthStateChange(async (e,s)=>{ session=s; if(e==='PASSWORD_RECOVERY') pwRecovery=true; renderCloudArea(); if(s){ await fetchFeatures(); renderNav(); await Store.loadAll(); renderAll(); rerenderActiveTab(); if(e==='SIGNED_IN'){ const isNew=Date.now()-new Date(s.user.created_at).getTime()<600000; if(isNew){ localStorage.removeItem(WELCOME_KEY); localStorage.removeItem(TOUR_KEY); showWelcome(); } else { isWelcomeDone()?maybeShowTourPrompt():showWelcome(); } } } else { allowedFeatures=['dash','flow','balance','goals','report','settings','addon-store']; currentPlan='free'; allowedAddons=[]; closeUpgradeModal(); syncPrintBtn(); renderAll(); } });
       }catch(err){ console.error('Supabase 載入失敗，改用本地模式',err); this.mode='local'; }
     }
   },
