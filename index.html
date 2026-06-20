@@ -759,7 +759,7 @@ function renderPlanWidget(){
     el.innerHTML=`<div class="pw-free">
       <div class="pw-free-label">目前：<b>${label}</b></div>
       <button class="pw-btn pw-btn-primary" onclick="showPaymentUpgrade()">🔓 升級完整版</button>
-      <button class="pw-btn pw-btn-outline" onclick="showPaymentUpgrade()">訂閱制 NT$99/月</button>
+      <button class="pw-btn pw-btn-outline" onclick="showPaymentUpgrade()">訂閱制 NT$${PAYMENT_CONFIG.price_sub}/月</button>
     </div>`;
   }
 }
