@@ -253,6 +253,20 @@
     .pagehead{margin-bottom:10px}
   }
 
+  /* ── 保險防護 ───────────────────────────────────── */
+  .ins-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:14px 0 18px}
+  .ins-dim{background:var(--surface-2);border-radius:10px;padding:14px;border:1px solid var(--line)}
+  .ins-dim-title{font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--muted);margin-bottom:10px;text-transform:uppercase}
+  .ins-dim-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--line);font-size:13px;gap:8px}
+  .ins-dim-row:last-child{border-bottom:none}
+  .ins-dim-val{font-weight:600;font-size:13px;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+  .ins-dim-total{font-weight:700;border-top:2px solid var(--line-2);margin-top:4px;padding-top:7px}
+  .ins-chart-wrap{position:relative;height:160px;margin:14px 0 2px}
+  .ins-note{display:flex;align-items:flex-start;gap:10px;border-left:3px solid var(--line-2);border-radius:0 6px 6px 0;padding:9px 13px;margin:5px 0;font-size:13px;background:var(--surface-2);line-height:1.5}
+  .ins-note.good{border-left-color:var(--primary);background:var(--primary-soft)}
+  .ins-note.warn{border-left-color:#b07800;background:#fff8e0}
+  .ins-note.bad{border-left-color:var(--danger);background:var(--danger-soft)}
+  @media(max-width:700px){.ins-summary{grid-template-columns:1fr}}
   /* mobile */
   /* Tour guide */
   .tour-spotlight{position:fixed;z-index:8001;border-radius:12px;border:2.5px solid var(--primary);box-shadow:0 0 0 9999px rgba(27,38,32,.58);transition:top .32s ease,left .32s ease,width .32s ease,height .32s ease,opacity .2s;pointer-events:none}
@@ -765,7 +779,7 @@ function renderPlanWidget(){
 }
 
 /* ===== 共用常數 ===== */
-const TABLES = { incomes:'fp_incomes', expenses:'fp_expenses', assets:'fp_assets', liabilities:'fp_liabilities', goals:'fp_goals', children:'fp_children', purchases:'fp_purchases' };
+const TABLES = { incomes:'fp_incomes', expenses:'fp_expenses', assets:'fp_assets', liabilities:'fp_liabilities', goals:'fp_goals', children:'fp_children', purchases:'fp_purchases', policies:'fp_policies' };
 const LS_KEY = 'shizhi_finance_v1';
 const fmtMoney = n => new Intl.NumberFormat('zh-TW',{style:'currency',currency:'TWD',maximumFractionDigits:0}).format(Math.round(n||0));
 const fmtPct = x => (x*100).toFixed(1)+'%';
@@ -864,7 +878,7 @@ function sanitizeCatConfig(o){
   return out;
 }
 
-let state = { settings:{...DEFAULT_SETTINGS}, incomes:[], expenses:[], assets:[], liabilities:[], goals:[], children:[], purchases:[], childCosts:deepClone(DEFAULT_CHILD_COSTS), postal:{...DEFAULT_POSTAL}, catConfig:deepClone(DEFAULT_CAT_CONFIG) };
+let state = { settings:{...DEFAULT_SETTINGS}, incomes:[], expenses:[], assets:[], liabilities:[], goals:[], children:[], purchases:[], policies:[], childCosts:deepClone(DEFAULT_CHILD_COSTS), postal:{...DEFAULT_POSTAL}, catConfig:deepClone(DEFAULT_CAT_CONFIG) };
 let sb = null;            // supabase client
 let session = null;
 let pwRecovery = false;
@@ -1472,6 +1486,28 @@ const SCHEMAS = {
     {key:'return_rate',label:'報酬率',type:'percent'},
     {key:'priority',label:'優先序',type:'number'},
   ], def:{name:'',target_amount:0,target_years:5,cycle_years:null,start_amount:0,return_rate:null,priority:3}, grid:'1.2fr 1.1fr .55fr .55fr 1fr .6fr .55fr .9fr .8fr 40px', computed:true },
+
+  policies:{ cols:[
+    {key:'name',      label:'保單／附約名稱', type:'text', ph:'例：南山主約'},
+    {key:'ins_type',  label:'保障類型', type:'select', options:[
+      ['life',           '壽險（一般身故）'],
+      ['accident',       '意外傷害'],
+      ['cancer_death',   '癌症身故'],
+      ['critical',       '重大疾病'],
+      ['hospital_daily', '住院日額'],
+      ['hospital_actual','醫療實支實付'],
+      ['cancer_medical', '癌症醫療'],
+      ['longcare',       '長期照顧'],
+      ['asset',          '保單資產（儲蓄型）'],
+    ]},
+    {key:'duration',   label:'定/終身', type:'select', options:[['term','定期'],['whole','終身']]},
+    {key:'coverage',   label:'保額/日額', type:'money'},
+    {key:'premium',    label:'年繳保費', type:'money'},
+    {key:'cash_value', label:'現金價值', type:'money'},
+    {key:'start_age',  label:'起保年齡', type:'number'},
+    {key:'end_age',    label:'至幾歲（定期填）', type:'number'},
+  ], def:{name:'', ins_type:'life', duration:'term', coverage:0, premium:0, cash_value:0, start_age:25, end_age:65},
+  grid:'2.8fr 2fr 1fr 1.6fr 1.6fr 1.6fr .9fr .9fr' },
 };
 
 function buildCatSelect(entityKey, currentVal, da){
@@ -1543,6 +1579,7 @@ const DRAG_HANDLE = '<span class="drag-h" title="拖曳排序"><svg width="10" h
 
 function renderEntity(key){
   const sc=SCHEMAS[key], el=document.getElementById('tbl-'+key);
+  if(!el) return;
   const grid=`grid-template-columns:22px ${sc.grid}`;
   let h=`<div class="tbl">`;
   h+=`<div class="tr th" style="${grid}"><div></div>`+sc.cols.map(c=>`<div>${c.label}</div>`).join('')
@@ -2587,59 +2624,167 @@ function renderPension(){
   </div>`;
 }
 
-/* ===== 保險防護（壽險缺口．遺族需求法） ===== */
+/* ===== 保險防護 ===== */
 function renderInsurance(){
   const body=document.getElementById('insurance-body'); if(!body) return;
   const m=metrics(); const s=state.settings;
-  const years=Math.max(0,Number(s.ins_years)||0);
-  const living=m.annualExpense*years;                                   // 家庭生活費（年支出×年數）
-  const debt=m.liab;                                                    // 未償負債
-  const edu=(state.children||[]).reduce((x,ch)=>x+(childSummary(ch).collegeNominal||0),0);  // 子女大學教育金（含通膨）
-  const funeral=Number(s.ins_funeral)||0;                              // 喪葬／緊急金
-  const needs=living+debt+edu+funeral;
-  const assetsAvail=m.assets;                                          // 可變現資產（總資產）
-  const existing=Number(s.ins_life)||0;                               // 既有壽險保額
-  const resources=assetsAvail+existing;
+  const age=Number(s.current_age)||27;
+  const lifeExp=Math.max(Number(s.life_expectancy)||90, age+10);
+  const policies=state.policies||[];
+
+  // 判斷保單在特定年齡是否有效
+  const isActive=(p,a)=>p.duration==='whole'||(a>=(Number(p.start_age)||0)&&(!(Number(p.end_age)||0)||a<=(Number(p.end_age)||0)));
+  const active=policies.filter(p=>isActive(p,age));
+
+  // 各類型加總
+  const sumCov=(...types)=>active.filter(p=>types.includes(p.ins_type)).reduce((s,p)=>s+(Number(p.coverage)||0),0);
+  const lifeOnly    =sumCov('life');
+  const accidentCov =sumCov('accident');
+  const cancerDeath =sumCov('cancer_death');
+  const criticalCov =sumCov('critical');
+  const hospitalDay =sumCov('hospital_daily');
+  const actualExp   =sumCov('hospital_actual');
+  const cancerMed   =sumCov('cancer_medical');
+  const longcare    =sumCov('longcare');
+  const totalDeathCov=lifeOnly+accidentCov+cancerDeath;
+  const totalPremium=active.reduce((s,p)=>s+(Number(p.premium)||0),0);
+  const totalCashVal=policies.reduce((s,p)=>s+(Number(p.cash_value)||0),0);
+  const premiumPct  =m.annualIncome>0?totalPremium/m.annualIncome:0;
+
+  // 壽險缺口（遺族需求法）
+  const years =Math.max(0,Number(s.ins_years)||0);
+  const living=m.annualExpense*years;
+  const debt  =m.liab;
+  const edu   =(state.children||[]).reduce((x,ch)=>x+(childSummary(ch).collegeNominal||0),0);
+  const funeral=Number(s.ins_funeral)||0;
+  const needs =living+debt+edu+funeral;
+  const assetsAvail=m.assets;
+  // 有保單清單就用清單；否則 fallback ins_life 手填
+  const existingLife=policies.length>0?totalDeathCov:(Number(s.ins_life)||0);
+  const resources=assetsAvail+existingLife;
   const gap=needs-resources;
-  const tenten=m.annualIncome*10;                                     // 雙十原則：保額≈年收入×10
-  const premiumCap=m.annualIncome*0.10;                              // 保費≈年收入×10%
-  const row=(l,v,cls)=>`<tr><td>${l}</td><td class="n" style="${cls||''}">${fmtMoney(v)}</td></tr>`;
-  const verdict = gap<=0
-    ? `<div class="rec good"><div><div class="rt">壽險保障看起來足夠</div><div class="rd">以遺族需求法估算，現有資產加既有壽險保額（${fmtMoney(resources)}）已可覆蓋家庭需求（${fmtMoney(needs)}），尚有餘裕 ${fmtMoney(-gap)}。仍建議定期檢視，並留意失能、重大疾病與醫療等「非壽險」保障是否足夠。</div></div></div>`
-    : `<div class="rec ${gap>tenten*0.5?'bad':'warn'}"><div><div class="rt">壽險保障有缺口：約 ${fmtMoney(gap)}</div><div class="rd">家庭需求 ${fmtMoney(needs)} 高於現有資源 ${fmtMoney(resources)}。可考慮以<b>定期壽險</b>補足缺口（保費相對低、CP 值高），讓家人在風險發生時能維持生活、清償負債並完成子女教育。</div></div></div>`;
+  const tenten=m.annualIncome*10;
+  const premiumCap=m.annualIncome*0.10;
+
+  const gapCls=gap<=0?'good':gap>tenten*0.5?'bad':'warn';
+  const gapVerdict=gap<=0
+    ?`✅ <div><b>壽險保障看起來足夠</b>——現有資源（${fmtMoney(resources)}）已覆蓋家庭需求（${fmtMoney(needs)}），尚有餘裕 ${fmtMoney(-gap)}。建議定期檢視，並確認非壽險保障是否完整。</div>`
+    :`⚠️ <div><b>壽險保障缺口：約 ${fmtMoney(gap)}</b>——家庭需求 ${fmtMoney(needs)} 高於現有資源 ${fmtMoney(resources)}。可考慮以<b>定期壽險</b>補足缺口（保費低、CP值高）。</div>`;
+
+  const hasMedical =hospitalDay>0||actualExp>0;
+  const hasCritical=criticalCov>0||cancerMed>0;
+  const hasLongcare=longcare>0;
+
   body.innerHTML=`
   <div class="card">
+    <h2>我的保單清單</h2>
+    <p class="hint">每個主約或附約填一列；同一張保單有多種附約可分行填入。終身保單「至幾歲」欄填 0 即可（系統自動忽略）。</p>
+    <div id="tbl-policies"></div>
+  </div>
+
+  <div class="card">
+    <h2>保障概況</h2>
+    <p class="hint" style="margin-bottom:12px">以下為你目前（${age} 歲）有效保單的保障彙整，按類型加總。</p>
+    <div class="ins-summary">
+      <div class="ins-dim">
+        <div class="ins-dim-title">🛡 壽險保障（身故）</div>
+        <div class="ins-dim-row"><span>一般身故</span><span class="ins-dim-val">${fmtMoney(lifeOnly)}</span></div>
+        <div class="ins-dim-row"><span>意外傷害附加</span><span class="ins-dim-val">${fmtMoney(accidentCov)}</span></div>
+        <div class="ins-dim-row"><span>癌症身故</span><span class="ins-dim-val">${fmtMoney(cancerDeath)}</span></div>
+        <div class="ins-dim-row ins-dim-total"><span>身故保障合計</span><span class="ins-dim-val" style="color:var(--primary)">${fmtMoney(totalDeathCov)}</span></div>
+      </div>
+      <div class="ins-dim">
+        <div class="ins-dim-title">🏥 醫療保障</div>
+        <div class="ins-dim-row"><span>重大疾病</span><span class="ins-dim-val">${criticalCov>0?fmtMoney(criticalCov):'—'}</span></div>
+        <div class="ins-dim-row"><span>住院日額</span><span class="ins-dim-val">${hospitalDay>0?fmtMoney(hospitalDay)+' /日':'—'}</span></div>
+        <div class="ins-dim-row"><span>醫療實支實付</span><span class="ins-dim-val">${actualExp>0?fmtMoney(actualExp):'—'}</span></div>
+        <div class="ins-dim-row"><span>癌症醫療</span><span class="ins-dim-val">${cancerMed>0?fmtMoney(cancerMed):'—'}</span></div>
+        <div class="ins-dim-row"><span>長期照顧</span><span class="ins-dim-val">${longcare>0?fmtMoney(longcare):'—'}</span></div>
+      </div>
+      <div class="ins-dim">
+        <div class="ins-dim-title">💰 保單資產</div>
+        <div class="ins-dim-row"><span>現金價值合計</span><span class="ins-dim-val">${fmtMoney(totalCashVal)}</span></div>
+        <div class="ins-dim-row"><span>年繳保費合計</span><span class="ins-dim-val">${fmtMoney(totalPremium)}</span></div>
+        <div class="ins-dim-row"><span>保費佔年收入</span>
+          <span class="ins-dim-val" style="${premiumPct>0.15?'color:var(--danger)':premiumPct>0.10?'color:#b07800':''}">
+            ${m.annualIncome>0?(premiumPct*100).toFixed(1)+'%':'—'}${premiumPct>0.10?' ⚠':''}
+          </span>
+        </div>
+        <div class="hint" style="font-size:11px;margin-top:8px;line-height:1.4">雙十原則：保費建議低於年收入 10%；雙十保額建議 ≥ 年收入 × 10（${fmtMoney(tenten)}）</div>
+      </div>
+    </div>
+    <div class="ins-chart-wrap"><canvas id="ins-chart"></canvas></div>
+    <p class="hint" style="margin:2px 0 0;font-size:11.5px">▲ 壽險保障時間軸：顯示各年齡的身故總保額。可看出定期保單到期後的保障缺口（曲線下降處）。</p>
+  </div>
+
+  <div class="card">
     <h2>壽險保障缺口（遺族需求法）</h2>
-    <p class="hint">概念：萬一家庭經濟支柱不在，家人需要一筆錢來「維持生活＋還清負債＋完成子女教育＋喪葬緊急」。把這些需求加總，減去可變現資產與既有壽險保額，差額就是「保障缺口」。家庭生活費、負債、子女教育金會自動從你的收支／資產負債／子女養育帶入。</p>
+    <p class="hint">家庭需求加總，減去可變現資產與壽險保額，差額即為保障缺口。生活費、負債、教育金自動帶入。</p>
     <div class="cgrid" style="margin-top:6px">
       <div class="cfield"><label>家庭需支應年數</label><input type="number" data-setting="ins_years" value="${years}"></div>
       <div class="cfield"><label>喪葬／緊急預備金</label><input type="number" data-setting="ins_funeral" value="${funeral}"></div>
-      <div class="cfield"><label>既有壽險保額（總和）</label><input type="number" data-setting="ins_life" value="${existing}"></div>
+      ${policies.length===0?`<div class="cfield"><label>既有壽險保額（清單空時手填）</label><input type="number" data-setting="ins_life" value="${Number(s.ins_life)||0}"></div>`:''}
     </div>
     <table class="rep" style="margin-top:14px">
       <thead><tr><th>項目</th><th class="n">金額</th></tr></thead>
       <tbody>
-        ${row('家庭生活費（年支出 '+fmtMoney(m.annualExpense)+' × '+years+' 年）',living)}
-        ${row('未償負債',debt)}
-        ${row('子女大學教育金（含通膨）',edu)}
-        ${row('喪葬／緊急預備金',funeral)}
+        <tr><td>家庭生活費（${fmtMoney(m.annualExpense)}/年 × ${years} 年）</td><td class="n">${fmtMoney(living)}</td></tr>
+        <tr><td>未償負債</td><td class="n">${fmtMoney(debt)}</td></tr>
+        <tr><td>子女大學教育金（含通膨）</td><td class="n">${fmtMoney(edu)}</td></tr>
+        <tr><td>喪葬／緊急預備金</td><td class="n">${fmtMoney(funeral)}</td></tr>
         <tr style="border-top:2px solid var(--line-2)"><td><b>家庭需求合計</b></td><td class="n"><b>${fmtMoney(needs)}</b></td></tr>
-        ${row('減：可變現資產（總資產）',-assetsAvail,'color:var(--primary)')}
-        ${row('減：既有壽險保額',-existing,'color:var(--primary)')}
-        <tr style="border-top:2px solid var(--line-2)"><td><b>保障缺口</b></td><td class="n" style="font-weight:700;color:${gap>0?'var(--danger)':'var(--primary)'}">${gap>0?'':'+'}${fmtMoney(gap)}</td></tr>
+        <tr><td style="color:var(--primary)">減：可變現資產</td><td class="n" style="color:var(--primary)">${fmtMoney(-assetsAvail)}</td></tr>
+        <tr><td style="color:var(--primary)">減：壽險保額合計${policies.length>0?' （從清單計算）':''}</td><td class="n" style="color:var(--primary)">${fmtMoney(-existingLife)}</td></tr>
+        <tr style="border-top:2px solid var(--line-2)"><td><b>保障缺口</b></td><td class="n" style="font-weight:700;color:${gap>0?'var(--danger)':'var(--primary)'}">${gap>0?'':'+'}${fmtMoney(Math.abs(gap))}</td></tr>
       </tbody>
     </table>
-    ${verdict}
+    <div class="ins-note ${gapCls}" style="margin-top:12px">${gapVerdict}</div>
+    <p class="hint" style="margin:10px 0 0">本頁為概估，非投保建議；投保前請諮詢合格保險顧問。</p>
   </div>
+
   <div class="card" style="background:var(--surface-2)">
-    <h2 style="font-size:16px">快速參考：雙十原則</h2>
-    <p class="hint" style="margin:0 0 8px">常見的保險規劃口訣：<b>保額 ≈ 年收入 × 10</b>、<b>總保費 ≈ 年收入 × 10%</b>。可與上面的需求法互相參照。</p>
-    <div class="cgrid2" style="grid-template-columns:repeat(2,1fr)">
-      <div class="rep-kpi"><div class="l">建議壽險保額（年收入×10）</div><div class="v" style="font-size:18px">${fmtMoney(tenten)}</div></div>
-      <div class="rep-kpi"><div class="l">建議年繳保費上限（年收入×10%）</div><div class="v" style="font-size:18px">${fmtMoney(premiumCap)}</div></div>
+    <h2 style="font-size:16px">其他保障提醒</h2>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+      <div class="ins-note ${hasCritical?'good':'warn'}">${hasCritical?'✅':'⚠️'} <div><b>重大疾病／癌症</b>——${hasCritical?'有納入保障（合計 '+fmtMoney(criticalCov+cancerMed)+'）。請確認是否涵蓋現行定義（28項重大疾病或6項重大傷病）。':'尚未發現重大疾病保障。罹癌及重病往往需要龐大資金，建議評估補強。'}</div></div>
+      <div class="ins-note ${hasMedical?'good':'warn'}">${hasMedical?'✅':'⚠️'} <div><b>醫療實支／住院日額</b>——${hasMedical?'有納入醫療保障。建議確認實支實付有無雜費上限與副本理賠限制。':'尚未發現醫療保障。自費醫療費用龐大，建議優先補充醫療實支實付。'}</div></div>
+      <div class="ins-note ${hasLongcare?'good':'warn'}">${hasLongcare?'✅':'⚠️'} <div><b>長期照顧</b>——${hasLongcare?'有納入長照保障。':'尚未發現長照保障。台灣平均需照護約 7–8 年，35 歲前投保保費相對低廉，建議提前規劃。'}</div></div>
     </div>
-    <p class="hint" style="margin:10px 0 0">注意：這是<b>簡化的壽險「需求」估算</b>，採用全額年支出 × 年數＋子女大學教育金，可能高估或低估，請依實際家庭狀況調整年數與既有保額。本頁不含失能、重疾、醫療、長照等保障的精算，也非保險商品推介或投保建議；投保前請諮詢合格保險顧問。</p>
   </div>`;
+
+  renderEntity('policies');
+  buildInsuranceChart(policies, age, lifeExp);
+}
+
+let _insChart=null;
+function buildInsuranceChart(policies, currentAge, lifeExp){
+  const ctx=document.getElementById('ins-chart'); if(!ctx||typeof Chart==='undefined') return;
+  const maxAge=Math.min(lifeExp, 110);
+  const ages=[], lifeCov=[];
+  for(let a=currentAge; a<=maxAge; a++){
+    ages.push(a+'歲');
+    const cov=(policies||[])
+      .filter(p=>['life','accident','cancer_death'].includes(p.ins_type))
+      .filter(p=>p.duration==='whole'||(a>=(Number(p.start_age)||0)&&(!(Number(p.end_age)||0)||a<=(Number(p.end_age)||0))))
+      .reduce((s,p)=>s+(Number(p.coverage)||0),0);
+    lifeCov.push(cov);
+  }
+  if(_insChart){ try{_insChart.destroy();}catch(e){} _insChart=null; }
+  _insChart=new Chart(ctx,{
+    type:'bar',
+    data:{labels:ages,datasets:[{
+      label:'壽險保障總額',data:lifeCov,
+      backgroundColor:'rgba(30,107,80,.55)',borderColor:'rgba(30,107,80,.85)',
+      borderWidth:1,borderRadius:2
+    }]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:v=>'壽險保障：'+fmtMoney(v.raw)}}},
+      scales:{
+        x:{ticks:{maxTicksLimit:14,font:{size:10}}},
+        y:{beginAtZero:true,ticks:{callback:v=>v>=10000?(v/10000).toFixed(0)+'萬':v,font:{size:10}}}
+      }
+    }
+  });
 }
 
 const SETTING_FIELDS=[
@@ -2723,7 +2868,7 @@ function renderCloudArea(){
         <button class="btn primary" id="pwSave">儲存新密碼</button>
       </div>
       <div class="authmsg ${pwRecovery?'ok':''}" id="pwMsg">${pwRecovery?'已驗證重設連結，請在上方設定新密碼。':''}</div>`;
-    document.getElementById('logoutBtn').onclick=async()=>{ await sb.auth.signOut(); session=null; pwRecovery=false; localStorage.removeItem(LS_KEY); state={settings:{...DEFAULT_SETTINGS},incomes:[],expenses:[],assets:[],liabilities:[],goals:[],children:[],purchases:[],childCosts:deepClone(DEFAULT_CHILD_COSTS),postal:{...DEFAULT_POSTAL}}; closeUpgradeModal(); syncPrintBtn(); renderAll(); };
+    document.getElementById('logoutBtn').onclick=async()=>{ await sb.auth.signOut(); session=null; pwRecovery=false; localStorage.removeItem(LS_KEY); state={settings:{...DEFAULT_SETTINGS},incomes:[],expenses:[],assets:[],liabilities:[],goals:[],children:[],purchases:[],policies:[],childCosts:deepClone(DEFAULT_CHILD_COSTS),postal:{...DEFAULT_POSTAL}}; closeUpgradeModal(); syncPrintBtn(); renderAll(); };
     document.getElementById('pwToggle').onclick=()=>{ const f=document.getElementById('pwForm'); f.style.display=(f.style.display==='none'?'flex':'none'); };
     document.getElementById('pwSave').onclick=doChangePassword;
   }else{
@@ -3177,6 +3322,7 @@ function recalc(){
   updateGoalComputed();
   if(tab==='dash') updateChart();
   if(tab==='flow') renderCashflow();
+  if(tab==='insurance') renderInsurance();
 }
 function setText(id,t){ const el=document.getElementById(id); if(el) el.textContent=t; }
 
@@ -3868,7 +4014,7 @@ document.getElementById('resetBtn').onclick=()=>{
   if(!confirm('確定清除全部資料？此動作無法復原。')) return;
   if(Store.mode==='cloud'){ alert('雲端模式請於 Supabase 後台管理資料。此處僅清除本機暫存。'); }
   localStorage.removeItem(LS_KEY);
-  state={settings:{...DEFAULT_SETTINGS},incomes:[],expenses:[],assets:[],liabilities:[],goals:[],children:[],purchases:[],childCosts:deepClone(DEFAULT_CHILD_COSTS),postal:{...DEFAULT_POSTAL}};
+  state={settings:{...DEFAULT_SETTINGS},incomes:[],expenses:[],assets:[],liabilities:[],goals:[],children:[],purchases:[],policies:[],childCosts:deepClone(DEFAULT_CHILD_COSTS),postal:{...DEFAULT_POSTAL}};
   if(Store.mode!=='cloud'){ seedSample(); persistLocal(); }
   renderAll();
 };
