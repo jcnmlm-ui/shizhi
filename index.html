@@ -1489,25 +1489,18 @@ const SCHEMAS = {
 
   policies:{ cols:[
     {key:'name',      label:'保單／附約名稱', type:'text', ph:'例：南山主約'},
-    {key:'ins_type',  label:'保障類型', type:'select', options:[
-      ['life',           '壽險（一般身故）'],
-      ['accident',       '意外傷害'],
-      ['cancer_death',   '癌症身故'],
-      ['critical',       '重大疾病'],
-      ['hospital_daily', '住院日額'],
-      ['hospital_actual','醫療實支實付'],
-      ['cancer_medical', '癌症醫療'],
-      ['longcare',       '長期照顧'],
-      ['asset',          '保單資產（儲蓄型）'],
+    {key:'ins_type',  label:'類型', type:'select', options:[
+      ['life',         '壽險（一般身故）'],
+      ['accident',     '意外傷害'],
+      ['cancer_death', '癌症身故'],
     ]},
-    {key:'duration',   label:'定/終身', type:'select', options:[['term','定期'],['whole','終身']]},
-    {key:'coverage',   label:'保額/日額', type:'money'},
-    {key:'premium',    label:'年繳保費', type:'money'},
-    {key:'cash_value', label:'現金價值', type:'money'},
-    {key:'start_age',  label:'起保年齡', type:'number'},
-    {key:'end_age',    label:'至幾歲（定期填）', type:'number'},
-  ], def:{name:'', ins_type:'life', duration:'term', coverage:0, premium:0, cash_value:0, start_age:25, end_age:65},
-  grid:'2.8fr 2fr 1fr 1.6fr 1.6fr 1.6fr .9fr .9fr' },
+    {key:'duration',  label:'定/終身', type:'select', options:[['term','定期'],['whole','終身']]},
+    {key:'coverage',  label:'保額', type:'money'},
+    {key:'premium',   label:'年繳保費', type:'money'},
+    {key:'start_age', label:'起保年齡', type:'number'},
+    {key:'end_age',   label:'至幾歲（定期填）', type:'number'},
+  ], def:{name:'', ins_type:'life', duration:'term', coverage:0, premium:0, start_age:25, end_age:65},
+  grid:'2.8fr 2fr 1fr 1.8fr 1.8fr 1fr 1fr' },
 };
 
 function buildCatSelect(entityKey, currentVal, da){
@@ -2632,24 +2625,18 @@ function renderInsurance(){
   const lifeExp=Math.max(Number(s.life_expectancy)||90, age+10);
   const policies=state.policies||[];
 
-  // 判斷保單在特定年齡是否有效
   const isActive=(p,a)=>p.duration==='whole'||(a>=(Number(p.start_age)||0)&&(!(Number(p.end_age)||0)||a<=(Number(p.end_age)||0)));
   const active=policies.filter(p=>isActive(p,age));
-
-  // 各類型加總
   const sumCov=(...types)=>active.filter(p=>types.includes(p.ins_type)).reduce((s,p)=>s+(Number(p.coverage)||0),0);
+
   const lifeOnly    =sumCov('life');
   const accidentCov =sumCov('accident');
   const cancerDeath =sumCov('cancer_death');
-  const criticalCov =sumCov('critical');
-  const hospitalDay =sumCov('hospital_daily');
-  const actualExp   =sumCov('hospital_actual');
-  const cancerMed   =sumCov('cancer_medical');
-  const longcare    =sumCov('longcare');
   const totalDeathCov=lifeOnly+accidentCov+cancerDeath;
   const totalPremium=active.reduce((s,p)=>s+(Number(p.premium)||0),0);
-  const totalCashVal=policies.reduce((s,p)=>s+(Number(p.cash_value)||0),0);
   const premiumPct  =m.annualIncome>0?totalPremium/m.annualIncome:0;
+  const tenten      =m.annualIncome*10;
+  const premiumCap  =m.annualIncome*0.10;
 
   // 壽險缺口（遺族需求法）
   const years =Math.max(0,Number(s.ins_years)||0);
@@ -2659,62 +2646,46 @@ function renderInsurance(){
   const funeral=Number(s.ins_funeral)||0;
   const needs =living+debt+edu+funeral;
   const assetsAvail=m.assets;
-  // 有保單清單就用清單；否則 fallback ins_life 手填
   const existingLife=policies.length>0?totalDeathCov:(Number(s.ins_life)||0);
   const resources=assetsAvail+existingLife;
   const gap=needs-resources;
-  const tenten=m.annualIncome*10;
-  const premiumCap=m.annualIncome*0.10;
 
   const gapCls=gap<=0?'good':gap>tenten*0.5?'bad':'warn';
   const gapVerdict=gap<=0
-    ?`✅ <div><b>壽險保障看起來足夠</b>——現有資源（${fmtMoney(resources)}）已覆蓋家庭需求（${fmtMoney(needs)}），尚有餘裕 ${fmtMoney(-gap)}。建議定期檢視，並確認非壽險保障是否完整。</div>`
+    ?`✅ <div><b>壽險保障看起來足夠</b>——現有資源（${fmtMoney(resources)}）已覆蓋家庭需求（${fmtMoney(needs)}），尚有餘裕 ${fmtMoney(-gap)}。建議每幾年重新檢視。</div>`
     :`⚠️ <div><b>壽險保障缺口：約 ${fmtMoney(gap)}</b>——家庭需求 ${fmtMoney(needs)} 高於現有資源 ${fmtMoney(resources)}。可考慮以<b>定期壽險</b>補足缺口（保費低、CP值高）。</div>`;
-
-  const hasMedical =hospitalDay>0||actualExp>0;
-  const hasCritical=criticalCov>0||cancerMed>0;
-  const hasLongcare=longcare>0;
 
   body.innerHTML=`
   <div class="card">
     <h2>我的保單清單</h2>
-    <p class="hint">每個主約或附約填一列；同一張保單有多種附約可分行填入。終身保單「至幾歲」欄填 0 即可（系統自動忽略）。</p>
+    <p class="hint">每張壽險主約或附約填一列。終身保單「至幾歲」填 0（系統自動忽略）。</p>
     <div id="tbl-policies"></div>
   </div>
 
   <div class="card">
     <h2>保障概況</h2>
-    <p class="hint" style="margin-bottom:12px">以下為你目前（${age} 歲）有效保單的保障彙整，按類型加總。</p>
-    <div class="ins-summary">
+    <div class="ins-summary" style="grid-template-columns:repeat(2,1fr)">
       <div class="ins-dim">
-        <div class="ins-dim-title">🛡 壽險保障（身故）</div>
+        <div class="ins-dim-title">🛡 身故保障（目前 ${age} 歲有效）</div>
         <div class="ins-dim-row"><span>一般身故</span><span class="ins-dim-val">${fmtMoney(lifeOnly)}</span></div>
         <div class="ins-dim-row"><span>意外傷害附加</span><span class="ins-dim-val">${fmtMoney(accidentCov)}</span></div>
-        <div class="ins-dim-row"><span>癌症身故</span><span class="ins-dim-val">${fmtMoney(cancerDeath)}</span></div>
+        <div class="ins-dim-row"><span>癌症身故附加</span><span class="ins-dim-val">${fmtMoney(cancerDeath)}</span></div>
         <div class="ins-dim-row ins-dim-total"><span>身故保障合計</span><span class="ins-dim-val" style="color:var(--primary)">${fmtMoney(totalDeathCov)}</span></div>
       </div>
       <div class="ins-dim">
-        <div class="ins-dim-title">🏥 醫療保障</div>
-        <div class="ins-dim-row"><span>重大疾病</span><span class="ins-dim-val">${criticalCov>0?fmtMoney(criticalCov):'—'}</span></div>
-        <div class="ins-dim-row"><span>住院日額</span><span class="ins-dim-val">${hospitalDay>0?fmtMoney(hospitalDay)+' /日':'—'}</span></div>
-        <div class="ins-dim-row"><span>醫療實支實付</span><span class="ins-dim-val">${actualExp>0?fmtMoney(actualExp):'—'}</span></div>
-        <div class="ins-dim-row"><span>癌症醫療</span><span class="ins-dim-val">${cancerMed>0?fmtMoney(cancerMed):'—'}</span></div>
-        <div class="ins-dim-row"><span>長期照顧</span><span class="ins-dim-val">${longcare>0?fmtMoney(longcare):'—'}</span></div>
-      </div>
-      <div class="ins-dim">
-        <div class="ins-dim-title">💰 保單資產</div>
-        <div class="ins-dim-row"><span>現金價值合計</span><span class="ins-dim-val">${fmtMoney(totalCashVal)}</span></div>
+        <div class="ins-dim-title">💰 保費概況</div>
         <div class="ins-dim-row"><span>年繳保費合計</span><span class="ins-dim-val">${fmtMoney(totalPremium)}</span></div>
         <div class="ins-dim-row"><span>保費佔年收入</span>
           <span class="ins-dim-val" style="${premiumPct>0.15?'color:var(--danger)':premiumPct>0.10?'color:#b07800':''}">
             ${m.annualIncome>0?(premiumPct*100).toFixed(1)+'%':'—'}${premiumPct>0.10?' ⚠':''}
           </span>
         </div>
-        <div class="hint" style="font-size:11px;margin-top:8px;line-height:1.4">雙十原則：保費建議低於年收入 10%；雙十保額建議 ≥ 年收入 × 10（${fmtMoney(tenten)}）</div>
+        <div class="ins-dim-row"><span>雙十建議保額</span><span class="ins-dim-val">${fmtMoney(tenten)}</span></div>
+        <div class="ins-dim-row"><span>雙十保費上限/年</span><span class="ins-dim-val">${fmtMoney(premiumCap)}</span></div>
       </div>
     </div>
     <div class="ins-chart-wrap"><canvas id="ins-chart"></canvas></div>
-    <p class="hint" style="margin:2px 0 0;font-size:11.5px">▲ 壽險保障時間軸：顯示各年齡的身故總保額。可看出定期保單到期後的保障缺口（曲線下降處）。</p>
+    <p class="hint" style="margin:2px 0 0;font-size:11.5px">▲ 壽險保障時間軸：各年齡的身故總保額。定期保單到期後曲線下降，即為保障缺口出現處。</p>
   </div>
 
   <div class="card">
@@ -2740,15 +2711,6 @@ function renderInsurance(){
     </table>
     <div class="ins-note ${gapCls}" style="margin-top:12px">${gapVerdict}</div>
     <p class="hint" style="margin:10px 0 0">本頁為概估，非投保建議；投保前請諮詢合格保險顧問。</p>
-  </div>
-
-  <div class="card" style="background:var(--surface-2)">
-    <h2 style="font-size:16px">其他保障提醒</h2>
-    <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
-      <div class="ins-note ${hasCritical?'good':'warn'}">${hasCritical?'✅':'⚠️'} <div><b>重大疾病／癌症</b>——${hasCritical?'有納入保障（合計 '+fmtMoney(criticalCov+cancerMed)+'）。請確認是否涵蓋現行定義（28項重大疾病或6項重大傷病）。':'尚未發現重大疾病保障。罹癌及重病往往需要龐大資金，建議評估補強。'}</div></div>
-      <div class="ins-note ${hasMedical?'good':'warn'}">${hasMedical?'✅':'⚠️'} <div><b>醫療實支／住院日額</b>——${hasMedical?'有納入醫療保障。建議確認實支實付有無雜費上限與副本理賠限制。':'尚未發現醫療保障。自費醫療費用龐大，建議優先補充醫療實支實付。'}</div></div>
-      <div class="ins-note ${hasLongcare?'good':'warn'}">${hasLongcare?'✅':'⚠️'} <div><b>長期照顧</b>——${hasLongcare?'有納入長照保障。':'尚未發現長照保障。台灣平均需照護約 7–8 年，35 歲前投保保費相對低廉，建議提前規劃。'}</div></div>
-    </div>
   </div>`;
 
   renderEntity('policies');
