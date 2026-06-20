@@ -1234,6 +1234,18 @@ function laborPenSelfContribMonthly(){ if(!laborPenOn()) return 0;
 // 勞退估算月退（簡化：帳戶 ÷ 退休至平均餘命的月數）
 function laborPenMonthly(){ const s=state.settings; const months=Math.max(1,(Math.round(Number(s.life_expectancy))-Math.round(Number(s.retirement_age)))*12); return laborPenAccrued()/months; }
 
+// 邊際稅率估算（薪資所得，單身標準申報：免稅額92K＋標準扣除124K＋薪資特別扣除207K）
+// 適用台灣 113/114 年度綜所稅累進稅率。僅用於「節稅提示」概估，非正式申報計算。
+function estimateMarginalTaxRate(){
+  const ann=sumAnnual(state.incomes);
+  const taxable=Math.max(0, ann - 92000 - 124000 - Math.min(207000, ann));
+  if(taxable<=590000)  return 0.05;
+  if(taxable<=1330000) return 0.12;
+  if(taxable<=2660000) return 0.20;
+  if(taxable<=4980000) return 0.30;
+  return 0.40;
+}
+
 function projection(real, ovrRet, ovrInfl, dRet){
   const s=state.settings;
   const start=Math.round(Number(s.current_age)), ret=Math.round(Number(s.retirement_age)), end=Math.round(Number(s.life_expectancy));
@@ -2167,6 +2179,7 @@ function renderPortfolio(sel){
         <tbody>${goalRows}</tbody>
       </table>
     </div>
+    <div class="ins-note" style="margin-bottom:14px">💡 <div><b>配息節稅提示</b>：持有台股、ETF 等的<b>股利配息</b>，單次給付超過 NT$20,000 時須繳<b>二代健保補充保費 2.11%</b>（扣在股利上，無需自行申報）。股利所得申報時可選：①<b>合併計稅</b>（加入綜所稅，低稅率者較有利）或 ②<b>分離課稅 28%</b>（適合高收入者）—— 兩者每年申報前試算，選划算的。</div></div>
     <div class="disclaimer">
       本頁提供資產「類別」層級的配置參考（股票／債券／REITs／黃金／現金比例），協助理解達成目標所需的報酬與風險水準，<b>不構成個股或特定金融商品之推介或投資建議</b>。各類別假設報酬為長期參考值、非保證，實際報酬會波動且可能虧損；配置應隨年齡與風險承受度漸進調整。</div>`;
 
@@ -2571,6 +2584,9 @@ function renderPension(){
   const monthlyContrib=wage*(0.06+Math.max(0,Math.min(0.06,Number(s.lp_self)||0)));
   const acc=laborPenAccrued(), lpM=laborPenMonthly();
   const sw=(key,on)=>`<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:700;white-space:nowrap"><input type="checkbox" data-setting="${key}" ${on?'checked':''}> <span>${on?'已計入':'未計入'}</span></label>`;
+  const _selfAnnual=laborPenSelfContribMonthly()*12;
+  const _lpRate=estimateMarginalTaxRate();
+  const _lpTaxSaved=Math.round(_selfAnnual*_lpRate);
   body.innerHTML=`
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
@@ -2607,6 +2623,10 @@ function renderPension(){
       <div class="rep-kpi"><div class="l">退休時帳戶價值（估）<span class="tip" data-tip="以目前帳戶餘額為基礎，\n加計每月提繳額，\n以預估年化報酬率複利至退休年齡。">ⓘ</span></div><div class="v" style="font-size:18px">${fmtMoney(acc)}</div></div>
       <div class="rep-kpi"><div class="l">估算每月可領 <span class="tip" data-tip="帳戶總值÷（平均餘命－退休年齡）÷12\n為簡化估算，未計入年金給付利率。\n實際金額以勞動部核發為準。">ⓘ</span></div><div class="v" style="font-size:18px">${fmtMoney(lpM)}</div></div>
     </div>
+    ${lpOn?(_selfAnnual>0
+      ?`<div class="ins-note good" style="margin-top:14px">💡 <div><b>節稅效果</b>：自提每月 ${fmtMoney(laborPenSelfContribMonthly())} × 12 = <b>${fmtMoney(_selfAnnual)}/年</b>，可從應稅所得中扣除。以估算邊際稅率 <b>${Math.round(_lpRate*100)}%</b>，<b>每年約可節稅 ${fmtMoney(_lpTaxSaved)}</b>（30 年累計名目節稅約 ${fmtMoney(_lpTaxSaved*30)}）。</div></div>`
+      :`<div class="ins-note" style="margin-top:14px">💡 <div><b>節稅提示</b>：勞退<b>自提</b>（目前 0%）的金額可從薪資所得中扣除，有效降低應稅所得。以你的收入估算邊際稅率 <b>${Math.round(_lpRate*100)}%</b>，每自提 NT$1,000／月，<b>每年可節稅約 ${fmtMoney(Math.round(12000*_lpRate))}</b>。</div></div>`)
+    :''}
   </div>
   <div class="card" style="background:var(--surface-2)">
     <h2 style="font-size:16px">這會如何影響你的規劃？</h2>
@@ -2645,7 +2665,8 @@ function renderInsurance(){
   const edu   =(state.children||[]).reduce((x,ch)=>x+(childSummary(ch).collegeNominal||0),0);
   const funeral=Number(s.ins_funeral)||0;
   const needs =living+debt+edu+funeral;
-  const assetsAvail=m.assets;
+  // 遺族需求法：排除勾選「不計退休」的資產（通常為自住房，遺族仍需居住，不宜計入可變現資源）
+  const assetsAvail=state.assets.filter(a=>!a.exclude_projection).reduce((s,a)=>s+Number(a.value||0),0);
   const existingLife=policies.length>0?totalDeathCov:(Number(s.ins_life)||0);
   const resources=assetsAvail+existingLife;
   const gap=needs-resources;
@@ -2654,6 +2675,17 @@ function renderInsurance(){
   const gapVerdict=gap<=0
     ?`✅ <div><b>壽險保障看起來足夠</b>——現有資源（${fmtMoney(resources)}）已覆蓋家庭需求（${fmtMoney(needs)}），尚有餘裕 ${fmtMoney(-gap)}。建議每幾年重新檢視。</div>`
     :`⚠️ <div><b>壽險保障缺口：約 ${fmtMoney(gap)}</b>——家庭需求 ${fmtMoney(needs)} 高於現有資源 ${fmtMoney(resources)}。可考慮以<b>定期壽險</b>補足缺口（保費低、CP值高）。</div>`;
+
+  // 保費節稅提示（列舉扣除，上限 24,000/人）
+  const _margRate=estimateMarginalTaxRate();
+  const _premiumNote=(()=>{
+    if(totalPremium<=0) return '';
+    const deduct=Math.min(totalPremium,24000), saved=Math.round(deduct*_margRate);
+    const over=totalPremium>24000;
+    return `<div class="ins-note good" style="margin-top:14px">💡 <div><b>節稅提示（保費列舉扣除）</b>：商業保費每人可列舉扣除上限 NT$24,000／年${over
+      ?`，目前年繳 ${fmtMoney(totalPremium)}，<b>已超出上限</b>，僅能扣除 NT$24,000`
+      :`，目前年繳 ${fmtMoney(totalPremium)}，尚有 <b>${fmtMoney(24000-totalPremium)}</b> 額度未用到`}。以估算邊際稅率 ${Math.round(_margRate*100)}%，<b>每年可節稅約 ${fmtMoney(saved)}</b>（採列舉扣除時）。</div></div>`;
+  })();
 
   body.innerHTML=`
   <div class="card">
@@ -2686,6 +2718,7 @@ function renderInsurance(){
     </div>
     <div class="ins-chart-wrap"><canvas id="ins-chart"></canvas></div>
     <p class="hint" style="margin:2px 0 0;font-size:11.5px">▲ 壽險保障時間軸：各年齡的身故總保額。定期保單到期後曲線下降，即為保障缺口出現處。</p>
+    ${_premiumNote}
   </div>
 
   <div class="card">
@@ -2704,7 +2737,7 @@ function renderInsurance(){
         <tr><td>子女大學教育金（含通膨）</td><td class="n">${fmtMoney(edu)}</td></tr>
         <tr><td>喪葬／緊急預備金</td><td class="n">${fmtMoney(funeral)}</td></tr>
         <tr style="border-top:2px solid var(--line-2)"><td><b>家庭需求合計</b></td><td class="n"><b>${fmtMoney(needs)}</b></td></tr>
-        <tr><td style="color:var(--primary)">減：可變現資產</td><td class="n" style="color:var(--primary)">${fmtMoney(-assetsAvail)}</td></tr>
+        <tr><td style="color:var(--primary)">減：可變現資產 <span style="font-size:11px;color:var(--faint)">（不含自住房）</span></td><td class="n" style="color:var(--primary)">${fmtMoney(-assetsAvail)}</td></tr>
         <tr><td style="color:var(--primary)">減：壽險保額合計${policies.length>0?' （從清單計算）':''}</td><td class="n" style="color:var(--primary)">${fmtMoney(-existingLife)}</td></tr>
         <tr style="border-top:2px solid var(--line-2)"><td><b>保障缺口</b></td><td class="n" style="font-weight:700;color:${gap>0?'var(--danger)':'var(--primary)'}">${gap>0?'':'+'}${fmtMoney(Math.abs(gap))}</td></tr>
       </tbody>
