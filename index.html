@@ -1827,7 +1827,7 @@ function buildBehaviorObservations(){
 
   // 分期採購月付金合計（近似）
   const purMonthly=state.purchases.reduce((sum,p)=>{
-    const loan=Number(p.price||0)*(1-Number(p.down_payment_pct||0)/100);
+    const loan=Number(p.price||0)*(1-Number(p.down_payment_pct||0));
     const r=Number(p.interest_rate||0)/12, n=Number(p.loan_years||0)*12;
     if(n<=0) return sum;
     return sum+(r>0?loan*r*Math.pow(1+r,n)/(Math.pow(1+r,n)-1):loan/n);
@@ -3199,7 +3199,7 @@ function renderCloudArea(){
         <button class="btn primary" id="pwSave">儲存新密碼</button>
       </div>
       <div class="authmsg ${pwRecovery?'ok':''}" id="pwMsg">${pwRecovery?'已驗證重設連結，請在上方設定新密碼。':''}</div>`;
-    document.getElementById('logoutBtn').onclick=async()=>{ await sb.auth.signOut(); session=null; pwRecovery=false; localStorage.removeItem(LS_KEY); state={settings:{...DEFAULT_SETTINGS},incomes:[],expenses:[],assets:[],liabilities:[],goals:[],children:[],purchases:[],policies:[],childCosts:deepClone(DEFAULT_CHILD_COSTS),postal:{...DEFAULT_POSTAL}}; closeUpgradeModal(); syncPrintBtn(); renderAll(); };
+    document.getElementById('logoutBtn').onclick=async()=>{ await sb.auth.signOut(); session=null; pwRecovery=false; localStorage.removeItem(LS_KEY); state={settings:{...DEFAULT_SETTINGS},incomes:[],expenses:[],assets:[],liabilities:[],goals:[],children:[],purchases:[],policies:[],childCosts:deepClone(DEFAULT_CHILD_COSTS),postal:{...DEFAULT_POSTAL},catConfig:deepClone(DEFAULT_CAT_CONFIG)}; closeUpgradeModal(); syncPrintBtn(); renderAll(); };
     document.getElementById('pwToggle').onclick=()=>{ const f=document.getElementById('pwForm'); f.style.display=(f.style.display==='none'?'flex':'none'); };
     document.getElementById('pwSave').onclick=doChangePassword;
   }else{
@@ -4345,7 +4345,7 @@ document.getElementById('exportBtn').onclick=()=>{
 document.getElementById('importBtn').onclick=()=>document.getElementById('importFile').click();
 document.getElementById('importFile').onchange=(e)=>{
   const f=e.target.files[0]; if(!f) return;
-  const r=new FileReader(); r.onload=()=>{ try{ const d=JSON.parse(r.result); state={settings:{...DEFAULT_SETTINGS,...(d.settings||{})},incomes:d.incomes||[],expenses:d.expenses||[],assets:d.assets||[],liabilities:d.liabilities||[],goals:d.goals||[],children:d.children||[],purchases:d.purchases||[],childCosts:sanitizeChildCosts(d.childCosts),postal:sanitizePostal(d.postal)}; persistLocal(); renderAll(); alert('匯入完成。'+(Store.mode==='cloud'?'（雲端模式下，匯入僅更新本機畫面，未自動寫回雲端）':'')); }catch(err){ alert('檔案格式錯誤'); } };
+  const r=new FileReader(); r.onload=()=>{ try{ const d=JSON.parse(r.result); state={settings:{...DEFAULT_SETTINGS,...(d.settings||{})},incomes:d.incomes||[],expenses:d.expenses||[],assets:d.assets||[],liabilities:d.liabilities||[],goals:d.goals||[],children:d.children||[],purchases:d.purchases||[],policies:d.policies||[],childCosts:sanitizeChildCosts(d.childCosts),postal:sanitizePostal(d.postal),catConfig:sanitizeCatConfig(d.catConfig)}; persistLocal(); renderAll(); alert('匯入完成。'+(Store.mode==='cloud'?'（雲端模式下，匯入僅更新本機畫面，未自動寫回雲端）':'')); }catch(err){ alert('檔案格式錯誤'); } };
   r.readAsText(f);
 };
 document.getElementById('resetBtn').onclick=()=>{
