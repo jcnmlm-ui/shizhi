@@ -3636,6 +3636,7 @@ function renderAll(){
   renderCloudArea();
   renderModeBadge();
   syncRealReturnUI();
+  syncFmtPreviews();
 }
 function syncRealReturnUI(){
   const on=useRealReturn();
@@ -3769,7 +3770,7 @@ document.getElementById('nav').addEventListener('click',e=>{
     if(addonDef.status==='coming_soon'){ renderComingSoon(tab); return; }
     // 已購買（或舊完整版用戶有 featureKey）：進入功能
     const owned = hasAddon(tab) || (addonDef.featureKey && canAccess(addonDef.featureKey));
-    if(owned){ addonDef.render(); return; }
+    if(owned){ addonDef.render(); syncFmtPreviews(); return; }
     // 未購買且非開發中 → 兩道牆升級提示
     const body=document.getElementById(tab+'-body');
     if(body) body.innerHTML=upgradeCard(tab);
@@ -3805,6 +3806,7 @@ document.getElementById('nav').addEventListener('click',e=>{
   if(tab==='insurance') renderInsurance();
   if(tab==='snapshots') renderSnapshots();
   if(tab==='addon-store') renderAddonStore();
+  syncFmtPreviews();
 });
 
 // ── PDF 付費牆：同步列印按鈕狀態 ───────────────────────────────
@@ -4092,6 +4094,20 @@ document.addEventListener('blur', e=>{
   }
 },true);
 
+// 千位符輔助顯示：掃描指定範圍內的 .cfield 數字輸入，為已有值的欄位加格式預覽
+function syncFmtPreviews(root){
+  (root||document).querySelectorAll('.cfield input[type="number"]:not([data-wan])').forEach(inp=>{
+    const v=parseFloat(inp.value);
+    let prev=inp.parentElement.querySelector('.fmt-preview');
+    if(!isNaN(v) && Math.abs(v)>=1000){
+      if(!prev){ prev=document.createElement('span'); prev.className='fmt-preview'; inp.after(prev); }
+      prev.textContent=v.toLocaleString('zh-TW');
+    } else if(prev){
+      prev.textContent='';
+    }
+  });
+}
+
 // 表格輸入變更（含設定）
 document.addEventListener('input', e=>{
   const t=e.target;
@@ -4099,7 +4115,7 @@ document.addEventListener('input', e=>{
     pfApply(t.dataset.pf, parseFloat(t.value)||0);
     pfSyncSliders(); pfLiveUpdate();
   }
-  // 千位符輔助顯示：在數字輸入框下方即時顯示格式化數字
+  // 千位符：打字時即時更新
   if(t.matches && t.matches('.cfield input[type="number"]') && !t.dataset.wan){
     const parent=t.closest('.cfield');
     if(!parent) return;
@@ -4142,6 +4158,7 @@ document.addEventListener('change', async e=>{
     renderPension(); renderInsurance();
     if(key.startsWith('tax_')) renderTaxCalc();
     if(key==='use_real_return'){ renderPortfolio(portfolioSel); syncRealReturnUI(); }
+    syncFmtPreviews();
   }
   if(t.matches('[data-child-field]')){
     const id=t.dataset.childId, field=t.dataset.childField, type=t.dataset.type;
