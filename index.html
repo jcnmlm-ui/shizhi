@@ -1123,8 +1123,13 @@ function metrics(){
   const net=mIncome-mExpense-mDebt;
   const savingsRate = annualIncome>0 ? (annualIncome-annualExpense-mDebt*12)/annualIncome : 0;
   const emMonths = mExpense>0 ? liquidAssets()/mExpense : 0;
+  // 稅務：有精確試算（taxcalc 寫回）就用；否則輕量概估
+  const taxAnnual = Number(state.settings.tax_annual_result) || estimateAnnualTax();
+  const mTax = annualIncome>0 ? Math.round(taxAnnual/12) : 0;
+  const taxIsEstimate = !state.settings.tax_annual_result;
   return { annualIncome, annualExpense, mIncome, mExpense, mDebt, net, savingsRate, emMonths,
-           assets:totalAssets(), liab:totalLiab(), netWorth:totalAssets()-totalLiab() };
+           assets:totalAssets(), liab:totalLiab(), netWorth:totalAssets()-totalLiab(),
+           mTax, taxIsEstimate, netAfterTax: net - mTax };
 }
 
 // 目標報酬率：有自訂就用自訂，否則沿用全域預期報酬
@@ -1244,6 +1249,22 @@ function estimateMarginalTaxRate(){
   if(taxable<=2660000) return 0.20;
   if(taxable<=4980000) return 0.30;
   return 0.40;
+}
+
+// 全年所得稅概估（單身、標準扣除、薪資特別扣除——最常見情況）
+// Layer 1 輕量估算；已購 taxcalc 且試算過則讀 tax_annual_result 精確值
+function estimateAnnualTax(){
+  const ann=sumAnnual(state.incomes);
+  if(ann<=0) return 0;
+  const taxable=Math.max(0, ann - 92000 - 124000 - Math.min(207000, ann));
+  const B=[{l:590000,r:0.05},{l:1330000,r:0.12},{l:2660000,r:0.20},{l:4980000,r:0.30},{l:Infinity,r:0.40}];
+  let tax=0, prev=0;
+  for(const b of B){
+    if(taxable<=prev) break;
+    const chunk=Math.min(taxable-prev, b.l===Infinity?taxable-prev:b.l-prev);
+    tax+=chunk*b.r; prev=b.l;
+  }
+  return Math.round(tax);
 }
 
 function projection(real, ovrRet, ovrInfl, dRet){
@@ -1622,7 +1643,7 @@ function statCards(m){
   const F=annualFlowMonthly();
   return `
     <div class="stat"><div class="lbl">淨值</div><div class="val">${fmtMoney(m.netWorth)}</div><div class="sub">資產 ${fmtMoney(m.assets)}　負債 ${fmtMoney(m.liab)}</div></div>
-    <div class="stat ${netClass}"><div class="lbl">平均每月結餘</div><div class="val">${fmtMoney(m.net)}</div><div class="sub">收入 ${fmtMoney(m.mIncome)}　支出 ${fmtMoney(m.mExpense)}${m.mDebt>0?'　還款 '+fmtMoney(m.mDebt):''}</div><div class="sub"${F.minNet<0?' style="color:var(--danger);font-weight:600"':''}>流量最緊 ${MN[F.minIdx]}：${F.minNet>=0?'+':''}${fmtMoney(F.minNet)}/月</div></div>
+    <div class="stat ${netClass}"><div class="lbl">平均每月結餘</div><div class="val">${fmtMoney(m.net)}</div><div class="sub">收入 ${fmtMoney(m.mIncome)}　支出 ${fmtMoney(m.mExpense)}${m.mDebt>0?'　還款 '+fmtMoney(m.mDebt):''}</div><div class="sub"${F.minNet<0?' style="color:var(--danger);font-weight:600"':''}>流量最緊 ${MN[F.minIdx]}：${F.minNet>=0?'+':''}${fmtMoney(F.minNet)}/月</div>${m.mIncome>0?`<div class="sub" style="margin-top:4px;border-top:1px dashed var(--border,#d9d3c5);padding-top:4px">扣${m.taxIsEstimate?'估算':''} 所得稅後：<b style="color:${m.netAfterTax>=0?'var(--primary,#1E6B50)':'var(--danger)'}">${fmtMoney(m.netAfterTax)}</b>／月　<span class="tip" data-tip="${m.taxIsEstimate?'以單身標準申報概估年稅額 '+fmtMoney(m.mTax*12)+'，÷12 得月均稅負 '+fmtMoney(m.mTax)+'。購買綜所稅試算模組並填寫申報資料，可取得更精確的個人化數字。':'已從綜所稅試算模組讀取個人化年稅額 '+fmtMoney(m.mTax*12)+'，÷12 得月均稅負 '+fmtMoney(m.mTax)+'。'}">ⓘ</span></div>`:''}${m.mIncome>0&&m.taxIsEstimate?'':''}</div>
     <div class="stat ${srClass}"><div class="lbl">儲蓄率 <span class="tip" data-tip="（年收入－年支出－年還款）÷ 年收入\n建議維持20%以上。\n低於10%代表財富累積速度偏慢。">ⓘ</span></div><div class="val">${fmtPct(m.savingsRate)}</div><div class="sub">建議 ≥ 20%</div></div>
     <div class="stat ${emClass}"><div class="lbl">緊急預備金 <span class="tip" data-tip="可動用資產 ÷ 月支出\n可動用資產＝資產表勾選「可動用」的合計。\n一般建議3–6個月；\n自雇或工作不穩定者建議6–12個月。">ⓘ</span></div><div class="val">${m.emMonths.toFixed(1)} 個月</div><div class="sub">目標 ${emTarget} 個月（可動用資產）</div></div>`;
 }
@@ -2723,7 +2744,7 @@ function renderInsurance(){
 
   <div class="card">
     <h2>壽險保障缺口（遺族需求法）</h2>
-    <p class="hint">家庭需求加總，減去可變現資產與壽險保額，差額即為保障缺口。生活費、負債、教育金自動帶入。</p>
+    <p class="hint">家庭需求加總，減去可變現資產與壽險保額，差額即為保障缺口。生活費、負債、教育金自動帶入。<span class="tip" data-tip="生活費、所得替代需求均以稅前所得計算（保守估計）。遺族實際稅負通常較低，此數字偏安全。購買綜所稅試算模組可了解個人邊際稅率，自行評估稅後缺口。">ⓘ 稅前所得計算</span></p>
     <div class="cgrid" style="margin-top:6px">
       <div class="cfield"><label>家庭需支應年數</label><input type="number" data-setting="ins_years" value="${years}"></div>
       <div class="cfield"><label>喪葬／緊急預備金</label><input type="number" data-setting="ins_funeral" value="${funeral}"></div>
@@ -2888,6 +2909,12 @@ function renderTaxCalc(){
   const refundOrPay   = withheld - finalTax;
   const effectiveRate = totalIncome>0 ? finalTax/totalIncome : 0;
   const marginalRate  = bracketRows.length>0 ? bracketRows[bracketRows.length-1].rate : 0.05;
+
+  // Layer 2：寫回精確稅額供儀表板讀取（僅當所得 > 0 才覆蓋，避免空白表單清掉概估）
+  if(totalIncome > 0){
+    state.settings.tax_annual_result = finalTax;
+    Store.saveSettings();
+  }
 
   const dedHint = dedType==='standard' && betterItemize
     ? `<div class="ins-note good" style="margin-top:10px">💡 <div>你的列舉合計（${fmtMoney(itemizedTotal)}）高於標準扣除額（${fmtMoney(stdDed)}），切換列舉可<b>再省約 ${fmtMoney(Math.round((itemizedTotal-stdDed)*marginalRate))}</b>。</div></div>`
