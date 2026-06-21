@@ -1444,6 +1444,8 @@ function renderMC(){
   const canvas=document.getElementById('mcChart'); if(!canvas) return;
   const labels=mc.ages;
   const retIdx=mc.ages.indexOf(mc.ret);
+  const _capIdx=retIdx>=0?retIdx:mc.p95.length-1;
+  const _capY=Math.ceil(mc.p95[_capIdx]*2/1e6)*1e6||1e7;
   const annots=[];
   if(retIdx>=0) annots.push({type:'line',scaleID:'x',value:mc.ret,borderColor:'rgba(192,134,58,0.6)',borderWidth:1.5,borderDash:[4,3],label:{content:'退休',display:true,position:'start',color:'#C0863A',font:{size:11}}});
 
@@ -1469,7 +1471,7 @@ function renderMC(){
         x:{ grid:{display:false}, ticks:{color:'#9AA39B',font:{size:11},maxTicksLimit:14} },
         y:{ grid:{color:'#EDE7D7'}, border:{display:false},
             ticks:{color:'#9AA39B',font:{size:11},callback:v=>v>=1e4?Math.round(v/1e4)+'萬':v},
-            min:0 }
+            min:0, max:_capY }
       }
     }
   });
@@ -2552,14 +2554,16 @@ function renderPostal(){
   const m0=postalMonthlyAtYear(0), a0=postalAnnualAtYear(0);
   const svc=postalServiceNow();
   h+=`<div class="card">
-    <div class="cgrid">
+    <div class="cgrid" style="grid-template-columns:repeat(3,1fr)">
       <div class="cfield"><label>職階</label><select data-postal="band">${bandOpts}</select></div>
-      <div class="cfield"><label>目前薪級（1=最高，60=最低）</label><input type="number" min="1" max="60" data-postal="level" value="${Math.round(p.level)}"></div>
+      <div class="cfield"><label>目前薪級 <span class="tip" data-tip="1=最高薪級，60=最低薪級。數字越小、薪額越高。">ⓘ</span></label><input type="number" min="1" max="60" data-postal="level" value="${Math.round(p.level)}"></div>
       <div class="cfield"><label>職責層次（職位加給）</label><select data-postal="layer">${layerOpts}</select></div>
-      <div class="cfield"><label>封頂薪級（升到此級停止晉升）</label><input type="number" min="1" max="60" data-postal="max_level" value="${Math.round(p.max_level)}"></div>
-      <div class="cfield"><label>入職年（民國或西元，每滿5年加1級）</label><input type="number" data-postal="join_year" value="${Math.round(p.join_year)||''}" placeholder="如 101 或 2012"></div>
+    </div>
+    <div class="cgrid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="cfield"><label>封頂薪級 <span class="tip" data-tip="升到此薪級後停止晉升，之後每年加發碰頂加給。選職階時會自動帶入。">ⓘ</span></label><input type="number" min="1" max="60" data-postal="max_level" value="${Math.round(p.max_level)}"></div>
+      <div class="cfield"><label>入職年 <span class="tip" data-tip="填民國或西元年均可（如 101 或 2012）。填入後每滿 5 年會額外多跳 1 個薪級。">ⓘ</span></label><input type="number" data-postal="join_year" value="${Math.round(p.join_year)||''}" placeholder="如 101 或 2012"></div>
       <div class="cfield"><label>每年晉升薪級數</label><input type="number" min="0" max="5" data-postal="step" value="${Math.round(p.step||1)}"></div>
-      <div class="cfield"><label>每年獎金（月數，年終＋考績…）</label><input type="number" min="0" max="12" step="0.1" data-postal="bonus_months" value="${Number(p.bonus_months)||0}"></div>
+      <div class="cfield"><label>每年獎金（月數）</label><input type="number" min="0" max="12" step="0.1" data-postal="bonus_months" value="${Number(p.bonus_months)||0}"></div>
     </div>
     ${svc>=0?`<p class="hint" style="margin:6px 0 0">目前年資約 <b>${svc}</b> 年；每滿 5 年會額外多跳 1 個薪級（下表標示「年資跳級」），升到封頂後停止。</p>`:`<p class="hint" style="margin:6px 0 0">未填入職年 → 不套用「每5年加級」規則，僅每年升一級。</p>`}
     <div class="cgrid2" style="margin-top:8px">
@@ -2662,6 +2666,7 @@ function renderPension(){
 /* ===== 保險防護 ===== */
 function renderInsurance(){
   const body=document.getElementById('insurance-body'); if(!body) return;
+  const _w=v=>{ const n=Math.round(v/1e4); return (n>=0?'':'-')+Math.abs(n).toLocaleString('zh-TW')+'萬'; };
   const m=metrics(); const s=state.settings;
   const age=Number(s.current_age)||27;
   const lifeExp=Math.max(Number(s.life_expectancy)||90, age+10);
@@ -2745,23 +2750,23 @@ function renderInsurance(){
 
   <div class="card">
     <h2>壽險保障缺口（遺族需求法）</h2>
-    <p class="hint">家庭需求加總，減去可變現資產與壽險保額，差額即為保障缺口。生活費、負債、教育金自動帶入。<span class="tip" data-tip="生活費、所得替代需求均以稅前所得計算（保守估計）。遺族實際稅負通常較低，此數字偏安全。購買綜所稅試算模組可了解個人邊際稅率，自行評估稅後缺口。">ⓘ 稅前所得計算</span></p>
+    <p class="hint">家庭需求加總，減去可變現資產與壽險保額，差額即為保障缺口。生活費、負債、教育金自動帶入。以稅前所得計算（保守估計）<span class="tip" data-tip="生活費、所得替代需求均以稅前所得計算（保守估計）。遺族實際稅負通常較低，此數字偏安全。購買綜所稅試算模組可了解個人邊際稅率，自行評估稅後缺口。">ⓘ</span></p>
     <div class="cgrid" style="margin-top:6px">
       <div class="cfield"><label>家庭需支應年數</label><input type="number" data-setting="ins_years" value="${years}"></div>
       <div class="cfield"><label>喪葬／緊急預備金</label><input type="number" data-setting="ins_funeral" value="${funeral}"></div>
       ${policies.length===0?`<div class="cfield"><label>既有壽險保額（清單空時手填）</label><input type="number" data-setting="ins_life" value="${Number(s.ins_life)||0}"></div>`:''}
     </div>
     <table class="rep" style="margin-top:14px">
-      <thead><tr><th>項目</th><th class="n">金額</th></tr></thead>
+      <thead><tr><th>項目</th><th class="n">金額（萬）</th></tr></thead>
       <tbody>
-        <tr><td>家庭生活費（${fmtMoney(m.annualExpense)}/年 × ${years} 年）</td><td class="n">${fmtMoney(living)}</td></tr>
-        <tr><td>未償負債</td><td class="n">${fmtMoney(debt)}</td></tr>
-        <tr><td>子女大學教育金（含通膨）</td><td class="n">${fmtMoney(edu)}</td></tr>
-        <tr><td>喪葬／緊急預備金</td><td class="n">${fmtMoney(funeral)}</td></tr>
-        <tr style="border-top:2px solid var(--line-2)"><td><b>家庭需求合計</b></td><td class="n"><b>${fmtMoney(needs)}</b></td></tr>
-        <tr><td style="color:var(--primary)">減：可變現資產 <span style="font-size:11px;color:var(--faint)">（不含自住房）</span></td><td class="n" style="color:var(--primary)">${fmtMoney(-assetsAvail)}</td></tr>
-        <tr><td style="color:var(--primary)">減：壽險保額合計${policies.length>0?' （從清單計算）':''}</td><td class="n" style="color:var(--primary)">${fmtMoney(-existingLife)}</td></tr>
-        <tr style="border-top:2px solid var(--line-2)"><td><b>保障缺口</b></td><td class="n" style="font-weight:700;color:${gap>0?'var(--danger)':'var(--primary)'}">${gap>0?'':'+'}${fmtMoney(Math.abs(gap))}</td></tr>
+        <tr><td>家庭生活費（${fmtMoney(m.annualExpense)}/年 × ${years} 年）</td><td class="n">${_w(living)}</td></tr>
+        <tr><td>未償負債</td><td class="n">${_w(debt)}</td></tr>
+        <tr><td>子女大學教育金（含通膨）</td><td class="n">${_w(edu)}</td></tr>
+        <tr><td>喪葬／緊急預備金</td><td class="n">${_w(funeral)}</td></tr>
+        <tr style="border-top:2px solid var(--line-2)"><td><b>家庭需求合計</b></td><td class="n"><b>${_w(needs)}</b></td></tr>
+        <tr><td style="color:var(--primary)">減：可變現資產 <span style="font-size:11px;color:var(--faint)">（不含自住房）</span></td><td class="n" style="color:var(--primary)">−${_w(assetsAvail)}</td></tr>
+        <tr><td style="color:var(--primary)">減：壽險保額合計${policies.length>0?' （從清單計算）':''}</td><td class="n" style="color:var(--primary)">−${_w(existingLife)}</td></tr>
+        <tr style="border-top:2px solid var(--line-2)"><td><b>保障缺口</b></td><td class="n" style="font-weight:700;color:${gap>0?'var(--danger)':'var(--primary)'}">${gap>0?'':'+'} ${_w(Math.abs(gap))}</td></tr>
       </tbody>
     </table>
     <div class="ins-note ${gapCls}" style="margin-top:12px">${gapVerdict}</div>
@@ -2933,7 +2938,7 @@ function renderTaxCalc(){
 
   <div class="card">
     <h2>申報方式與扶養</h2>
-    <div class="cgrid">
+    <div class="cgrid" style="grid-template-columns:repeat(2,1fr)">
       <div class="cfield"><label>申報年度<span class="tip" data-tip="選擇要試算的所得稅年度。&#10;▸ 113年度：2024年所得，申報期限為2025年5月。&#10;▸ 114年度：2025年所得，申報期限為2026年5月。&#10;&#10;不確定要選哪年？看你手上的「扣繳憑單」上標示的年度。">ⓘ</span></label>
         <select data-tax="tax_year">
           <option value="113" ${taxYear===113?'selected':''}>113 年度（2024 年所得）</option>
@@ -2946,10 +2951,10 @@ function renderTaxCalc(){
           <option value="joint"  ${filing==='joint' ?'selected':''}>合併申報（含配偶）</option>
         </select>
       </div>
-      <div class="cfield"><label>一般扶養親屬人數（子女、父母 69 歲以下等，每人 NT$92,000）<span class="tip" data-tip="含子女、父母未滿 70 歲、兄弟姐妹等，需符合扶養資格。70 歲以上長輩請填下欄享較高免稅額。">ⓘ</span></label>
+      <div class="cfield"><label>一般扶養人數 <span class="tip" data-tip="含子女、父母未滿 70 歲、兄弟姐妹等，需符合扶養資格。每人免稅額 NT$92,000。70 歲以上長輩請填下欄享較高免稅額。">ⓘ</span></label>
         <input type="number" min="0" max="15" data-setting="tax_dep_general" value="${depGen}">
       </div>
-      <div class="cfield"><label>70 歲以上扶養親屬人數（每人 NT$138,000）</label>
+      <div class="cfield"><label>70 歲以上扶養人數 <span class="tip" data-tip="70 歲以上受扶養父母、祖父母，每人免稅額 NT$138,000，高於一般扶養的 NT$92,000。">ⓘ</span></label>
         <input type="number" min="0" max="10" data-setting="tax_dep_elderly" value="${depEld}">
       </div>
     </div>
@@ -2966,16 +2971,16 @@ function renderTaxCalc(){
     <h2>所得資料</h2>
     <div class="cgrid">
       <div class="cfield">
-        <label>薪資所得（年度合計）<span class="tip" data-tip="包含：底薪、各類加給、績效獎金、年終獎金、加班費等，全年 1–12 月加總。&#10;&#10;▸ 有扣繳憑單者：以憑單上「薪資所得」欄位為準。&#10;▸ 領現金薪資者：自行估算全年實收金額填入。&#10;▸ 多份工作者：所有雇主的薪資合計。&#10;&#10;不含：雇主代繳勞健保費、伙食補助（每月 2,400 元以下免稅部分）。">ⓘ</span></label>
+        <label>薪資所得 <span class="tip" data-tip="包含：底薪、各類加給、績效獎金、年終獎金、加班費等，全年 1–12 月加總。&#10;&#10;▸ 有扣繳憑單者：以憑單上「薪資所得」欄位為準。&#10;▸ 領現金薪資者：自行估算全年實收金額填入。&#10;▸ 多份工作者：所有雇主的薪資合計。&#10;&#10;不含：雇主代繳勞健保費、伙食補助（每月 2,400 元以下免稅部分）。">ⓘ</span></label>
         <input type="number" min="0" step="1000" data-tax="tax_salary" value="${manualSalary}" placeholder="0">
         ${sysSalary>0 && sysSalary!==manualSalary ? `<p class="hint" style="margin:4px 0 0;font-size:12px">收支頁估算值：${fmtMoney(sysSalary)}（可作為參考）</p>` : sysSalary>0 ? `<p class="hint" style="margin:4px 0 0;font-size:12px">已從收支頁帶入 ${fmtMoney(sysSalary)}，可直接修改</p>` : ''}
       </div>
-      <div class="cfield"><label>其他所得<span class="tip" data-tip="薪資以外的所得，例如：&#10;▸ 租賃所得（出租房屋、設備）&#10;▸ 執行業務所得（自由接案、顧問費）&#10;▸ 稿費、版稅、演講費&#10;▸ 出售財產所得（非股票，股票另計）&#10;&#10;填寫「所得額」而非「收入總額」——租賃所得可用 43% 必要費用率換算。">ⓘ</span>（租賃、執行業務、稿費…）</label>
+      <div class="cfield"><label>其他所得 <span class="tip" data-tip="薪資以外的所得，例如：&#10;▸ 租賃所得（出租房屋、設備）&#10;▸ 執行業務所得（自由接案、顧問費）&#10;▸ 稿費、版稅、演講費&#10;▸ 出售財產所得（非股票，股票另計）&#10;&#10;填寫「所得額」而非「收入總額」——租賃所得可用 43% 必要費用率換算。">ⓘ</span></label>
         <input type="number" min="0" step="1000" data-setting="tax_other_income" value="${otherInc}" placeholder="0">
       </div>
     </div>
     <div class="cgrid" style="margin-top:4px">
-      <div class="cfield"><label>已扣繳稅款合計（全年扣繳憑單加總）<span class="tip" data-tip="每月薪資單上「代扣所得稅」全年加總，再加上銀行利息、股利等扣繳憑單金額。&#10;&#10;▸ 有扣繳憑單：加總所有憑單上的「扣繳稅額」欄位。&#10;▸ 不確定金額：向公司會計或用薪資系統查詢。&#10;▸ 找不到：填 0 也沒關係，試算結果僅供參考。">ⓘ</span></label>
+      <div class="cfield"><label>已扣繳稅款 <span class="tip" data-tip="每月薪資單上「代扣所得稅」全年加總，再加上銀行利息、股利等扣繳憑單金額。&#10;&#10;▸ 有扣繳憑單：加總所有憑單上的「扣繳稅額」欄位。&#10;▸ 不確定金額：向公司會計或用薪資系統查詢。&#10;▸ 找不到：填 0 也沒關係，試算結果僅供參考。">ⓘ</span></label>
         <input type="number" min="0" step="1000" data-setting="tax_withheld" value="${withheld}" placeholder="0">
       </div>
       <div></div>
@@ -3000,16 +3005,16 @@ function renderTaxCalc(){
       </label>
     </div>
     ${dedType==='itemized'?`<div class="cgrid">
-      <div class="cfield"><label>商業保費（上限 ${fmtMoney(insPremCap)} = NT$24,000 × ${totalPersons} 人）<span class="tip" data-tip="本人、配偶、受扶養親屬在台灣投保的商業保險保費，每人上限 NT$24,000。">ⓘ</span></label>
+      <div class="cfield"><label>商業保費 <span class="tip" data-tip="本人、配偶、受扶養親屬在台灣投保的商業保險保費，每人上限 NT$24,000，合計上限 ${fmtMoney(insPremCap)}（${totalPersons} 人）。">ⓘ</span></label>
         <input type="number" min="0" step="1000" data-setting="tax_ins_premium" value="${insPrem}" placeholder="0">
       </div>
-      <div class="cfield"><label>醫療費用（無上限，需有醫療院所收據）</label>
+      <div class="cfield"><label>醫療費用 <span class="tip" data-tip="無列舉上限，但需有醫療院所正式收據。健保給付以外的自費部分均可列舉。">ⓘ</span></label>
         <input type="number" min="0" step="1000" data-setting="tax_medical" value="${medical}" placeholder="0">
       </div>
-      <div class="cfield"><label>房貸利息（上限 NT$300,000；與租金擇一列舉）</label>
+      <div class="cfield"><label>房貸利息 <span class="tip" data-tip="自用住宅房貸利息，上限 NT$300,000。與租金支出擇一列舉，不可同時申報。">ⓘ</span></label>
         <input type="number" min="0" step="1000" data-setting="tax_mortgage_int" value="${mortgageInt}" placeholder="0">
       </div>
-      <div class="cfield"><label>租金支出（上限 NT$120,000；已填房貸利息者不可同時列舉）</label>
+      <div class="cfield"><label>租金支出 <span class="tip" data-tip="承租自用住宅的租金，上限 NT$120,000。已填房貸利息者不可同時列舉。">ⓘ</span></label>
         <input type="number" min="0" step="1000" data-setting="tax_rent" value="${rent}" placeholder="0" ${mortgageInt>0?'disabled title="已填房貸利息，租金不可同時列舉"':''}>
       </div>
       <div class="cfield"><label>捐贈（一般上限為所得總額 20%；捐政府、學校等無上限）</label>
