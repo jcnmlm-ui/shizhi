@@ -2782,12 +2782,13 @@ function buildInsuranceChart(policies, currentAge, lifeExp){
   });
 }
 
-/* ===== 綜所稅試算（113 年度） ===== */
+/* ===== 綜所稅試算 ===== */
 function renderTaxCalc(){
   const body=document.getElementById('taxcalc-body'); if(!body) return;
   const s=state.settings;
 
   // 讀取設定（以 tax_ 前綴存在 state.settings）
+  const taxYear     = Number(s.tax_year)  || 113;
   const filing      = s.tax_filing      || 'single';
   const depGen      = Number(s.tax_dep_general)  || 0;
   const depEld      = Number(s.tax_dep_elderly)  || 0;
@@ -2803,20 +2804,56 @@ function renderTaxCalc(){
   const withheld    = Number(s.tax_withheld)      || 0;
   const otherInc    = Number(s.tax_other_income)  || 0;
 
-  // 所得：自動帶入收支頁所有收入
-  const sysSalary   = sumAnnual(state.incomes);
-  const totalIncome = sysSalary + otherInc;
+  // 各年度稅務參數（免稅額、扣除上限、稅率級距）
+  const TAX_PARAMS = {
+    113: {
+      exempt: 92000, exemptEld: 138000,
+      stdSingle: 124000, stdJoint: 248000,
+      salarySpecialMax: 207000, disabilityMax: 200000,
+      preschoolMax: 120000, ltcMax: 120000,
+      insPremPerPerson: 24000,
+      brackets: [
+        {limit:590000,   rate:0.05},
+        {limit:1330000,  rate:0.12},
+        {limit:2660000,  rate:0.20},
+        {limit:4980000,  rate:0.30},
+        {limit:Infinity, rate:0.40},
+      ],
+    },
+    114: {
+      // 114年度（2025年所得）— 財政部公告同113年，如有更新請以官方公告為準
+      exempt: 92000, exemptEld: 138000,
+      stdSingle: 124000, stdJoint: 248000,
+      salarySpecialMax: 207000, disabilityMax: 200000,
+      preschoolMax: 120000, ltcMax: 120000,
+      insPremPerPerson: 24000,
+      brackets: [
+        {limit:590000,   rate:0.05},
+        {limit:1330000,  rate:0.12},
+        {limit:2660000,  rate:0.20},
+        {limit:4980000,  rate:0.30},
+        {limit:Infinity, rate:0.40},
+      ],
+    },
+  };
+  const P = TAX_PARAMS[taxYear] || TAX_PARAMS[113];
+  const adYear = taxYear + 1911; // 換算西元年
 
-  // 免稅額（113 年）
-  const spouseExempt = filing==='joint' ? 92000 : 0;
-  const totalExempt  = 92000 + spouseExempt + depGen*92000 + depEld*138000;
+  // 所得：收支頁資料僅供參考預設值，使用者可手動輸入
+  const sysSalary   = sumAnnual(state.incomes);  // 系統參考值
+  const manualSalary = s.tax_salary != null ? Number(s.tax_salary) : sysSalary;
+  const totalIncome = manualSalary + otherInc;
+
+  // 免稅額
+  const spouseExempt = filing==='joint' ? P.exempt : 0;
+  const totalExempt  = P.exempt + spouseExempt + depGen*P.exempt + depEld*P.exemptEld;
 
   // 標準扣除額
-  const stdDed = filing==='joint' ? 248000 : 124000;
+  const stdDed = filing==='joint' ? P.stdJoint : P.stdSingle;
 
   // 列舉扣除額
   const totalPersons  = 1 + (filing==='joint'?1:0) + depGen + depEld;
-  const insPremCap    = totalPersons * 24000;
+  const insPremCap    = totalPersons * P.insPremPerPerson;
   const insItemized   = Math.min(insPrem, insPremCap);
   const mortgageDed   = Math.min(mortgageInt, 300000);
   const rentDed       = mortgageInt>0 ? 0 : Math.min(rent, 120000);
@@ -2826,23 +2863,17 @@ function renderTaxCalc(){
   const chosenDed     = dedType==='itemized' ? itemizedTotal : stdDed;
 
   // 特別扣除額
-  const salarySpecial = Math.min(sysSalary, 207000);
-  const disabilityDed = disCount * 200000;
-  const preschoolDed  = preschool * 120000;
-  const ltcDed        = ltcCount * 120000;
+  const salarySpecial = Math.min(manualSalary, P.salarySpecialMax);
+  const disabilityDed = disCount * P.disabilityMax;
+  const preschoolDed  = preschool * P.preschoolMax;
+  const ltcDed        = ltcCount * P.ltcMax;
   const totalSpecial  = salarySpecial + disabilityDed + preschoolDed + ltcDed;
 
   // 綜合所得淨額
   const taxableIncome = Math.max(0, totalIncome - totalExempt - chosenDed - totalSpecial);
 
-  // 累進稅率（113 年）
-  const BRACKETS = [
-    {limit:590000,   rate:0.05},
-    {limit:1330000,  rate:0.12},
-    {limit:2660000,  rate:0.20},
-    {limit:4980000,  rate:0.30},
-    {limit:Infinity, rate:0.40},
-  ];
+  // 累進稅率
+  const BRACKETS = P.brackets;
   let grossTax=0, rem=taxableIncome, prev=0;
   const bracketRows=[];
   for(const b of BRACKETS){
@@ -2869,12 +2900,18 @@ function renderTaxCalc(){
   body.innerHTML=`
   <div class="pagehead"><div>
     <h1>📊 綜所稅試算</h1>
-    <p>台灣個人綜合所得稅年度試算（113 稅務年度・2024 年收入）。結果為概估，以國稅局正式核定為準。</p>
+    <p>台灣個人綜合所得稅年度試算（${taxYear} 年度・${adYear} 年收入）。結果為概估，以國稅局正式核定為準。</p>
   </div></div>
 
   <div class="card">
     <h2>申報方式與扶養</h2>
     <div class="cgrid">
+      <div class="cfield"><label>申報年度<span class="tip" data-tip="選擇要試算的所得稅年度。&#10;▸ 113年度：2024年所得，申報期限為2025年5月。&#10;▸ 114年度：2025年所得，申報期限為2026年5月。&#10;&#10;不確定要選哪年？看你手上的「扣繳憑單」上標示的年度。">ⓘ</span></label>
+        <select data-tax="tax_year">
+          <option value="113" ${taxYear===113?'selected':''}>113 年度（2024 年所得）</option>
+          <option value="114" ${taxYear===114?'selected':''}>114 年度（2025 年所得）</option>
+        </select>
+      </div>
       <div class="cfield"><label>申報方式</label>
         <select data-tax="tax_filing">
           <option value="single" ${filing==='single'?'selected':''}>單身 / 個人申報</option>
@@ -2899,17 +2936,24 @@ function renderTaxCalc(){
 
   <div class="card">
     <h2>所得資料</h2>
-    <p class="hint" style="margin:0 0 12px">薪資所得自動帶入「收支」頁所有收入項目的年度合計（目前 <b>${fmtMoney(sysSalary)}</b>）。若有薪資以外的其他所得，請填入下方。</p>
     <div class="cgrid">
-      <div class="cfield"><label>其他所得（租賃、執行業務、稿費、出售財產…）</label>
+      <div class="cfield">
+        <label>薪資所得（年度合計）<span class="tip" data-tip="包含：底薪、各類加給、績效獎金、年終獎金、加班費等，全年 1–12 月加總。&#10;&#10;▸ 有扣繳憑單者：以憑單上「薪資所得」欄位為準。&#10;▸ 領現金薪資者：自行估算全年實收金額填入。&#10;▸ 多份工作者：所有雇主的薪資合計。&#10;&#10;不含：雇主代繳勞健保費、伙食補助（每月 2,400 元以下免稅部分）。">ⓘ</span></label>
+        <input type="number" min="0" step="1000" data-tax="tax_salary" value="${manualSalary}" placeholder="0">
+        ${sysSalary>0 && sysSalary!==manualSalary ? `<p class="hint" style="margin:4px 0 0;font-size:12px">收支頁估算值：${fmtMoney(sysSalary)}（可作為參考）</p>` : sysSalary>0 ? `<p class="hint" style="margin:4px 0 0;font-size:12px">已從收支頁帶入 ${fmtMoney(sysSalary)}，可直接修改</p>` : ''}
+      </div>
+      <div class="cfield"><label>其他所得<span class="tip" data-tip="薪資以外的所得，例如：&#10;▸ 租賃所得（出租房屋、設備）&#10;▸ 執行業務所得（自由接案、顧問費）&#10;▸ 稿費、版稅、演講費&#10;▸ 出售財產所得（非股票，股票另計）&#10;&#10;填寫「所得額」而非「收入總額」——租賃所得可用 43% 必要費用率換算。">ⓘ</span>（租賃、執行業務、稿費…）</label>
         <input type="number" min="0" step="1000" data-setting="tax_other_income" value="${otherInc}" placeholder="0">
       </div>
-      <div class="cfield"><label>已扣繳稅款合計（全年扣繳憑單加總）<span class="tip" data-tip="每月薪資單上「代扣所得稅」全年加總，再加上銀行、股利等扣繳憑單金額。可向會計或薪資系統查詢。">ⓘ</span></label>
+    </div>
+    <div class="cgrid" style="margin-top:4px">
+      <div class="cfield"><label>已扣繳稅款合計（全年扣繳憑單加總）<span class="tip" data-tip="每月薪資單上「代扣所得稅」全年加總，再加上銀行利息、股利等扣繳憑單金額。&#10;&#10;▸ 有扣繳憑單：加總所有憑單上的「扣繳稅額」欄位。&#10;▸ 不確定金額：向公司會計或用薪資系統查詢。&#10;▸ 找不到：填 0 也沒關係，試算結果僅供參考。">ⓘ</span></label>
         <input type="number" min="0" step="1000" data-setting="tax_withheld" value="${withheld}" placeholder="0">
       </div>
+      <div></div>
     </div>
     <div class="cgrid2" style="margin-top:10px">
-      <div class="rep-kpi"><div class="l">薪資所得（自動帶入）</div><div class="v">${fmtMoney(sysSalary)}</div></div>
+      <div class="rep-kpi"><div class="l">薪資所得</div><div class="v">${fmtMoney(manualSalary)}</div></div>
       ${otherInc>0?`<div class="rep-kpi"><div class="l">其他所得</div><div class="v">${fmtMoney(otherInc)}</div></div>`:''}
       <div class="rep-kpi" style="background:var(--surface-3,#ede7d7);border-radius:8px;padding:10px 14px"><div class="l" style="font-weight:700">所得總額</div><div class="v" style="font-size:18px">${fmtMoney(totalIncome)}</div></div>
     </div>
@@ -2962,7 +3006,7 @@ function renderTaxCalc(){
       <div class="cfield"><label>身心障礙特別扣除人數（每人 NT$200,000）</label>
         <input type="number" min="0" max="20" data-setting="tax_disability" value="${disCount}" placeholder="0">
       </div>
-      <div class="cfield"><label>幼兒學前扣除（6 歲以下子女人數，每人 NT$120,000）<span class="tip" data-tip="113年1月1日前出生且未滿 6 歲。高稅率者（20%以上）減半適用，最高 NT$60,000/人。">ⓘ</span></label>
+      <div class="cfield"><label>幼兒學前扣除（6 歲以下子女人數，每人 NT$120,000）<span class="tip" data-tip="${adYear}年1月1日前出生且未滿 6 歲。高稅率者（20%以上）減半適用，最高 NT$60,000/人。">ⓘ</span></label>
         <input type="number" min="0" max="10" data-setting="tax_preschool" value="${preschool}" placeholder="0">
       </div>
       <div class="cfield"><label>長期照顧扣除人數（每人 NT$120,000）<span class="tip" data-tip="領有長照服務給付、身心障礙手冊或長照需求等級 2 以上。高稅率者減半適用。">ⓘ</span></label>
@@ -2979,7 +3023,7 @@ function renderTaxCalc(){
   </div>
 
   <div class="card" style="background:var(--surface-2)">
-    <h2 style="font-size:16px">113 年度申報試算結果</h2>
+    <h2 style="font-size:16px">${taxYear} 年度申報試算結果</h2>
     <div class="cgrid2">
       <div class="rep-kpi"><div class="l">所得總額</div><div class="v">${fmtMoney(totalIncome)}</div></div>
       <div class="rep-kpi"><div class="l">減：免稅額合計</div><div class="v">－${fmtMoney(totalExempt)}</div></div>
@@ -3017,7 +3061,7 @@ function renderTaxCalc(){
   </div>
 
   <div class="disclaimer">
-    本頁試算依台灣 113 稅務年度法規（2024 年所得）計算，<b>不構成正式申報建議</b>。股利二擇一（合併或分離 28%）、基本稅額（AMT）、境外所得、非常規扣除項目及各類憑證要求請洽稅務師或國稅局。實際稅額依核定為準。
+    本頁試算依台灣 ${taxYear} 年度稅法（${adYear} 年所得）計算，<b>不構成正式申報建議</b>。股利二擇一（合併或分離 28%）、基本稅額（AMT）、境外所得、非常規扣除項目及各類憑證要求請洽稅務師或國稅局。實際稅額依核定為準。
   </div>`;
 
   // radio button 切換（data-setting 僅處理數字，字串需額外綁定）
