@@ -237,6 +237,9 @@
   .cfield input,.cfield select{width:100%;border:1px solid var(--line-2);background:var(--surface-2);border-radius:8px;padding:8px 9px;font-size:13.5px;font-family:inherit;color:var(--ink)}
   .cfield input:focus,.cfield select:focus{outline:none;border-color:var(--primary);background:#fff}
   .cfield .cchk{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink);padding-top:7px}
+  .cfield .fmt-preview{display:block;font-size:11px;color:var(--muted);margin-top:2px;min-height:0;line-height:1}
+  .cfield .fmt-preview:empty{display:none}
+  .cfield input:disabled{opacity:.45;cursor:not-allowed}
   .cgrid2{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:4px}
 
   /* print */
@@ -2395,7 +2398,8 @@ function childCard(ch){
     else if(cf.type==='check') inp=`<label class="cchk"><input type="checkbox" ${da} ${v?'checked':''}> 計入</label>`;
     else if(cf.type==='number') inp=`<input type="number" ${da} value="${Number(v||0)}">`;
     else inp=`<input type="text" ${da} value="${escapeHtml(v||'')}" placeholder="${cf.ph||''}">`;
-    return `<div class="cfield"><label>${cf.label}</label>${inp}${cf.hint?`<div style="font-size:11px;color:var(--muted);margin-top:3px;line-height:1.45">${cf.hint}</div>`:''}</div>`;
+    const tipHtml=cf.hint?` <span class="tip" data-tip="${cf.hint.replace(/"/g,'&quot;')}">ⓘ</span>`:'';
+    return `<div class="cfield"><label>${cf.label}${tipHtml}</label>${inp}</div>`;
   };
   const stageRows=[['孕期生產',s.stages.birth],['0–2 嬰幼兒',s.stages.infant],['3–5 幼兒園',s.stages.preschool],['6–11 國小',s.stages.elem],['12–14 國中',s.stages.junior],['15–17 高中',s.stages.senior],['18–21 大學',s.stages.college]]
     .filter(r=>r[1]>0).map(r=>`<tr><td>${r[0]}</td><td class="n">${fmtMoney(r[1])}</td></tr>`).join('');
@@ -4094,6 +4098,15 @@ document.addEventListener('input', e=>{
   if(t.matches && t.matches('[data-pf]')){
     pfApply(t.dataset.pf, parseFloat(t.value)||0);
     pfSyncSliders(); pfLiveUpdate();
+  }
+  // 千位符輔助顯示：在數字輸入框下方即時顯示格式化數字
+  if(t.matches && t.matches('.cfield input[type="number"]') && !t.dataset.wan){
+    const parent=t.closest('.cfield');
+    if(!parent) return;
+    let prev=parent.querySelector('.fmt-preview');
+    if(!prev){ prev=document.createElement('span'); prev.className='fmt-preview'; t.after(prev); }
+    const v=parseFloat(t.value);
+    prev.textContent=(!isNaN(v) && Math.abs(v)>=1000) ? v.toLocaleString('zh-TW') : '';
   }
 });
 document.addEventListener('change', async e=>{
