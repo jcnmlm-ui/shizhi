@@ -971,8 +971,8 @@ const Store = {
       note: note.trim()||null,
       snapshot: { settings:state.settings, incomes:state.incomes, expenses:state.expenses,
                   assets:state.assets, liabilities:state.liabilities, goals:state.goals,
-                  children:state.children, purchases:state.purchases,
-                  childCosts:state.childCosts, postal:state.postal },
+                  children:state.children, purchases:state.purchases, policies:state.policies,
+                  childCosts:state.childCosts, postal:state.postal, catConfig:state.catConfig },
       net_worth: Math.round(m.netWorth),
       annual_income: Math.round(aInc),
       annual_expense: Math.round(aExp),
@@ -3425,6 +3425,8 @@ async function renderSnapshotList(){
       state.purchases  = d.purchases||[];
       state.childCosts = sanitizeChildCosts(d.childCosts);
       state.postal     = sanitizePostal(d.postal);
+      state.policies   = d.policies||[];
+      state.catConfig  = sanitizeCatConfig(d.catConfig);
       mcCache=null;
       renderAll();
       // 切回儀表板讓使用者看到還原結果
@@ -4125,7 +4127,7 @@ document.addEventListener('change', async e=>{
     state.settings[key]=v;
     await Store.saveSettings();
     recalc();
-    renderPension(); renderInsurance(); renderTaxCalc();
+    renderPension(); renderInsurance();
     if(key==='use_real_return'){ renderPortfolio(portfolioSel); syncRealReturnUI(); }
   }
   if(t.matches('[data-child-field]')){
@@ -4179,7 +4181,7 @@ document.addEventListener('change', async e=>{
   if(t.matches('[data-tax]')){
     const key=t.dataset.tax;
     const raw=t.value;
-    state.settings[key] = isNaN(parseFloat(raw)) ? raw : (parseFloat(raw)||0);
+    state.settings[key] = (raw==='' && DEFAULT_SETTINGS[key]===null) ? null : (isNaN(parseFloat(raw)) ? raw : (parseFloat(raw)||0));
     await Store.saveSettings();
     renderTaxCalc();
   }
