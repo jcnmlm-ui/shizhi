@@ -304,22 +304,6 @@
     .welcome-card{padding:24px 18px}
     .welcome-logo{font-size:22px}
   }
-  /* Welcome modal */
-  .welcome-overlay{position:fixed;inset:0;z-index:9100;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(27,38,32,.6);animation:wFadeIn .3s ease}
-  @keyframes wFadeIn{from{opacity:0}to{opacity:1}}
-  .welcome-card{background:var(--surface);border-radius:20px;padding:36px 40px;max-width:520px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.28)}
-  .welcome-logo{font-family:var(--font-display);font-size:26px;font-weight:700;color:var(--primary);letter-spacing:-.5px}
-  .welcome-tagline{font-size:13px;color:var(--muted);margin:2px 0 20px}
-  .welcome-desc{font-size:13.5px;color:var(--ink);line-height:1.75;margin-bottom:22px;padding-bottom:18px;border-bottom:1px solid var(--line-2)}
-  .welcome-list{list-style:none;padding:0;margin:0 0 28px}
-  .welcome-list li{display:flex;gap:14px;align-items:flex-start;padding:11px 0;border-bottom:1px solid var(--line-2)}
-  .welcome-list li:last-child{border-bottom:none}
-  .welcome-list .wl-icon{font-size:20px;flex-shrink:0;margin-top:1px}
-  .welcome-list .wl-body{flex:1}
-  .welcome-list .wl-title{font-size:13.5px;font-weight:600;color:var(--ink)}
-  .welcome-list .wl-desc{font-size:12.5px;color:var(--muted);margin-top:2px;line-height:1.5}
-  .welcome-cta{width:100%;background:var(--primary);color:#fff;border:0;border-radius:12px;padding:15px;font-size:15px;font-weight:600;cursor:pointer;letter-spacing:.3px;transition:opacity .15s}
-  .welcome-cta:hover{opacity:.88}
   #side-about{padding:0 10px 6px;flex-shrink:0}
   .side-about-btn{background:transparent;border:0;color:var(--faint);font-size:11.5px;cursor:pointer;padding:3px 4px;display:flex;align-items:center;gap:5px;border-radius:6px;width:100%;text-align:left}
   .side-about-btn:hover{color:var(--muted);background:var(--line-2)}
@@ -759,7 +743,7 @@ function renderNav(){
 }
 function renderSideAbout(){
   const el=document.getElementById('side-about'); if(!el) return;
-  el.innerHTML=session?'<button class="side-about-btn" onclick="showWelcome()">📖 什麼是時值？</button>':'';
+  el.innerHTML=session?'<button class="side-about-btn" onclick="startTour()">▶ 新手導覽</button>':'';
 }
 
 function renderPlanWidget(){
@@ -4414,8 +4398,7 @@ async function loadSiteConfig(){
   await Store.init();
   await Store.loadAll();
   renderAll();
-  if(!sessionStorage.getItem('shizhi_welcome_session')){ localStorage.removeItem(TOUR_KEY); showWelcome(); }
-  else maybeShowTourPrompt();
+  maybeShowTourPrompt();
   if(location.hash==='#login'){
     document.querySelector('#nav button[data-tab="settings"]')?.click();
     setTimeout(()=>{ document.getElementById('cloud-area')?.scrollIntoView({behavior:'smooth',block:'center'}); }, 300);
@@ -4550,54 +4533,18 @@ function endTour(){
   document.getElementById('tour-card')?.remove();
 }
 // ── Welcome modal ────────────────────────────────────────────────────────────
-const WELCOME_KEY='shizhi_welcomed';
-const WELCOME_FEATURES=[
-  {icon:'📊',title:'財務全貌',    desc:'淨值、儲蓄率、緊急預備金，隨時掌握整體狀況'},
-  {icon:'💸',title:'每日現金流',  desc:'看見每天的資金動向，提前發現哪天可能透支'},
-  {icon:'🎯',title:'人生目標',    desc:'買房、旅遊、退休——算出每月需要存多少才夠'},
-  {icon:'👶',title:'子女養育',    desc:'精算教養費用、政府補助與育嬰津貼'},
-  {icon:'🏦',title:'勞保勞退',    desc:'估算退休後每月可領多少，掌握保障底線'},
-  {icon:'📦',title:'分期採購',    desc:'管理分期付款，看清它對每月現金流的影響'},
-];
-function isWelcomeDone(){ return localStorage.getItem(WELCOME_KEY)==='1'; }
-function markWelcomeDone(){ localStorage.setItem(WELCOME_KEY,'1'); }
-function showWelcome(){
-  if(document.getElementById('welcome-overlay')) return;
-  const ov=document.createElement('div'); ov.id='welcome-overlay'; ov.className='welcome-overlay';
-  ov.innerHTML=`<div class="welcome-card">
-    <div class="welcome-logo">時值</div>
-    <div class="welcome-tagline">你的個人財務地圖</div>
-    <div class="welcome-desc">時值把收支、資產、負債、目標整合在一個地方——不只是記帳，而是讓你清楚看到「現在在哪裡、未來會去哪」，做出真正有根據的財務決策。</div>
-    <ul class="welcome-list">${WELCOME_FEATURES.map(f=>`<li>
-      <span class="wl-icon">${f.icon}</span>
-      <div class="wl-body"><div class="wl-title">${f.title}</div><div class="wl-desc">${f.desc}</div></div>
-    </li>`).join('')}</ul>
-    <button class="welcome-cta" id="welcome-cta">開始建立我的財務地圖 →</button>
-  </div>`;
-  document.body.appendChild(ov);
-  document.getElementById('welcome-cta').onclick=()=>{
-    ov.style.animation='wFadeIn .2s ease reverse';
-    setTimeout(()=>{
-      ov.remove();
-      if(!session){ sessionStorage.setItem('shizhi_welcome_session','1'); maybeShowTourPrompt(); }
-    },200);
-  };
-}
 function maybeShowTourPrompt(){
   if(isTourDone()||document.getElementById('tour-prompt')) return;
   setTimeout(()=>{
     if(isTourDone()||document.getElementById('tour-prompt')) return;
     const d=document.createElement('div'); d.id='tour-prompt';
-    d.style.cssText='position:fixed;bottom:24px;right:24px;z-index:8500;background:var(--surface);border:1.5px solid var(--primary);border-radius:14px;padding:18px 22px;max-width:300px;box-shadow:0 6px 32px rgba(30,107,80,.2);animation:rise .4s cubic-bezier(.2,.7,.3,1)';
-    d.innerHTML=`<div style="font-family:var(--font-display);font-size:15px;font-weight:600;color:var(--ink);margin-bottom:7px">第一次來嗎？👋</div>
-      <div style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:14px">讓我帶你填對地方，大概 3 分鐘，分析才會準。</div>
-      <div style="display:flex;gap:10px">
-        <button id="t-prompt-yes" style="flex:1;background:var(--primary);color:#fff;border:0;border-radius:8px;padding:9px 0;font-size:13px;font-weight:500;cursor:pointer">開始導覽</button>
-        <button id="t-prompt-no" style="flex:1;background:var(--surface-2);color:var(--muted);border:1px solid var(--line-2);border-radius:8px;padding:9px 0;font-size:13px;cursor:pointer">先自己看</button>
-      </div>`;
+    d.style.cssText='position:fixed;bottom:24px;right:24px;z-index:8500;display:flex;align-items:center;gap:10px;background:var(--surface);border:1.5px solid var(--primary);border-radius:999px;padding:10px 16px 10px 14px;box-shadow:0 4px 20px rgba(30,107,80,.18);animation:rise .4s cubic-bezier(.2,.7,.3,1)';
+    d.innerHTML=`<span style="font-size:15px">▶</span>
+      <span style="font-size:13px;font-weight:600;color:var(--ink)">新手導覽</span>
+      <span style="font-size:12px;color:var(--muted)">約 3 分鐘</span>
+      <button id="t-prompt-no" style="background:transparent;border:0;color:var(--faint);font-size:16px;cursor:pointer;padding:0 0 0 4px;line-height:1" title="略過">×</button>`;
     document.body.appendChild(d);
-    document.getElementById('t-prompt-yes').onclick=()=>{ d.remove(); startTour(); };
-    document.getElementById('t-prompt-no').onclick=()=>{ d.remove(); markTourDone(); };
+    d.onclick=(e)=>{ if(e.target.id==='t-prompt-no'){ d.remove(); markTourDone(); } else { d.remove(); startTour(); } };
   },1200);
 }
 
