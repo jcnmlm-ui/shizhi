@@ -3014,7 +3014,7 @@ function renderTaxCalc(){
         <input type="number" min="0" step="1000" data-setting="tax_medical" value="${medical}" placeholder="0">
       </div>
       <div class="cfield"><label>房貸利息 <span class="tip" data-tip="自用住宅房貸利息，上限 NT$300,000。與租金支出擇一列舉，不可同時申報。">ⓘ</span></label>
-        <input type="number" min="0" step="1000" data-setting="tax_mortgage_int" value="${mortgageInt}" placeholder="0">
+        <input type="number" min="0" step="1000" data-setting="tax_mortgage_int" value="${mortgageInt}" placeholder="0" ${rent>0?'disabled title="已填租金支出，房貸利息不可同時列舉"':''}>
       </div>
       <div class="cfield"><label>租金支出 <span class="tip" data-tip="承租自用住宅的租金，上限 NT$120,000。已填房貸利息者不可同時列舉。">ⓘ</span></label>
         <input type="number" min="0" step="1000" data-setting="tax_rent" value="${rent}" placeholder="0" ${mortgageInt>0?'disabled title="已填房貸利息，租金不可同時列舉"':''}>
@@ -4121,6 +4121,9 @@ document.addEventListener('change', async e=>{
     if(t.type==='checkbox') v = t.checked?1:0;
     else { v=parseFloat(t.value)||0; if(pct) v=v/100; if(t.dataset.wan) v=v*10000; }
     state.settings[key]=v;
+    // 房貸利息與租金互斥：填入其中一個時自動清除另一個
+    if(key==='tax_mortgage_int' && v>0 && (state.settings.tax_rent||0)>0) state.settings.tax_rent=0;
+    if(key==='tax_rent' && v>0 && (state.settings.tax_mortgage_int||0)>0) state.settings.tax_mortgage_int=0;
     await Store.saveSettings();
     recalc();
     renderPension(); renderInsurance();
