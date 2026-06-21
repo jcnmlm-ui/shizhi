@@ -780,7 +780,7 @@ const DEFAULT_SETTINGS = { current_age:27, retirement_age:65, life_expectancy:90
   // 綜所稅試算設定（字串型用 null 識別，由 cleanSettings 保留原型別）
   tax_year:113, tax_filing:'single', tax_dep_general:0, tax_dep_elderly:0,
   tax_ded_type:'standard', tax_ins_premium:0, tax_medical:0, tax_mortgage_int:0,
-  tax_rent:0, tax_charity:0, tax_disability:0, tax_preschool:0, tax_ltc:0,
+  tax_rent:0, tax_charity:0, tax_charity_unlimited:0, tax_disability:0, tax_preschool:0, tax_ltc:0,
   tax_withheld:0, tax_other_income:0, tax_salary:null, tax_annual_result:0 };
 const DEFAULT_ASSET_RETURNS = { stock:0.07, bond:0.035, reit:0.06, gold:0.03, cash:0.01 };
 const LABOR_SALARY_CAP = 45800;   // 勞保投保薪資上限
@@ -2753,7 +2753,7 @@ function renderInsurance(){
     <p class="hint">家庭需求加總，減去可變現資產與壽險保額，差額即為保障缺口。生活費、負債、教育金自動帶入。以稅前所得計算（保守估計）<span class="tip" data-tip="生活費、所得替代需求均以稅前所得計算（保守估計）。遺族實際稅負通常較低，此數字偏安全。購買綜所稅試算模組可了解個人邊際稅率，自行評估稅後缺口。">ⓘ</span></p>
     <div class="cgrid" style="margin-top:6px">
       <div class="cfield"><label>家庭需支應年數</label><input type="number" data-setting="ins_years" value="${years}"></div>
-      <div class="cfield"><label>喪葬／緊急預備金</label><input type="number" data-setting="ins_funeral" value="${funeral}"></div>
+      <div class="cfield"><label>喪葬／緊急預備金 <span style="font-size:11px;color:var(--muted)">(萬)</span></label><input type="number" step="1" data-setting="ins_funeral" data-wan="true" value="${Math.round(funeral/10000)}"></div>
       ${policies.length===0?`<div class="cfield"><label>既有壽險保額（清單空時手填）</label><input type="number" data-setting="ins_life" value="${Number(s.ins_life)||0}"></div>`:''}
     </div>
     <table class="rep" style="margin-top:14px">
@@ -2825,6 +2825,7 @@ function renderTaxCalc(){
   const mortgageInt = Number(s.tax_mortgage_int) || 0;
   const rent        = Number(s.tax_rent)          || 0;
   const charity     = Number(s.tax_charity)       || 0;
+  const charityUnlimited = s.tax_charity_unlimited ? 1 : 0;
   const disCount    = Number(s.tax_disability)    || 0;
   const preschool   = Number(s.tax_preschool)     || 0;
   const ltcCount    = Number(s.tax_ltc)           || 0;
@@ -2884,7 +2885,8 @@ function renderTaxCalc(){
   const insItemized   = Math.min(insPrem, insPremCap);
   const mortgageDed   = Math.min(mortgageInt, 300000);
   const rentDed       = mortgageInt>0 ? 0 : Math.min(rent, 120000);
-  const charityDed    = Math.min(charity, totalIncome * 0.20);
+  const charityLimit  = totalIncome * 0.20;
+  const charityDed    = charityUnlimited ? charity : Math.min(charity, charityLimit);
   const itemizedTotal = insItemized + medical + mortgageDed + rentDed + charityDed;
   const betterItemize = itemizedTotal > stdDed;
   const chosenDed     = dedType==='itemized' ? itemizedTotal : stdDed;
@@ -3017,8 +3019,13 @@ function renderTaxCalc(){
       <div class="cfield"><label>租金支出 <span class="tip" data-tip="承租自用住宅的租金，上限 NT$120,000。已填房貸利息者不可同時列舉。">ⓘ</span></label>
         <input type="number" min="0" step="1000" data-setting="tax_rent" value="${rent}" placeholder="0" ${mortgageInt>0?'disabled title="已填房貸利息，租金不可同時列舉"':''}>
       </div>
-      <div class="cfield"><label>捐贈（一般上限為所得總額 20%；捐政府、學校等無上限）</label>
+      <div class="cfield"><label>捐贈 <span class="tip" data-tip="一般捐贈（私人基金會等）列舉上限為所得總額 20%。&#10;捐贈對象為政府機關、公立學校、財團法人等，可全額扣除（無上限）。&#10;勾選下方核取方塊即套用無上限。">ⓘ</span></label>
         <input type="number" min="0" step="1000" data-setting="tax_charity" value="${charity}" placeholder="0">
+        <label style="font-size:11.5px;display:flex;align-items:center;gap:5px;margin-top:5px;cursor:pointer;color:var(--muted)">
+          <input type="checkbox" data-setting="tax_charity_unlimited" ${charityUnlimited?'checked':''} style="width:auto;margin:0;cursor:pointer">
+          捐政府／學校（無上限）
+        </label>
+        ${!charityUnlimited && charity > charityLimit && charityLimit > 0 ? `<div style="font-size:11.5px;color:var(--danger,#c0392b);margin-top:4px">⚠ 超出所得 20% 上限（${fmtMoney(Math.round(charityLimit))}），多出部分不可列舉。</div>` : ''}
       </div>
     </div>
     <div class="cgrid2" style="margin-top:10px">
@@ -4112,11 +4119,12 @@ document.addEventListener('change', async e=>{
     const key=t.dataset.setting, pct=t.dataset.pct==='true';
     let v;
     if(t.type==='checkbox') v = t.checked?1:0;
-    else { v=parseFloat(t.value)||0; if(pct) v=v/100; }
+    else { v=parseFloat(t.value)||0; if(pct) v=v/100; if(t.dataset.wan) v=v*10000; }
     state.settings[key]=v;
     await Store.saveSettings();
     recalc();
     renderPension(); renderInsurance();
+    if(key.startsWith('tax_')) renderTaxCalc();
     if(key==='use_real_return'){ renderPortfolio(portfolioSel); syncRealReturnUI(); }
   }
   if(t.matches('[data-child-field]')){
