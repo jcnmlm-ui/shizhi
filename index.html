@@ -792,7 +792,12 @@ const DEFAULT_SETTINGS = { current_age:27, retirement_age:65, life_expectancy:90
   lp_on:0, lp_wage:34800, lp_self:0, lp_bal:0, lp_ret:0.03,
   ins_life:0, ins_years:10, ins_funeral:1000000, use_real_return:0,
   ar_reit:0.06, ar_gold:0.03,
-  pf_stock:38, pf_bond:35, pf_reit:12, pf_gold:5, pf_cash:10 };
+  pf_stock:38, pf_bond:35, pf_reit:12, pf_gold:5, pf_cash:10,
+  // 綜所稅試算設定（字串型用 null 識別，由 cleanSettings 保留原型別）
+  tax_year:113, tax_filing:'single', tax_dep_general:0, tax_dep_elderly:0,
+  tax_ded_type:'standard', tax_ins_premium:0, tax_medical:0, tax_mortgage_int:0,
+  tax_rent:0, tax_charity:0, tax_disability:0, tax_preschool:0, tax_ltc:0,
+  tax_withheld:0, tax_other_income:0, tax_salary:null, tax_annual_result:0 };
 const DEFAULT_ASSET_RETURNS = { stock:0.07, bond:0.035, reit:0.06, gold:0.03, cash:0.01 };
 const LABOR_SALARY_CAP = 45800;   // 勞保投保薪資上限
 const LABOR_PENSION_WAGE_CAP = 150000;  // 勞退月提繳工資上限
@@ -1005,7 +1010,19 @@ const Store = {
 };
 
 function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=rej; document.head.appendChild(s); }); }
-function cleanSettings(o){ const s={}; for(const k of Object.keys(DEFAULT_SETTINGS)) s[k]= (o[k]!=null? Number(o[k]) : DEFAULT_SETTINGS[k]); return s; }
+function cleanSettings(o){
+  const s={};
+  for(const k of Object.keys(DEFAULT_SETTINGS)){
+    const def=DEFAULT_SETTINGS[k];
+    if(o[k]!=null){
+      // 依預設值型別決定轉換方式：字串保留字串，null 允許 null，其餘轉數字
+      s[k] = typeof def==='string' ? String(o[k]) : (def===null ? o[k] : Number(o[k]));
+    } else {
+      s[k]=def;  // DB 無值時用預設
+    }
+  }
+  return s;
+}
 // 以預設值補齊缺漏的費用假設（深層）
 function sanitizeChildCosts(o){
   const d=deepClone(DEFAULT_CHILD_COSTS); if(!o||typeof o!=='object') return d;
