@@ -426,7 +426,7 @@ footer a:hover{color:rgba(255,255,255,.9)}
       <div class="plan-card featured">
         <div class="plan-badge-tag">最受歡迎</div>
         <div class="plan-name">完整版（買斷）</div>
-        <div class="plan-price"><sup>NT$</sup>3,980</div>
+        <div class="plan-price"><sup>NT$</sup><span id="price-full">3,980</span></div>
         <div class="plan-price-note">一次購入，永久授權 · 持續更新迭代</div>
         <div class="plan-divider"></div>
         <div class="plan-features">
@@ -445,14 +445,14 @@ footer a:hover{color:rgba(255,255,255,.9)}
       <!-- 訂閱制 -->
       <div class="plan-card">
         <div class="plan-name">訂閱制</div>
-        <div class="plan-price"><sup>NT$</sup>99<span style="font-size:16px;font-weight:400">/月起</span></div>
+        <div class="plan-price"><sup>NT$</sup><span id="price-sub">99</span><span style="font-size:16px;font-weight:400">/月起</span></div>
         <div class="plan-price-note">多月有折扣，可隨時取消</div>
         <div class="plan-divider"></div>
         <div class="plan-features">
           <div class="plan-feat"><svg class="ck on" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 10l4.5 4.5L16 6"/></svg>包含所有完整版功能</div>
           <div class="plan-feat"><svg class="ck on" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 10l4.5 4.5L16 6"/></svg>歷史規劃快照</div>
           <div class="plan-feat"><svg class="ck on" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 10l4.5 4.5L16 6"/></svg>3 個月 9 折 / 6 個月 85 折</div>
-          <div class="plan-feat"><svg class="ck on" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 10l4.5 4.5L16 6"/></svg>12 個月 8 折（NT$950/年）</div>
+          <div class="plan-feat"><svg class="ck on" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 10l4.5 4.5L16 6"/></svg>12 個月 8 折（NT$<span id="price-sub-annual">950</span>/年）</div>
         </div>
         <div class="plan-cta"><a href="index.html#login" class="btn-ghost">立即訂閱</a></div>
       </div>
@@ -468,14 +468,14 @@ footer a:hover{color:rgba(255,255,255,.9)}
         <div style="padding:16px;background:var(--surface-2);border-radius:10px;border:1px solid var(--line)">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
             <span style="font-weight:700;font-size:14px">綜所稅試算</span>
-            <span style="font-size:13px;font-weight:700;color:var(--primary)">NT$299</span>
+            <span style="font-size:13px;font-weight:700;color:var(--primary)">NT$<span id="price-addon-taxcalc">299</span></span>
           </div>
           <div style="font-size:12.5px;color:var(--muted);line-height:1.65">113 年度個人所得稅完整試算，標準 vs 列舉扣除即時比較，退稅／補稅預估，自動整合薪資資料。</div>
         </div>
         <div style="padding:16px;background:var(--surface-2);border-radius:10px;border:1px solid var(--line)">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
             <span style="font-weight:700;font-size:14px">郵局薪資試算</span>
-            <span style="font-size:13px;font-weight:700;color:var(--primary)">NT$99</span>
+            <span style="font-size:13px;font-weight:700;color:var(--primary)">NT$<span id="price-addon-postal">99</span></span>
           </div>
           <div style="font-size:12.5px;color:var(--muted);line-height:1.65">針對中華郵政員工設計，薪資結構細項試算，整合至人生財務時間軸。</div>
         </div>
@@ -516,8 +516,8 @@ footer a:hover{color:rgba(255,255,255,.9)}
         <tr class="group-row"><td colspan="4">訂閱專屬</td></tr>
         <tr class="feat-row"><td>歷史規劃快照</td><td class="ck-n">—</td><td class="ck-n">—</td><td class="ck-y">✓</td></tr>
         <tr class="group-row"><td colspan="4">加購模組（完整版／訂閱制用戶可購買）</td></tr>
-        <tr class="feat-row"><td>綜所稅試算（NT$299 買斷）</td><td class="ck-n">—</td><td style="text-align:center;color:var(--accent);font-weight:700">＋加購</td><td style="text-align:center;color:var(--accent);font-weight:700">＋加購</td></tr>
-        <tr class="feat-row"><td>郵局薪資試算（NT$99 買斷）</td><td class="ck-n">—</td><td style="text-align:center;color:var(--accent);font-weight:700">＋加購</td><td style="text-align:center;color:var(--accent);font-weight:700">＋加購</td></tr>
+        <tr class="feat-row"><td>綜所稅試算（NT$<span id="price-tbl-taxcalc">299</span> 買斷）</td><td class="ck-n">—</td><td style="text-align:center;color:var(--accent);font-weight:700">＋加購</td><td style="text-align:center;color:var(--accent);font-weight:700">＋加購</td></tr>
+        <tr class="feat-row"><td>郵局薪資試算（NT$<span id="price-tbl-postal">99</span> 買斷）</td><td class="ck-n">—</td><td style="text-align:center;color:var(--accent);font-weight:700">＋加購</td><td style="text-align:center;color:var(--accent);font-weight:700">＋加購</td></tr>
         <tr class="feat-row"><td>房地產投報試算（開發中）</td><td class="ck-n">—</td><td style="text-align:center;color:var(--faint)">即將推出</td><td style="text-align:center;color:var(--faint)">即將推出</td></tr>
       </tbody>
     </table>
@@ -581,5 +581,34 @@ footer a:hover{color:rgba(255,255,255,.9)}
   </div>
 </footer>
 
+
+<script>
+(function(){
+  var SB_URL='https://haxfwofjrfkjwestfzvk.supabase.co';
+  var SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhheGZ3b2ZqcmZrandlc3RmenZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NTg2NzQsImV4cCI6MjA5NjIzNDY3NH0.j-mo1J0D-xDmsLb1sTBjthKHXMJVu1Y_bj5akCKE07w';
+  var h={'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY};
+  function set(id,val){ var el=document.getElementById(id); if(el) el.textContent=val; }
+  Promise.all([
+    fetch(SB_URL+'/rest/v1/fp_site_config?select=key,value',{headers:h}),
+    fetch(SB_URL+'/rest/v1/fp_addons?select=module_key,price_onetime&active=eq.true',{headers:h})
+  ]).then(function(rs){ return Promise.all(rs.map(function(r){return r.json();})); })
+  .then(function(data){
+    var configs=data[0]||[], addons=data[1]||[];
+    var pFull=3980, pSub=99;
+    configs.forEach(function(row){
+      if(row.key==='payment.price_full') pFull=Number(row.value)||pFull;
+      if(row.key==='payment.price_sub')  pSub=Number(row.value)||pSub;
+    });
+    set('price-full', pFull.toLocaleString('zh-TW'));
+    set('price-sub',  pSub);
+    set('price-sub-annual', Math.round(pSub*12*0.8).toLocaleString('zh-TW'));
+
+    var addonMap={};
+    addons.forEach(function(a){ addonMap[a.module_key]=a.price_onetime; });
+    if(addonMap.taxcalc){ set('price-addon-taxcalc',addonMap.taxcalc); set('price-tbl-taxcalc',addonMap.taxcalc); }
+    if(addonMap.postal){  set('price-addon-postal', addonMap.postal);  set('price-tbl-postal', addonMap.postal);  }
+  }).catch(function(){/* 靜默 fallback：保持 hardcoded 預設值 */});
+})();
+</script>
 </body>
 </html>
