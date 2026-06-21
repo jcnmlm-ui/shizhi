@@ -1,1 +1,16 @@
+# ── 後台（含付款功能，勿公開）────────────────────────
 admin.html
+
+# ── 專案內部文件（勿公開）────────────────────────────
+CLAUDE.md
+memory.md
+.claude/
+marketing-seo-plan.md
+supabase_setup.sql
+index.ts
+md2pdf.py
+
+# ── 產品規劃書（任何版本、任何格式）───────────────────
+時值_產品規劃書*.md
+時值_產品規劃書*.pdf
+準備物品.md
