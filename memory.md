@@ -1,6 +1,6 @@
 # 時值專案 — 進度記錄
 
-> 最後更新：2026/06/16（SortableJS 升級後）
+> 最後更新：2026/06/21（Phase B 綜所稅試算模組上線）
 > 此檔案記錄每次對話後的變更，供 Claude Code 跨對話保持上下文。
 
 ---
@@ -11,7 +11,7 @@
 |---|---|
 | 前台 (GitHub Pages) | ✅ 運作中 `jcnmlm-ui.github.io/shizhi/` |
 | 後台 admin.html | ✅ 本機運作 |
-| Supabase DB | ✅ 16 張表，所有 migration 已套用 |
+| Supabase DB | ✅ 17 張表（含 fp_policies），所有 migration 已套用 |
 | Edge Function get-features | ✅ 已部署（v2，含 addons） |
 | 付款流程（匯款末五碼）| ✅ 前端 Modal + DB 完成，人工處理中 |
 | Claude Code 環境 | ✅ 已安裝，路徑 `C:\Users\user\shizhi` |
@@ -68,7 +68,7 @@
 | postal | 郵局薪資試算 | 99 | available |
 | startup | 創業財務模板 | 299 | coming_soon |
 | realestate | 房地產投報試算 | 99 | coming_soon |
-| taxcalc | 綜所稅試算 | 299 | coming_soon |
+| taxcalc | 綜所稅試算 | 299 | available ✅ 2026/06/21 上線 |
 | budgetai | AI 支出健檢 | 199 | coming_soon |
 
 ---
@@ -160,6 +160,25 @@
 
 ---
 
+### 保險防護模組（2026/06）
+- ✅ fp_policies 資料表（第 17 張）：保單清單列式管理
+- ✅ 保障概況三維（壽險保障 + 保費概況 + 壽險時間軸 Chart.js）
+- ✅ 壽險缺口計算改用可變現資產（exclude_projection=false），排除自住房避免缺口失真
+- ✅ Phase A 節稅提示嵌入三個模組：
+  - 保險防護：商業保費列舉扣除（上限 NT$24,000/人）
+  - 勞退勞保：自提金額 × 邊際稅率 = 年節稅金額（含 30 年累計）
+  - 投資配置：台股/ETF 配息補充保費 2.11% + 合併 vs 分離課稅說明
+- ✅ 新增 estimateMarginalTaxRate()：依台灣累進稅率估算邊際稅率
+
+### 綜所稅試算加購模組 Phase B（2026/06/21）
+- ✅ taxcalc 模組從 coming_soon 改為 available（NT$299 買斷）
+- ✅ 完整計算流程（113 稅務年度）：免稅額、標準/列舉扣除、特別扣除、累進稅率
+- ✅ 標準 vs 列舉即時比較，自動建議哪種划算並估算差額節稅
+- ✅ 退稅/補稅試算（需填入扣繳稅款）
+- ✅ 各級距明細（摺疊顯示）
+- ✅ 薪資所得自動帶入 sumAnnual(state.incomes)
+- ✅ data-tax attribute 處理字串型設定（tax_filing 等），新增全域 handler
+
 ### 內容行銷 / SEO（2026/06）
 - ✅ fp_posts 資料表（已透過 Claude.ai/Supabase MCP 建立，非 Claude Code 建立）
 - ✅ story.html：公開故事/案例分享頁面（列表+深連結詳細頁、marked.js Markdown 渲染、篩選 tabs、動態 JSON-LD）
@@ -187,8 +206,9 @@
 - [ ] startup 模組目前 status=coming_soon（DB），需要確認是否要改 available
 - [ ] site.newsletter_url 尚未設定（開發中模組的追蹤連結）
 
-### Phase 3 計算強化（未做）
-- [ ] 綜所稅自動估算
+### Phase 3 計算強化（部分完成）
+- [x] 綜所稅自動估算 → Phase B 已完成（加購模組）
+- [ ] 綜所稅 Phase C：股利二擇一試算（合併 vs 分離 28%，含 8.5% 抵減）
 - [ ] XIRR/IRR 不規則現金流
 - [ ] 勞保提前/延後請領（邏輯已做，需 UI 測試）
 - [ ] 蒙地卡羅相關係數進一步優化
