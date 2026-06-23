@@ -65,6 +65,9 @@ nav{
 .card-cat{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:99px;margin-bottom:10px}
 .card-cat.story{background:var(--primary-soft);color:var(--primary-2)}
 .card-cat.case_study{background:var(--accent-soft);color:var(--accent)}
+.card-cat.finance_knowledge{background:#e8f4fd;color:#1a6fa8}
+.card-cat.finance_concept{background:#f3e8ff;color:#6d28d9}
+.card-cat.creator_note{background:#fff0f6;color:#be185d}
 .card-title{font-family:var(--font-display);font-size:19px;font-weight:500;line-height:1.35;margin-bottom:8px;color:var(--ink)}
 .card-excerpt{font-size:13.5px;color:var(--muted);line-height:1.6;margin-bottom:14px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .card-meta{font-size:12px;color:var(--faint);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -131,7 +134,9 @@ footer a{color:var(--primary);margin:0 6px}
     <div class="filter-bar">
       <button class="filter-btn active" data-filter="all" onclick="setFilter('all')">全部</button>
       <button class="filter-btn" data-filter="story" onclick="setFilter('story')">產品故事</button>
-      <button class="filter-btn" data-filter="case_study" onclick="setFilter('case_study')">服務案例分享</button>
+      <button class="filter-btn" data-filter="finance_knowledge" onclick="setFilter('finance_knowledge')">理財知識</button>
+      <button class="filter-btn" data-filter="finance_concept" onclick="setFilter('finance_concept')">理財觀念</button>
+      <button class="filter-btn" data-filter="creator_note" onclick="setFilter('creator_note')">創作者心得</button>
     </div>
     <div id="post-grid"><div class="loading">載入文章中…</div></div>
   </div>
@@ -156,7 +161,7 @@ const SUPABASE_URL = 'https://haxfwofjrfkjwestfzvk.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhheGZ3b2ZqcmZrandlc3RmenZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NTg2NzQsImV4cCI6MjA5NjIzNDY3NH0.j-mo1J0D-xDmsLb1sTBjthKHXMJVu1Y_bj5akCKE07w';
 const SITE_BASE = 'https://jcnmlm-ui.github.io/shizhi/';
 
-const CAT_LABELS = { story: '產品故事', case_study: '服務案例分享' };
+const CAT_LABELS = { story: '產品故事', case_study: '服務案例分享', finance_knowledge: '理財知識', finance_concept: '理財觀念', creator_note: '創作者心得' };
 
 let posts = [];
 let currentFilter = 'all';
@@ -182,7 +187,7 @@ async function loadPosts() {
 }
 
 function cardHtml(p) {
-  const catCls = p.category === 'case_study' ? 'case_study' : 'story';
+  const catCls = ['case_study','finance_knowledge','finance_concept','creator_note'].includes(p.category) ? p.category : 'story';
   const catLabel = CAT_LABELS[p.category] || p.category;
   return `
     <a class="post-card" href="?post=${esc(p.slug)}" onclick="openPost(event,'${esc(p.slug)}')">
@@ -260,7 +265,7 @@ function showDetail(post) {
     ? '<b>案例說明：</b>本案例已完整去識別化處理，人名、金額等識別資訊均已修改，並已取得當事人同意分享。所有內容僅供參考，不構成投資建議或個別財務規劃建議。重大財務決策請諮詢具有合法資格的財務或法律專業人士。'
     : '<b>免責聲明：</b>本文內容僅供參考，不構成投資建議或財務規劃建議。重大財務決策請諮詢具有合法資格的財務或法律專業人士。';
 
-  const catCls = post.category === 'case_study' ? 'case_study' : 'story';
+  const catCls = ['case_study','finance_knowledge','finance_concept','creator_note'].includes(post.category) ? post.category : 'story';
   const catLabel = CAT_LABELS[post.category] || post.category;
   const htmlBody = marked.parse(post.content || '');
 
