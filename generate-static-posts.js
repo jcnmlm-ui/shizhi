@@ -14,7 +14,7 @@ const https = require('https');
 
 const SUPABASE_URL  = 'https://haxfwofjrfkjwestfzvk.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhheGZ3b2ZqcmZrandlc3RmenZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NTg2NzQsImV4cCI6MjA5NjIzNDY3NH0.j-mo1J0D-xDmsLb1sTBjthKHXMJVu1Y_bj5akCKE07w';
-const SITE_BASE     = 'https://jcnmlm-ui.github.io/shizhi/';
+const SITE_BASE     = 'https://valuelens.tw/';
 const OUT_DIR       = path.join(__dirname, 'posts');
 
 function httpsGet(url, headers) {
@@ -153,7 +153,7 @@ async function main() {
   console.log('  🗺️  sitemap.xml 已更新');
 
   console.log('\n✨ 完成！記得 git add posts/ sitemap.xml && git push');
-  console.log('   分享連結格式：https://jcnmlm-ui.github.io/shizhi/posts/{slug}/');
+  console.log('   分享連結格式：https://valuelens.tw/posts/{slug}/');
 }
 
 main().catch(e => { console.error('❌', e.message); process.exit(1); });
