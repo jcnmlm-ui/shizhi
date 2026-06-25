@@ -93,6 +93,16 @@ nav{
 .article-body pre code{background:none;padding:0;color:inherit;font-size:13px}
 .article-body hr{border:none;border-top:1px solid var(--line);margin:36px 0}
 .article-body img{max-width:100%;border-radius:10px;margin:16px 0}
+/* Editor.js 圖片區塊 */
+.article-img{margin:20px 0}
+.article-img img{max-width:100%;border-radius:10px;display:block;margin:0 auto}
+.article-img figcaption{text-align:center;font-size:13px;color:var(--muted);margin-top:6px}
+.img-stretched img{width:100%}
+.img-background{background:var(--surface-2);padding:16px;border-radius:12px}
+.img-border img{border:1px solid var(--line-2)}
+/* YouTube / embed */
+.embed-wrap{margin:20px 0}
+.embed-wrap iframe{width:100%;aspect-ratio:16/9;border-radius:10px;border:0}
 .article-body table{width:100%;border-collapse:collapse;margin-bottom:18px;font-size:14px}
 .article-body th{background:var(--primary-soft);color:var(--primary-2);padding:9px 12px;text-align:left;font-weight:700}
 .article-body td{padding:9px 12px;border-bottom:1px solid var(--line)}
@@ -169,6 +179,57 @@ let currentFilter = 'all';
 function esc(s) {
   return String(s ?? '')
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function escHtml(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderBlock(block) {
+  const d = block.data || {};
+  switch (block.type) {
+    case 'header':
+      return `<h${d.level}>${d.text}</h${d.level}>`;
+    case 'paragraph':
+      return d.text ? `<p>${d.text}</p>` : '';
+    case 'image': {
+      const cls = ['article-img', d.stretched ? 'img-stretched' : '', d.withBackground ? 'img-background' : '', d.withBorder ? 'img-border' : ''].filter(Boolean).join(' ');
+      return `<figure class="${cls}"><img src="${escHtml(d.file?.url||'')}" alt="${escHtml(d.caption||'')}">
+        ${d.caption ? `<figcaption>${d.caption}</figcaption>` : ''}</figure>`;
+    }
+    case 'list': {
+      const tag = d.style === 'ordered' ? 'ol' : 'ul';
+      const items = (d.items||[]).map(i => `<li>${typeof i === 'string' ? i : (i.content||'')}</li>`).join('');
+      return `<${tag}>${items}</${tag}>`;
+    }
+    case 'quote':
+      return `<blockquote>${d.text}${d.caption ? `<cite>— ${d.caption}</cite>` : ''}</blockquote>`;
+    case 'delimiter':
+      return '<hr>';
+    case 'code':
+      return `<pre><code>${escHtml(d.code||'')}</code></pre>`;
+    case 'embed':
+      return `<div class="embed-wrap"><iframe src="${escHtml(d.embed||'')}" allowfullscreen></iframe></div>`;
+    case 'table': {
+      const rows = (d.content||[]).map((row, i) => {
+        const tag = i === 0 && d.withHeadings ? 'th' : 'td';
+        return `<tr>${row.map(c=>`<${tag}>${c}</${tag}>`).join('')}</tr>`;
+      }).join('');
+      return `<table>${rows}</table>`;
+    }
+    default: return '';
+  }
+}
+
+function renderContent(content) {
+  if (!content) return '';
+  try {
+    const data = JSON.parse(content);
+    if (data.blocks && Array.isArray(data.blocks)) {
+      return data.blocks.map(renderBlock).join('');
+    }
+  } catch {}
+  return marked.parse(content);
 }
 
 function fmtDate(ts) {
@@ -267,7 +328,7 @@ function showDetail(post) {
 
   const catCls = ['case_study','finance_knowledge','finance_concept','creator_note'].includes(post.category) ? post.category : 'story';
   const catLabel = CAT_LABELS[post.category] || post.category;
-  const htmlBody = marked.parse(post.content || '');
+  const htmlBody = renderContent(post.content || '');
 
   document.getElementById('article-content').innerHTML = `
     <div class="article-emoji">${esc(post.cover_emoji || '📝')}</div>
