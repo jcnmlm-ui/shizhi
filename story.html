@@ -223,12 +223,14 @@ function renderBlock(block) {
 
 function renderContent(content) {
   if (!content) return '';
+  // Editor.js JSON（舊格式）
   try {
     const data = JSON.parse(content);
-    if (data.blocks && Array.isArray(data.blocks)) {
-      return data.blocks.map(renderBlock).join('');
-    }
+    if (data.blocks && Array.isArray(data.blocks)) return data.blocks.map(renderBlock).join('');
   } catch {}
+  // TipTap HTML（新格式）
+  if (content.trim().startsWith('<')) return content;
+  // 舊 Markdown fallback
   return marked.parse(content);
 }
 
