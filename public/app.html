@@ -341,7 +341,7 @@
     "@type": "Offer",
     "price": "0",
     "priceCurrency": "TWD",
-    "description": "免費版提供基礎功能，完整版與訂閱制提供進階模組"
+    "description": "免費版提供基礎功能與試算工具，完整版與訂閱制提供進階模組"
   }
 }
 </script>
@@ -602,7 +602,7 @@ const PAYMENT_CONFIG = {
 
 /* ===== 功能旗標（Feature Flags） ===== */
 // 預設：未登入只開放基礎功能（登入後由 Edge Function 覆寫）
-let allowedFeatures = ['dash','flow','balance','goals','report','settings','addon-store'];
+let allowedFeatures = ['dash','flow','balance','goals','report','settings','addon-store','pension','postal','taxcalc'];
 let currentPlan = 'free';   // 'free' | 'full' | 'subscription' | 'local'(dev)
 let allowedAddons = [];      // 已購買的加購模組 module_key 清單
 
@@ -626,17 +626,6 @@ function hasAddon(key){ return allowedAddons.includes(key); }
 
 // ── 加購模組登記表（新模組只需在這裡加一筆）────────────────
 const ADDON_REGISTRY = {
-  postal: {
-    label:       '郵局薪資試算',
-    description: '中華郵政職階薪級制、逐年薪資成長推估、碰頂獎金、年收入加總與平均年薪試算',
-    icon:        '📮',
-    navIcon:     '<path d="M4 7h16v12H4z"/><path d="M4 10h16"/><circle cx="8" cy="14.5" r="1.3"/><path d="M13 14h5"/>',
-    price_onetime: 499,
-    featureKey:  'postal',   // 相容：canAccess('postal')=true 的舊完整版用戶也可使用
-    sectionId:   'tab-postal',
-    status:      'available',
-    render:      ()=> renderPostal(),
-  },
   startup: {
     label:       '創業財務模板',
     description: '燒錢率、資金跑道、損益平衡點、月收入目標追蹤、里程碑清單',
@@ -656,16 +645,6 @@ const ADDON_REGISTRY = {
     sectionId:   'tab-realestate',
     status:      'coming_soon',
     render:      ()=> renderComingSoon('realestate'),
-  },
-  taxcalc: {
-    label:       '綜所稅試算',
-    description: '薪資所得年稅額估算、各項扣除額、退補稅概算',
-    icon:        '📊',
-    navIcon:     '<path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/>',
-    price_onetime: 299,
-    sectionId:   'tab-taxcalc',
-    status:      'available',
-    render:      ()=> renderTaxCalc(),
   },
 };
 
@@ -696,10 +675,14 @@ const NAV_GROUPS = [
     { tab:'report',    label:'建議報告', icon:'<path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/>' },
     { tab:'settings',  label:'設定',     icon:'<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 00-.1-1.2l2-1.5-2-3.4-2.3 1a7 7 0 00-2-1.2l-.3-2.5h-4l-.3 2.5a7 7 0 00-2 1.2l-2.3-1-2 3.4 2 1.5A7 7 0 005 12a7 7 0 00.1 1.2l-2 1.5 2 3.4 2.3-1a7 7 0 002 1.2l.3 2.5h4l.3-2.5a7 7 0 002-1.2l2.3 1 2-3.4-2-1.5A7 7 0 0019 12z"/>' },
   ]},
+  { label: '免費試算', items: [
+    { tab:'pension',  label:'勞退勞保', icon:'<path d="M3 21h18"/><path d="M5 21V8l7-4 7 4v13"/><path d="M9 21v-6h6v6"/>' },
+    { tab:'postal',   label:'郵局薪資', icon:'<path d="M4 7h16v12H4z"/><path d="M4 10h16"/><circle cx="8" cy="14.5" r="1.3"/><path d="M13 14h5"/>' },
+    { tab:'taxcalc',  label:'綜所稅試算', icon:'<path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/>' },
+  ]},
   { label: '進階模組', items: [
     { tab:'children',  label:'子女養育', icon:'<circle cx="9" cy="7" r="3"/><path d="M3.5 21v-2a5.5 5.5 0 0111 0v2"/><circle cx="17.5" cy="9" r="2"/><path d="M16.5 21v-1a4 4 0 013.5-4"/>' },
     { tab:'purchases', label:'分期採購', icon:'<path d="M5 11l1.4-4.2A2 2 0 018.3 5.4h7.4a2 2 0 011.9 1.4L19 11"/><path d="M4 11h16v5H4z"/><circle cx="7.5" cy="16.5" r="1.4"/><circle cx="16.5" cy="16.5" r="1.4"/>' },
-    { tab:'pension',   label:'勞退勞保', icon:'<path d="M3 21h18"/><path d="M5 21V8l7-4 7 4v13"/><path d="M9 21v-6h6v6"/>' },
     { tab:'insurance', label:'保險防護', icon:'<path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/>' },
     { tab:'portfolio', label:'投資配置', icon:'<path d="M12 3a9 9 0 109 9h-9z"/><path d="M12 3v9h9A9 9 0 0012 3z" opacity=".4"/>' },
   ]},
@@ -832,8 +815,10 @@ const POSTAL_BANDS = [
   {key:'prof1', name:'專業職(一)'},
   {key:'prof2', name:'專業職(二)'},
 ];
-// 各職階封頂薪級
-const POSTAL_BAND_CAP = { mgmt1:1, mgmt2:6, ops:17, prof1:29, prof2:36 };
+// 各職階封頂薪級（升至此停止晉升）
+const POSTAL_BAND_CAP   = { mgmt1:1,  mgmt2:6,  ops:17, prof1:29, prof2:36 };
+// 各職階保底薪級（起跳，目前薪級不可高於此數）
+const POSTAL_BAND_FLOOR = { mgmt1:19, mgmt2:25, ops:41, prof1:53, prof2:55 };
 // 郵局預設：專業職(二)・薪級55・115年入局新進人員
 const DEFAULT_POSTAL = { enabled:false, level:55, layer:3, step:1, max_level:36, bonus_months:0, band:'prof2', join_year:115 };
 
@@ -889,7 +874,7 @@ const Store = {
         this.mode='cloud';
         const { data } = await sb.auth.getSession();
         session = data.session;
-        sb.auth.onAuthStateChange(async (e,s)=>{ session=s; if(e==='PASSWORD_RECOVERY') pwRecovery=true; renderCloudArea(); if(s){ await fetchFeatures(); renderNav(); await Store.loadAll(); renderAll(); rerenderActiveTab(); if(e==='SIGNED_IN'){ maybeShowTourPrompt(); } } else { allowedFeatures=['dash','flow','balance','goals','report','settings','addon-store']; currentPlan='free'; allowedAddons=[]; closeUpgradeModal(); syncPrintBtn(); renderAll(); } });
+        sb.auth.onAuthStateChange(async (e,s)=>{ session=s; if(e==='PASSWORD_RECOVERY') pwRecovery=true; renderCloudArea(); if(s){ await fetchFeatures(); renderNav(); await Store.loadAll(); renderAll(); rerenderActiveTab(); if(e==='SIGNED_IN'){ maybeShowTourPrompt(); } } else { allowedFeatures=['dash','flow','balance','goals','report','settings','addon-store','pension','postal','taxcalc']; currentPlan='free'; allowedAddons=[]; closeUpgradeModal(); syncPrintBtn(); renderAll(); } });
       }catch(err){ console.error('Supabase 載入失敗，改用本地模式',err); this.mode='local'; }
     }
   },
@@ -2552,15 +2537,17 @@ function renderPostal(){
     body.innerHTML=h+`<div class="card" style="background:var(--surface-2)"><p class="hint" style="margin:0">中華郵政「職階人員待遇表」（114/1/1 起）採薪級制：每年晉升一個薪級，薪額隨之提高（薪級數字越小薪額越高）；另依「職責層次」加上「職務加發薪額」（職位加給）。<br><br>勾選上方開關啟用，並填入你的薪級與職責層次即可。停用時，系統沿用「設定」頁的固定薪資成長率。</p></div>`;
     return;
   }
-  const layerOpts=POSTAL_ALLOW.map((a,i)=>{const L=i+1;const t=POSTAL_TITLE[L]?(' '+POSTAL_TITLE[L]):'';return `<option value="${L}" ${L==Math.round(p.layer)?'selected':''}>${L}${t}（加發 ${fmtMoney(a).replace('NT$','')}）</option>`;}).join('');
+  const layerOpts=POSTAL_ALLOW.map((a,i)=>{const L=i+1;return `<option value="${L}" ${L==Math.round(p.layer)?'selected':''}>${L}（加發 ${fmtMoney(a).replace('NT$','')}）</option>`;}).join('');
   const curBand=(p.band==='ops1'||p.band==='ops2')?'ops':(p.band||'prof2');
-  const bandOpts=POSTAL_BANDS.map(b=>`<option value="${b.key}" ${b.key===curBand?'selected':''}>${b.name}${POSTAL_BAND_CAP[b.key]!=null?'（封頂 '+POSTAL_BAND_CAP[b.key]+' 級）':''}</option>`).join('');
+  const bandOpts=POSTAL_BANDS.map(b=>`<option value="${b.key}" ${b.key===curBand?'selected':''}>${b.name}${(POSTAL_BAND_CAP[b.key]!=null&&POSTAL_BAND_FLOOR[b.key]!=null)?'（薪級 '+POSTAL_BAND_CAP[b.key]+'–'+POSTAL_BAND_FLOOR[b.key]+'）':''}</option>`).join('');
+  const curCap=POSTAL_BAND_CAP[curBand]||1;
+  const curFloor=POSTAL_BAND_FLOOR[curBand]||60;
   const m0=postalMonthlyAtYear(0), a0=postalAnnualAtYear(0);
   const svc=postalServiceNow();
   h+=`<div class="card">
     <div class="cgrid" style="grid-template-columns:repeat(3,1fr)">
       <div class="cfield"><label>職階</label><select data-postal="band">${bandOpts}</select></div>
-      <div class="cfield"><label>目前薪級 <span class="tip" data-tip="1=最高薪級，60=最低薪級。數字越小、薪額越高。">ⓘ</span></label><input type="number" min="1" max="60" data-postal="level" value="${Math.round(p.level)}"></div>
+      <div class="cfield"><label>目前薪級 <span class="tip" data-tip="1=最高薪級，60=最低薪級。數字越小、薪額越高。此職階合法範圍 ${curCap}–${curFloor} 級。">ⓘ</span></label><input type="number" min="${curCap}" max="${curFloor}" data-postal="level" value="${Math.round(p.level)}"></div>
       <div class="cfield"><label>職責層次（職位加給）</label><select data-postal="layer">${layerOpts}</select></div>
     </div>
     <div class="cgrid" style="grid-template-columns:repeat(4,1fr)">
@@ -3619,6 +3606,8 @@ function rerenderActiveTab(){
   else if(tab==='children') renderChildren();
   else if(tab==='purchases') renderPurchases();
   else if(tab==='pension') renderPension();
+  else if(tab==='postal') renderPostal();
+  else if(tab==='taxcalc') renderTaxCalc();
   else if(tab==='insurance') renderInsurance();
   else if(tab==='snapshots') renderSnapshots();
 }
@@ -3803,6 +3792,8 @@ document.getElementById('nav').addEventListener('click',e=>{
   if(tab==='children') renderChildren();
   if(tab==='purchases') renderPurchases();
   if(tab==='pension') renderPension();
+  if(tab==='postal') renderPostal();
+  if(tab==='taxcalc') renderTaxCalc();
   if(tab==='insurance') renderInsurance();
   if(tab==='snapshots') renderSnapshots();
   if(tab==='addon-store') renderAddonStore();
@@ -4060,7 +4051,7 @@ function upgradeCard(tab){
   }
 
   // ── 一般功能升級提示 ──────────────────────────────────────────
-  const info={children:{name:'子女養育'},purchases:{name:'分期採購'},postal:{name:'郵局薪資'},pension:{name:'勞退勞保'},insurance:{name:'保險防護'},portfolio:{name:'投資配置'},snapshots:{name:'歷史規劃紀錄（訂閱）'}};
+  const info={children:{name:'子女養育'},purchases:{name:'分期採購'},insurance:{name:'保險防護'},portfolio:{name:'投資配置'},snapshots:{name:'歷史規劃紀錄（訂閱）'}};
   const nm=(info[tab]||{name:tab}).name;
   const planLabel2={free:'試用版',full:'完整版',subscription:'訂閱制',local:'本地模式'}[currentPlan]||currentPlan;
   return `<div style="max-width:420px;margin:60px auto;text-align:center;padding:0 20px">
@@ -4199,6 +4190,8 @@ document.addEventListener('change', async e=>{
     if(f==='band'){
       state.postal.band=t.value;
       if(POSTAL_BAND_CAP[t.value]!=null) state.postal.max_level=POSTAL_BAND_CAP[t.value];
+      const newCap=POSTAL_BAND_CAP[t.value]||1, newFloor=POSTAL_BAND_FLOOR[t.value]||60;
+      state.postal.level=Math.min(newFloor, Math.max(newCap, state.postal.level||newFloor));
     } else if(f==='bonus_months'){
       state.postal.bonus_months=parseFloat(t.value)||0;
     } else if(f==='join_year'){
