@@ -74,10 +74,11 @@ ${dateStr ? `<meta property="article:published_time" content="${dateStr}" />` : 
 
 function makeSitemap(posts) {
   const staticPages = [
-    { url: `${SITE_BASE}/`,        priority: '1.0' },
-    { url: `${SITE_BASE}/story/`,  priority: '0.9' },
-    { url: `${SITE_BASE}/about/`,  priority: '0.8' },
-    { url: `${SITE_BASE}/terms/`,  priority: '0.5' },
+    { url: `${SITE_BASE}/`,                        priority: '1.0' },
+    { url: `${SITE_BASE}/story/`,                  priority: '0.9' },
+    { url: `${SITE_BASE}/about/`,                  priority: '0.8' },
+    { url: `${SITE_BASE}/tools/postal-salary/`,    priority: '0.8' },
+    { url: `${SITE_BASE}/terms/`,                  priority: '0.5' },
   ];
   const postPages = posts.map(p => ({
     url: `${SITE_BASE}/story/${p.slug}/`,

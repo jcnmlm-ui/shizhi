@@ -1,0 +1,421 @@
+---
+import Base from '../../layouts/Base.astro';
+
+const schema = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'WebApplication',
+  name: '郵局薪資試算器',
+  url: 'https://valuelens.tw/tools/postal-salary/',
+  description: '中華郵政職階薪資免費試算。輸入薪級、職責層次、入職年，即時計算月薪、年薪與薪資成長曲線。',
+  applicationCategory: 'FinanceApplication',
+  operatingSystem: 'Web',
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'TWD' },
+});
+---
+<Base
+  title="郵局薪資試算 2025 · 中華郵政職階薪額計算器"
+  description="中華郵政職階薪資免費試算。輸入薪級、職責層次、入職年，即時計算月薪、年薪、薪資成長曲線與職涯總收入。考郵局、現職人員必看。"
+>
+  <Fragment slot="head">
+    <script type="application/ld+json" set:html={schema} />
+    <link rel="canonical" href="https://valuelens.tw/tools/postal-salary/" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js" defer></script>
+  </Fragment>
+
+  <nav>
+    <a class="nav-brand" href="/">時值</a>
+    <a class="nav-tool" href="/app.html">前往工具 →</a>
+  </nav>
+
+  <div class="wrap">
+    <div class="page-header">
+      <div class="eyebrow">免費試算工具</div>
+      <h1>中華郵政薪資試算</h1>
+      <p>依照 114/1/1 起「職階人員待遇表」，輸入你的薪級與職責層次，<br>即時試算月薪、年薪成長曲線與職涯總收入。</p>
+    </div>
+
+    <!-- 輸入區 -->
+    <div class="card">
+      <h2>基本設定</h2>
+      <div class="grid3">
+        <div class="field">
+          <label>職階</label>
+          <select id="inp-band">
+            <option value="mgmt1">經營職（一）封頂第1級</option>
+            <option value="mgmt2">經營職（二）封頂第6級</option>
+            <option value="ops">營運職　　封頂第17級</option>
+            <option value="prof1">專業職（一）封頂第29級</option>
+            <option value="prof2" selected>專業職（二）封頂第36級</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>目前薪級 <span class="tip">1=最高・60=最低</span></label>
+          <input type="number" id="inp-level" min="1" max="60" value="55">
+        </div>
+        <div class="field">
+          <label>職責層次（職位加給）</label>
+          <select id="inp-layer"></select>
+        </div>
+      </div>
+      <div class="grid4">
+        <div class="field">
+          <label>封頂薪級 <span class="tip">選職階自動帶入</span></label>
+          <input type="number" id="inp-cap" min="1" max="60" value="36">
+        </div>
+        <div class="field">
+          <label>入職年（民國）<span class="tip">填入啟用5年跳級</span></label>
+          <input type="number" id="inp-join" value="115" placeholder="如 101 或 2012">
+        </div>
+        <div class="field">
+          <label>每年晉升薪級數</label>
+          <input type="number" id="inp-step" min="0" max="5" value="1">
+        </div>
+        <div class="field">
+          <label>每年獎金（月數）</label>
+          <input type="number" id="inp-bonus" min="0" max="12" step="0.1" value="0">
+        </div>
+      </div>
+      <div class="grid2-narrow">
+        <div class="field">
+          <label>目前年齡</label>
+          <input type="number" id="inp-age" min="18" max="70" value="25">
+        </div>
+        <div class="field">
+          <label>預計退休年齡</label>
+          <input type="number" id="inp-retire" min="50" max="75" value="60">
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI -->
+    <div class="kpi-row" id="kpi-row"></div>
+
+    <!-- 圖表 -->
+    <div class="card">
+      <h2 id="chart-title">薪資成長推估</h2>
+      <div class="chart-wrap"><canvas id="postalChart"></canvas></div>
+    </div>
+
+    <!-- 表格 -->
+    <div class="card">
+      <h2>逐年薪資明細</h2>
+      <div class="table-wrap">
+        <table id="postal-table">
+          <thead><tr><th>年齡</th><th>薪級</th><th class="r">月薪</th><th class="r">年薪（含獎金）</th></tr></thead>
+          <tbody id="postal-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 總覽 -->
+    <div class="card summary-card" id="summary-card"></div>
+
+    <!-- 說明 -->
+    <div class="card note-card">
+      <h2>薪資制度說明</h2>
+      <p><b>職階與封頂：</b>選擇職階會自動帶入封頂薪級（經營職一=1、經營職二=6、營運職=17、專業職一=29、專業職二=36）。升到封頂後停止晉升，之後<b>每年固定加發 1 個月「碰頂加給」</b>，薪級不再往上、年薪持平。</p>
+      <p><b>每5年跳級：</b>填入入職年後，<b>服務滿 5 年的第 6 年起、每滿 5 年額外多跳 1 個薪級</b>（第6、11、16…年），表格標「年資跳級」；若該年已封頂，改為當年加發 2 個月，標「碰頂+2月（年資跳級）」。</p>
+      <p><b>職責層次：</b>依「職務加發薪額」加給，第1層無加給，第6層起對應職稱（稽查=6、專員=8、股長二=11…）。</p>
+      <p><b>資料來源：</b>中華郵政「職階人員待遇表」114/1/1 生效版。如有異動請告知更新。本工具僅供估算，實際薪資以核發為準。</p>
+    </div>
+
+    <!-- CTA -->
+    <div class="cta-box">
+      <div class="cta-icon">📊</div>
+      <div class="cta-content">
+        <div class="cta-title">想把郵局薪資整合進整體財務規劃？</div>
+        <div class="cta-sub">時值可以幫你把薪資成長、儲蓄目標、退休規劃、勞保勞退一起計算，免費開始使用。</div>
+      </div>
+      <a href="/app.html#login" class="cta-btn">免費試用時值 →</a>
+    </div>
+  </div>
+
+  <footer>
+    <a href="/about">關於我們</a>
+    <a href="/terms">使用者條款</a>
+    <a href="/story">理財文章</a>
+    <a href="/">時值 · 財務地圖</a>
+  </footer>
+</Base>
+
+<script>
+// ── 薪資資料（114/1/1 起）──────────────────────────
+const POSTAL_PAY = [89205,87255,85305,83355,81970,80575,79190,77795,76395,75160,
+74335,73505,72680,71850,71020,70195,69360,68545,67760,66980,
+66190,65405,64630,63840,63055,62270,61535,60785,60640,59880,
+59315,58755,58190,57630,57070,56350,55280,54220,53165,52110,
+51055,50000,48890,47785,46680,45580,44470,43300,42350,41390,
+41130,39885,38640,37405,36250,35090,33935,32770,31615,30460];
+
+const POSTAL_ALLOW = [0,4055,5405,6755,8110,9460,10810,12835,15875,18915,
+21955,24995,29050,33100,37155,41210,45260,51340,59445];
+
+const POSTAL_TITLE = {6:'稽查',8:'專員',11:'股長(二)',12:'股長(一)',14:'副科長',16:'科長',17:'副理',18:'大經理',19:'協理'};
+
+const POSTAL_BAND_CAP = { mgmt1:1, mgmt2:6, ops:17, prof1:29, prof2:36 };
+
+// ── 格式化 ──────────────────────────────────────────
+function fmtMoney(v){ return 'NT$' + Math.round(v).toLocaleString('zh-TW'); }
+
+// ── 計算函式 ─────────────────────────────────────────
+function baseAt(lv){ const i=Math.min(60,Math.max(1,Math.round(lv)))-1; return POSTAL_PAY[i]||0; }
+function allowAt(layer){ const i=Math.min(19,Math.max(1,Math.round(layer)))-1; return POSTAL_ALLOW[i]||0; }
+
+function getInputs(){
+  const band   = document.getElementById('inp-band').value;
+  const level  = Math.round(Number(document.getElementById('inp-level').value)||55);
+  const layer  = Math.round(Number(document.getElementById('inp-layer').value)||3);
+  const cap    = Math.round(Number(document.getElementById('inp-cap').value)||36);
+  const joinRaw= Number(document.getElementById('inp-join').value)||0;
+  const join   = joinRaw > 1911 ? joinRaw - 1911 : joinRaw; // 支援西元年
+  const step   = Math.max(0, Math.round(Number(document.getElementById('inp-step').value)||1));
+  const bonus  = Math.max(0, Number(document.getElementById('inp-bonus').value)||0);
+  const age    = Math.round(Number(document.getElementById('inp-age').value)||25);
+  const retire = Math.round(Number(document.getElementById('inp-retire').value)||60);
+  return { band, level, layer, cap, join, step, bonus, age, retire };
+}
+
+function serviceNow(inp){
+  if(!inp.join) return -1;
+  const curYear = 114; // 民國114年
+  return Math.max(0, curYear - inp.join);
+}
+
+function advance(t, inp){
+  const svc = serviceNow(inp);
+  let adv = inp.step * t;
+  if(svc >= 0){
+    for(let y=1; y<=t; y++){
+      const totalSvc = svc + y;
+      if(totalSvc > 0 && totalSvc % 5 === 0) adv++;
+    }
+  }
+  return adv;
+}
+
+function rawLevelAt(t, inp){ return Math.round(inp.level) - advance(t, inp); }
+function levelAt(t, inp){ return Math.max(Math.round(inp.cap), rawLevelAt(t, inp)); }
+
+function isFiveYear(t, inp){
+  const svc = serviceNow(inp);
+  if(svc < 0) return false;
+  const totalSvc = svc + t;
+  return totalSvc > 0 && totalSvc % 5 === 0;
+}
+
+function capMonthsAt(t, inp){
+  const capped = rawLevelAt(t, inp) <= inp.cap;
+  if(!capped) return 0;
+  return isFiveYear(t, inp) ? 2 : 1;
+}
+
+function isMilestone(t, inp){
+  if(!isFiveYear(t, inp)) return false;
+  return rawLevelAt(t, inp) > inp.cap;
+}
+
+function monthlyAt(t, inp){ return baseAt(levelAt(t, inp)) + allowAt(inp.layer); }
+function annualAt(t, inp){ return monthlyAt(t, inp) * (12 + inp.bonus + capMonthsAt(t, inp)); }
+
+// ── 初始化下拉 ────────────────────────────────────────
+function initLayerSelect(){
+  const sel = document.getElementById('inp-layer');
+  POSTAL_ALLOW.forEach((a, i) => {
+    const L = i + 1;
+    const title = POSTAL_TITLE[L] ? ` · ${POSTAL_TITLE[L]}` : '';
+    const opt = document.createElement('option');
+    opt.value = L;
+    opt.textContent = `第${L}層${title}（加發 ${Math.round(a).toLocaleString('zh-TW')}）`;
+    if(L === 3) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+// ── 渲染 ──────────────────────────────────────────────
+let chart = null;
+function render(){
+  const inp = getInputs();
+  const svc = serviceNow(inp);
+
+  // KPI
+  const m0 = monthlyAt(0, inp);
+  const a0 = annualAt(0, inp);
+  const base0 = baseAt(inp.level);
+  const allow0 = allowAt(inp.layer);
+  document.getElementById('kpi-row').innerHTML = `
+    <div class="kpi"><div class="kpi-l">職階薪額（薪級 ${inp.level}）</div><div class="kpi-v">${fmtMoney(base0)}</div></div>
+    <div class="kpi"><div class="kpi-l">職位加給（第${inp.layer}層）</div><div class="kpi-v">${fmtMoney(allow0)}</div></div>
+    <div class="kpi"><div class="kpi-l">目前月薪（合計）</div><div class="kpi-v" style="color:var(--primary)">${fmtMoney(m0)}</div></div>
+    <div class="kpi"><div class="kpi-l">目前年薪（含獎金）</div><div class="kpi-v" style="color:var(--primary)">${fmtMoney(a0)}</div></div>
+  `;
+
+  // 逐年資料
+  const rows = [], labels = [], data = [];
+  const years = Math.max(0, inp.retire - inp.age);
+  for(let t = 0; t <= years; t++){
+    const age = inp.age + t;
+    const lv = levelAt(t, inp);
+    const mm = monthlyAt(t, inp);
+    const yy = annualAt(t, inp);
+    const capM = capMonthsAt(t, inp);
+    const ms = isMilestone(t, inp);
+    rows.push({ age, lv, mm, yy, capM, ms });
+    labels.push(String(age));
+    data.push(Math.round(yy));
+  }
+
+  // 表格
+  document.getElementById('postal-tbody').innerHTML = rows.map(r => {
+    let note = '';
+    if(r.capM === 2) note = '<span class="badge-g">碰頂+2月（年資跳級）</span>';
+    else if(r.capM === 1) note = '<span class="badge-m">碰頂+1月</span>';
+    else if(r.ms) note = '<span class="badge-g">年資跳級</span>';
+    return `<tr><td>${r.age} 歲</td><td>${r.lv}${note ? ' ' + note : ''}</td><td class="r">${fmtMoney(r.mm)}</td><td class="r">${fmtMoney(r.yy)}</td></tr>`;
+  }).join('');
+
+  // 圖表標題
+  document.getElementById('chart-title').textContent = `薪資成長推估（${inp.age} 歲 → 退休 ${inp.retire} 歲）`;
+
+  // Chart
+  if(typeof Chart !== 'undefined'){
+    if(chart) chart.destroy();
+    chart = new Chart(document.getElementById('postalChart'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: '年薪',
+          data,
+          borderColor: '#1E6B50',
+          backgroundColor: 'rgba(30,107,80,.12)',
+          fill: true,
+          tension: .25,
+          pointRadius: 0,
+          borderWidth: 2,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: c => '年薪 ' + fmtMoney(c.parsed.y) } },
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#9AA39B', font: { size: 11 }, maxTicksLimit: 12 } },
+          y: { grid: { color: '#EDE7D7' }, border: { display: false }, ticks: { color: '#9AA39B', font: { size: 11 }, callback: v => v >= 10000 ? Math.round(v / 10000) + '萬' : v } },
+        },
+      },
+    });
+  }
+
+  // 總覽
+  const total = rows.reduce((s, r) => s + r.yy, 0);
+  const avg = total / Math.max(1, rows.length);
+  const svcNote = svc >= 0 ? `<p class="hint" style="margin:8px 0 0">目前年資約 <b>${svc}</b> 年。未滿封頂前，每滿 5 年額外多跳 1 個薪級（下表標示「年資跳級」）。</p>` : `<p class="hint" style="margin:8px 0 0">未填入職年 → 不套用每5年加級規則，僅每年升一薪級。</p>`;
+  document.getElementById('summary-card').innerHTML = `
+    <div class="summary-grid">
+      <div class="kpi"><div class="kpi-l">職涯總收入（${inp.age}～${inp.retire} 歲，共 ${rows.length} 年）</div><div class="kpi-v" style="font-size:22px;color:var(--primary)">${fmtMoney(total)}</div></div>
+      <div class="kpi"><div class="kpi-l">平均年薪</div><div class="kpi-v" style="font-size:22px;color:var(--primary)">${fmtMoney(avg)}</div></div>
+    </div>
+    <p class="hint" style="margin:8px 0 0">為逐年「年薪（含獎金）」加總（名目金額，未計通膨折現）。</p>
+    ${svcNote}
+  `;
+}
+
+// ── 綁定事件 ──────────────────────────────────────────
+function bindAll(){
+  // 職階改變 → 自動帶入封頂薪級
+  document.getElementById('inp-band').addEventListener('change', function(){
+    const cap = POSTAL_BAND_CAP[this.value] || 36;
+    document.getElementById('inp-cap').value = cap;
+    render();
+  });
+
+  ['inp-level','inp-layer','inp-cap','inp-join','inp-step','inp-bonus','inp-age','inp-retire']
+    .forEach(id => document.getElementById(id).addEventListener('input', render));
+}
+
+// ── 初始化 ────────────────────────────────────────────
+initLayerSelect();
+bindAll();
+
+// Chart.js 可能還沒載入，等 DOMContentLoaded 後再 render
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', render);
+} else {
+  // defer 的 Chart.js 可能還沒好，稍等一下
+  setTimeout(render, 100);
+}
+</script>
+
+<style>
+nav { position: sticky; top: 0; z-index: 100; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; height: 60px; background: rgba(246,242,233,.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+.nav-brand { font-family: var(--font-display); font-weight: 600; font-size: 20px; color: var(--primary-2); }
+.nav-tool { font-size: 13.5px; color: var(--primary); font-weight: 500; }
+.nav-tool:hover { text-decoration: underline; }
+
+.wrap { max-width: 900px; margin: 0 auto; padding: 48px 40px 100px; }
+.page-header { margin-bottom: 32px; }
+.eyebrow { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--primary); background: var(--primary-soft); border-radius: 999px; padding: 4px 12px; margin-bottom: 12px; }
+.page-header h1 { font-family: var(--font-display); font-size: 32px; font-weight: 500; margin: 0 0 8px; }
+.page-header p { color: var(--muted); font-size: 14px; line-height: 1.7; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px 28px; box-shadow: var(--shadow); margin-bottom: 16px; }
+.card h2 { font-family: var(--font-display); font-size: 17px; font-weight: 500; margin: 0 0 16px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+
+.grid3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-bottom: 14px; }
+.grid4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-bottom: 14px; }
+.grid2-narrow { display: grid; grid-template-columns: repeat(2,1fr); gap: 16px; max-width: 440px; }
+
+.field label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 5px; }
+.field .tip { font-size: 11px; font-weight: 400; color: var(--faint); }
+.field input, .field select { width: 100%; border: 1.5px solid var(--line-2); border-radius: 8px; padding: 8px 10px; font-size: 14px; font-family: var(--font-body); background: var(--surface); color: var(--ink); }
+.field input:focus, .field select:focus { outline: none; border-color: var(--primary); }
+
+.kpi-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 16px; }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; box-shadow: var(--shadow); }
+.kpi-l { font-size: 11.5px; color: var(--muted); margin-bottom: 4px; }
+.kpi-v { font-family: var(--font-display); font-size: 19px; font-weight: 600; color: var(--ink); }
+
+.chart-wrap { height: 280px; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+thead th { background: var(--surface-2); font-size: 12px; color: var(--muted); font-weight: 600; padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--line); }
+tbody td { padding: 9px 12px; border-bottom: 1px solid var(--line); }
+tbody tr:last-child td { border-bottom: none; }
+.r { text-align: right; font-variant-numeric: tabular-nums; }
+
+.badge-g { background: var(--primary-soft); color: var(--primary-2); font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 99px; }
+.badge-m { background: var(--surface-2); color: var(--muted); font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 99px; }
+
+.summary-card { background: linear-gradient(135deg, var(--surface) 60%, var(--primary-soft)); border-color: var(--primary); border-width: 1.5px; }
+.summary-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 16px; }
+.hint { font-size: 13px; color: var(--muted); line-height: 1.7; }
+
+.note-card { background: var(--surface-2); }
+.note-card h2 { font-size: 15px; }
+.note-card p { font-size: 13px; color: var(--muted); line-height: 1.75; margin-bottom: 10px; }
+.note-card p:last-child { margin-bottom: 0; }
+
+.cta-box { background: var(--primary); border-radius: var(--radius); padding: 28px 32px; display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-top: 8px; }
+.cta-icon { font-size: 32px; flex: 0 0 auto; }
+.cta-content { flex: 1; min-width: 200px; }
+.cta-title { font-family: var(--font-display); font-size: 18px; font-weight: 500; color: #fff; margin-bottom: 4px; }
+.cta-sub { font-size: 13px; color: rgba(255,255,255,.75); line-height: 1.6; }
+.cta-btn { background: #fff; color: var(--primary-2); border-radius: 10px; padding: 12px 24px; font-weight: 700; font-size: 14px; flex: 0 0 auto; white-space: nowrap; transition: .15s; }
+.cta-btn:hover { background: var(--primary-soft); color: var(--primary-2); }
+
+footer { text-align: center; padding: 28px 20px; font-size: 13px; color: var(--faint); border-top: 1px solid var(--line); }
+footer a { color: var(--primary); margin: 0 8px; }
+
+@media (max-width: 700px) {
+  nav { padding: 0 16px; }
+  .wrap { padding: 28px 16px 80px; }
+  .grid3, .grid4 { grid-template-columns: repeat(2,1fr); }
+  .grid2-narrow { grid-template-columns: 1fr 1fr; max-width: 100%; }
+  .kpi-row { grid-template-columns: repeat(2,1fr); }
+  .summary-grid { grid-template-columns: 1fr; }
+  .cta-box { flex-direction: column; text-align: center; }
+}
+</style>
