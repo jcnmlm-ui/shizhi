@@ -1,0 +1,27 @@
+:root {
+  --bg: #F6F2E9; --bg2: #EFE9DC; --surface: #FFFDF8; --surface-2: #FBF7EE;
+  --ink: #1B2620; --muted: #6E7A71; --faint: #9AA39B;
+  --line: #E5DECE; --line-2: #D8CFBA;
+  --primary: #1E6B50; --primary-2: #16523D; --primary-soft: #E4EFE9;
+  --accent: #C0863A; --accent-soft: #F4E7D2;
+  --danger: #B14430; --danger-soft: #F3E0DA;
+  --radius: 16px; --radius-sm: 10px;
+  --shadow: 0 1px 2px rgba(27,38,32,.04), 0 10px 30px -18px rgba(27,38,32,.22);
+  --font-display: 'Fraunces','Noto Serif TC',serif;
+  --font-body: 'Noto Sans TC',system-ui,-apple-system,sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font-body);
+  color: var(--ink);
+  background: var(--bg);
+  background-image:
+    radial-gradient(1200px 600px at 85% -8%, rgba(30,107,80,.07), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(192,134,58,.07), transparent 55%);
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.6;
+}
+a { color: var(--primary); text-decoration: none; }
+img { max-width: 100%; display: block; }

@@ -1,0 +1,35 @@
+---
+export interface Props {
+  title?: string;
+  description?: string;
+  ogImage?: string;
+}
+
+const {
+  title = '時值 · 財務地圖',
+  description = '台灣人專屬的個人財務規劃工具。收支、資產、目標、退休，一頁全覽。免費開始，無需信用卡。',
+  ogImage = '/image/og.png',
+} = Astro.props;
+---
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{title}</title>
+  <meta name="description" content={description} />
+  <meta property="og:title" content={title} />
+  <meta property="og:description" content={description} />
+  <meta property="og:image" content={ogImage} />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles/global.css" />
+  <slot name="head" />
+</head>
+<body>
+  <slot />
+</body>
+</html>

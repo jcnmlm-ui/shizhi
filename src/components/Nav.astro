@@ -1,0 +1,45 @@
+---
+export interface Props {
+  currentPath?: string;
+}
+const { currentPath = '/' } = Astro.props;
+---
+<nav>
+  <a href="/" class="nav-brand">時值 · <span>財務地圖</span></a>
+  <div class="nav-links">
+    <a href="/#features">功能</a>
+    <a href="/#pricing">方案</a>
+    <a href="/story">理財故事</a>
+    <a href="/#faq">FAQ</a>
+    <a href="/app.html#login" class="nav-cta">免費開始使用 →</a>
+  </div>
+</nav>
+
+<style>
+nav {
+  position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 40px; height: 64px;
+  background: rgba(246,242,233,.88); backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+.nav-brand {
+  font-family: var(--font-display); font-weight: 600; font-size: 22px;
+  color: var(--primary-2); letter-spacing: .4px;
+}
+.nav-brand span {
+  font-size: 11px; font-family: var(--font-body); color: var(--muted);
+  letter-spacing: 1px; margin-left: 8px; font-weight: 400;
+}
+.nav-links { display: flex; align-items: center; gap: 28px; font-size: 14px; color: var(--muted); }
+.nav-links a:hover { color: var(--primary); }
+.nav-cta {
+  background: var(--primary); color: #fff !important; border-radius: 9px;
+  padding: 8px 18px; font-weight: 700; font-size: 14px; transition: .15s;
+}
+.nav-cta:hover { background: var(--primary-2) !important; }
+@media (max-width: 800px) {
+  nav { padding: 0 20px; }
+  .nav-links { display: none; }
+}
+</style>
