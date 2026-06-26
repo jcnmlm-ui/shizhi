@@ -176,6 +176,35 @@ import Footer from '../components/Footer.astro';
     </div>
   </section>
 
+  <!-- FREE TOOLS -->
+  <section class="tools-section">
+    <div class="container">
+      <div style="text-align:center;margin-bottom:40px">
+        <div class="sec-eyebrow">免費試算，不需登入</div>
+        <h2 class="sec-title">先算清楚，再決定要不要用</h2>
+        <p class="sec-sub" style="margin:0 auto">公開試算工具，輸入數字即時看結果，資料不儲存、不需帳號。</p>
+      </div>
+      <div class="tools-grid">
+        <a href="/tools/postal-salary/" class="tool-card">
+          <div class="tool-icon">📮</div>
+          <div class="tool-name">中華郵政薪資試算</div>
+          <div class="tool-desc">輸入薪級與職責層次，即時計算月薪、年薪成長曲線與職涯總收入。考郵局前必看。</div>
+          <div class="tool-link">立即試算 →</div>
+        </a>
+        <div class="tool-card coming">
+          <div class="tool-icon">🏦</div>
+          <div class="tool-name">勞退自提試算 <span class="badge-soon">即將推出</span></div>
+          <div class="tool-desc">計算勞退自提比例對退休金與節稅效果的影響，找出最適合你的提繳率。</div>
+        </div>
+        <div class="tool-card coming">
+          <div class="tool-icon">🏠</div>
+          <div class="tool-name">買房頭期款規劃 <span class="badge-soon">即將推出</span></div>
+          <div class="tool-desc">輸入目標房價與現有存款，試算每月需存多少、幾年可達成頭期款目標。</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- PRICING -->
   <section class="pricing" id="pricing">
     <div class="container">
@@ -402,6 +431,18 @@ section { padding: 88px 40px; }
 .feat-title { font-weight: 700; font-size: 16px; margin-bottom: 6px; }
 .feat-desc { font-size: 13.5px; color: var(--muted); line-height: 1.7; }
 .badge-accent { font-size: 11px; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 2px 8px; margin-left: 4px; font-weight: 700; }
+
+/* ── FREE TOOLS ── */
+.tools-section { background: var(--surface-2); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.tools-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 20px; }
+.tool-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px 24px; box-shadow: var(--shadow); text-decoration: none; color: inherit; display: block; transition: .2s; }
+.tool-card:not(.coming):hover { transform: translateY(-2px); box-shadow: 0 2px 6px rgba(27,38,32,.08), 0 16px 40px -16px rgba(27,38,32,.26); border-color: var(--primary); }
+.tool-card.coming { opacity: .55; cursor: default; }
+.tool-icon { font-size: 28px; margin-bottom: 14px; }
+.tool-name { font-family: var(--font-display); font-size: 17px; font-weight: 500; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tool-desc { font-size: 13.5px; color: var(--muted); line-height: 1.7; margin-bottom: 14px; }
+.tool-link { font-size: 13.5px; font-weight: 700; color: var(--primary); }
+.badge-soon { font-size: 10.5px; font-weight: 700; background: var(--accent-soft); color: var(--accent); padding: 2px 8px; border-radius: 99px; }
 
 /* ── PRICING ── */
 .pricing { background: var(--surface-2); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
