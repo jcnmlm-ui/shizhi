@@ -832,8 +832,10 @@ const POSTAL_BANDS = [
   {key:'prof1', name:'專業職(一)'},
   {key:'prof2', name:'專業職(二)'},
 ];
-// 各職階封頂薪級
-const POSTAL_BAND_CAP = { mgmt1:1, mgmt2:6, ops:17, prof1:29, prof2:36 };
+// 各職階封頂薪級（升至此停止晉升）
+const POSTAL_BAND_CAP   = { mgmt1:1,  mgmt2:6,  ops:17, prof1:29, prof2:36 };
+// 各職階保底薪級（起跳，目前薪級不可高於此數）
+const POSTAL_BAND_FLOOR = { mgmt1:19, mgmt2:25, ops:41, prof1:53, prof2:55 };
 // 郵局預設：專業職(二)・薪級55・115年入局新進人員
 const DEFAULT_POSTAL = { enabled:false, level:55, layer:3, step:1, max_level:36, bonus_months:0, band:'prof2', join_year:115 };
 
@@ -2554,13 +2556,15 @@ function renderPostal(){
   }
   const layerOpts=POSTAL_ALLOW.map((a,i)=>{const L=i+1;const t=POSTAL_TITLE[L]?(' '+POSTAL_TITLE[L]):'';return `<option value="${L}" ${L==Math.round(p.layer)?'selected':''}>${L}${t}（加發 ${fmtMoney(a).replace('NT$','')}）</option>`;}).join('');
   const curBand=(p.band==='ops1'||p.band==='ops2')?'ops':(p.band||'prof2');
-  const bandOpts=POSTAL_BANDS.map(b=>`<option value="${b.key}" ${b.key===curBand?'selected':''}>${b.name}${POSTAL_BAND_CAP[b.key]!=null?'（封頂 '+POSTAL_BAND_CAP[b.key]+' 級）':''}</option>`).join('');
+  const bandOpts=POSTAL_BANDS.map(b=>`<option value="${b.key}" ${b.key===curBand?'selected':''}>${b.name}${(POSTAL_BAND_CAP[b.key]!=null&&POSTAL_BAND_FLOOR[b.key]!=null)?'（薪級 '+POSTAL_BAND_CAP[b.key]+'–'+POSTAL_BAND_FLOOR[b.key]+'）':''}</option>`).join('');
+  const curCap=POSTAL_BAND_CAP[curBand]||1;
+  const curFloor=POSTAL_BAND_FLOOR[curBand]||60;
   const m0=postalMonthlyAtYear(0), a0=postalAnnualAtYear(0);
   const svc=postalServiceNow();
   h+=`<div class="card">
     <div class="cgrid" style="grid-template-columns:repeat(3,1fr)">
       <div class="cfield"><label>職階</label><select data-postal="band">${bandOpts}</select></div>
-      <div class="cfield"><label>目前薪級 <span class="tip" data-tip="1=最高薪級，60=最低薪級。數字越小、薪額越高。">ⓘ</span></label><input type="number" min="1" max="60" data-postal="level" value="${Math.round(p.level)}"></div>
+      <div class="cfield"><label>目前薪級 <span class="tip" data-tip="1=最高薪級，60=最低薪級。數字越小、薪額越高。此職階合法範圍 ${curCap}–${curFloor} 級。">ⓘ</span></label><input type="number" min="${curCap}" max="${curFloor}" data-postal="level" value="${Math.round(p.level)}"></div>
       <div class="cfield"><label>職責層次（職位加給）</label><select data-postal="layer">${layerOpts}</select></div>
     </div>
     <div class="cgrid" style="grid-template-columns:repeat(4,1fr)">
@@ -4199,6 +4203,8 @@ document.addEventListener('change', async e=>{
     if(f==='band'){
       state.postal.band=t.value;
       if(POSTAL_BAND_CAP[t.value]!=null) state.postal.max_level=POSTAL_BAND_CAP[t.value];
+      const newCap=POSTAL_BAND_CAP[t.value]||1, newFloor=POSTAL_BAND_FLOOR[t.value]||60;
+      state.postal.level=Math.min(newFloor, Math.max(newCap, state.postal.level||newFloor));
     } else if(f==='bonus_months'){
       state.postal.bonus_months=parseFloat(t.value)||0;
     } else if(f==='join_year'){

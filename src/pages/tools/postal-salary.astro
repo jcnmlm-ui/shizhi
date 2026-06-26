@@ -41,16 +41,16 @@ const schema = JSON.stringify({
         <div class="field">
           <label>職階</label>
           <select id="inp-band">
-            <option value="mgmt1">經營職（一）封頂第1級</option>
-            <option value="mgmt2">經營職（二）封頂第6級</option>
-            <option value="ops">營運職　　封頂第17級</option>
-            <option value="prof1">專業職（一）封頂第29級</option>
-            <option value="prof2" selected>專業職（二）封頂第36級</option>
+            <option value="mgmt1">經營職（一）薪級 1–19</option>
+            <option value="mgmt2">經營職（二）薪級 6–25</option>
+            <option value="ops">營運職　　薪級 17–41</option>
+            <option value="prof1">專業職（一）薪級 29–53</option>
+            <option value="prof2" selected>專業職（二）薪級 36–55</option>
           </select>
         </div>
         <div class="field">
           <label>目前薪級 <span class="tip">1=最高・60=最低</span></label>
-          <input type="number" id="inp-level" min="1" max="60" value="55">
+          <input type="number" id="inp-level" min="36" max="55" value="55">
         </div>
         <div class="field">
           <label>職責層次（職位加給）</label>
@@ -152,7 +152,8 @@ const POSTAL_ALLOW = [0,4055,5405,6755,8110,9460,10810,12835,15875,18915,
 
 const POSTAL_TITLE = {6:'稽查',8:'專員',11:'股長(二)',12:'股長(一)',14:'副科長',16:'科長',17:'副理',18:'大經理',19:'協理'};
 
-const POSTAL_BAND_CAP = { mgmt1:1, mgmt2:6, ops:17, prof1:29, prof2:36 };
+const POSTAL_BAND_CAP   = { mgmt1:1,  mgmt2:6,  ops:17, prof1:29, prof2:36 };
+const POSTAL_BAND_FLOOR = { mgmt1:19, mgmt2:25, ops:41, prof1:53, prof2:55 };
 
 // ── 格式化 ──────────────────────────────────────────
 function fmtMoney(v){ return 'NT$' + Math.round(v).toLocaleString('zh-TW'); }
@@ -163,16 +164,18 @@ function allowAt(layer){ const i=Math.min(19,Math.max(1,Math.round(layer)))-1; r
 
 function getInputs(){
   const band   = document.getElementById('inp-band').value;
-  const level  = Math.round(Number(document.getElementById('inp-level').value)||55);
+  const floor  = POSTAL_BAND_FLOOR[band] || 55;
+  const cap    = Math.round(Number(document.getElementById('inp-cap').value)||(POSTAL_BAND_CAP[band]||36));
+  const levelRaw = Math.round(Number(document.getElementById('inp-level').value)||floor);
+  const level  = Math.min(floor, Math.max(cap, levelRaw));
   const layer  = Math.round(Number(document.getElementById('inp-layer').value)||3);
-  const cap    = Math.round(Number(document.getElementById('inp-cap').value)||36);
   const joinRaw= Number(document.getElementById('inp-join').value)||0;
   const join   = joinRaw > 1911 ? joinRaw - 1911 : joinRaw; // 支援西元年
   const step   = Math.max(0, Math.round(Number(document.getElementById('inp-step').value)||1));
   const bonus  = Math.max(0, Number(document.getElementById('inp-bonus').value)||0);
   const age    = Math.round(Number(document.getElementById('inp-age').value)||25);
   const retire = Math.round(Number(document.getElementById('inp-retire').value)||60);
-  return { band, level, layer, cap, join, step, bonus, age, retire };
+  return { band, level, layer, cap, floor, join, step, bonus, age, retire };
 }
 
 function serviceNow(inp){
@@ -325,10 +328,16 @@ function render(){
 
 // ── 綁定事件 ──────────────────────────────────────────
 function bindAll(){
-  // 職階改變 → 自動帶入封頂薪級
+  // 職階改變 → 自動帶入封頂薪級，並將目前薪級 clamp 至合法範圍
   document.getElementById('inp-band').addEventListener('change', function(){
-    const cap = POSTAL_BAND_CAP[this.value] || 36;
+    const cap   = POSTAL_BAND_CAP[this.value]   || 36;
+    const floor = POSTAL_BAND_FLOOR[this.value] || 55;
     document.getElementById('inp-cap').value = cap;
+    const lvlEl = document.getElementById('inp-level');
+    lvlEl.min = cap;
+    lvlEl.max = floor;
+    const cur = Math.round(Number(lvlEl.value) || floor);
+    lvlEl.value = Math.min(floor, Math.max(cap, cur));
     render();
   });
 
@@ -337,7 +346,17 @@ function bindAll(){
 }
 
 // ── 初始化 ────────────────────────────────────────────
+function initBandRange(){
+  const band  = document.getElementById('inp-band').value;
+  const cap   = POSTAL_BAND_CAP[band]   || 36;
+  const floor = POSTAL_BAND_FLOOR[band] || 55;
+  const lvlEl = document.getElementById('inp-level');
+  lvlEl.min = cap;
+  lvlEl.max = floor;
+}
+
 initLayerSelect();
+initBandRange();
 bindAll();
 
 // Chart.js 可能還沒載入，等 DOMContentLoaded 後再 render
