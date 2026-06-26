@@ -97,7 +97,7 @@ import Footer from '../components/Footer.astro';
       <div class="feat-header">
         <div class="sec-eyebrow">核心功能</div>
         <h2 class="sec-title">一個工具，管好你的整個財務人生</h2>
-        <p class="sec-sub" style="margin:0 auto">免費版涵蓋所有基礎功能，升級後解鎖更多進階模組。</p>
+        <p class="sec-sub" style="margin:0 auto">免費版包含基礎功能與三個試算工具，升級後解鎖更多進階模組。</p>
       </div>
       <div class="feat-grid">
         <div class="feat-card">
@@ -141,7 +141,7 @@ import Footer from '../components/Footer.astro';
             <svg viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M5 21V8l7-4 7 4v13"/><path d="M9 21v-6h6v6"/></svg>
           </div>
           <div>
-            <div class="feat-title">勞退勞保試算 <span class="badge-accent">完整版</span></div>
+            <div class="feat-title">勞退勞保試算</div>
             <div class="feat-desc">依台灣勞保老年年金公式與勞退個人專戶估算退休給付，自動計入你的人生財務時間軸，不再手動試算。</div>
           </div>
         </div>
@@ -225,6 +225,9 @@ import Footer from '../components/Footer.astro';
             <div class="plan-feat"><svg class="ck on" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 10l4.5 4.5L16 6"/></svg>資產負債表</div>
             <div class="plan-feat"><svg class="ck on" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 10l4.5 4.5L16 6"/></svg>人生目標規劃</div>
             <div class="plan-feat"><svg class="ck on" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 10l4.5 4.5L16 6"/></svg>建議報告（第一節）</div>
+            <div class="plan-feat"><svg class="ck on" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 10l4.5 4.5L16 6"/></svg>勞退勞保試算</div>
+            <div class="plan-feat"><svg class="ck on" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 10l4.5 4.5L16 6"/></svg>郵局薪資試算</div>
+            <div class="plan-feat"><svg class="ck on" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 10l4.5 4.5L16 6"/></svg>綜所稅試算</div>
             <div class="plan-feat"><svg class="ck off" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 5l10 10M15 5L5 15"/></svg><span style="color:var(--faint)">進階模組</span></div>
             <div class="plan-feat"><svg class="ck off" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 5l10 10M15 5L5 15"/></svg><span style="color:var(--faint)">PDF 匯出</span></div>
           </div>
@@ -240,7 +243,6 @@ import Footer from '../components/Footer.astro';
             <div class="plan-feat"><svg class="ck on" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 10l4.5 4.5L16 6"/></svg>包含所有免費功能</div>
             <div class="plan-feat"><svg class="ck on" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 10l4.5 4.5L16 6"/></svg>完整建議報告 + PDF 匯出</div>
             <div class="plan-feat"><svg class="ck on" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 10l4.5 4.5L16 6"/></svg>子女養育試算</div>
-            <div class="plan-feat"><svg class="ck on" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 10l4.5 4.5L16 6"/></svg>勞退勞保估算</div>
             <div class="plan-feat"><svg class="ck on" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 10l4.5 4.5L16 6"/></svg>保險防護分析</div>
             <div class="plan-feat"><svg class="ck on" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 10l4.5 4.5L16 6"/></svg>投資配置模型</div>
             <div class="plan-feat"><svg class="ck off" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 5l10 10M15 5L5 15"/></svg><span style="color:var(--faint)">歷史快照儲存</span></div>
@@ -269,20 +271,6 @@ import Footer from '../components/Footer.astro';
           <span class="addon-note">需先擁有完整版或訂閱制 · 買斷後永久可用</span>
         </div>
         <div class="addon-grid">
-          <div class="addon-card">
-            <div class="addon-row">
-              <span class="addon-name">綜所稅試算</span>
-              <span class="addon-price">NT$<span id="price-addon-taxcalc">299</span></span>
-            </div>
-            <div class="addon-desc">113 年度個人所得稅完整試算，標準 vs 列舉扣除即時比較，退稅／補稅預估，自動整合薪資資料。</div>
-          </div>
-          <div class="addon-card">
-            <div class="addon-row">
-              <span class="addon-name">郵局薪資試算</span>
-              <span class="addon-price">NT$<span id="price-addon-postal">99</span></span>
-            </div>
-            <div class="addon-desc">針對中華郵政員工設計，薪資結構細項試算，整合至人生財務時間軸。</div>
-          </div>
           <div class="addon-card" style="opacity:.55">
             <div class="addon-row">
               <span class="addon-name">房地產投報試算</span>
@@ -310,18 +298,19 @@ import Footer from '../components/Footer.astro';
           <tr class="feat-row"><td>資產負債表</td><td class="ck-y">✓</td><td class="ck-y">✓</td><td class="ck-y">✓</td></tr>
           <tr class="feat-row"><td>人生目標規劃</td><td class="ck-y">✓</td><td class="ck-y">✓</td><td class="ck-y">✓</td></tr>
           <tr class="feat-row"><td>建議報告（現況體檢）</td><td class="ck-y">✓</td><td class="ck-y">✓</td><td class="ck-y">✓</td></tr>
+          <tr class="group-row"><td colspan="4">免費試算工具</td></tr>
+          <tr class="feat-row"><td>勞退勞保估算</td><td class="ck-y">✓</td><td class="ck-y">✓</td><td class="ck-y">✓</td></tr>
+          <tr class="feat-row"><td>郵局薪資試算</td><td class="ck-y">✓</td><td class="ck-y">✓</td><td class="ck-y">✓</td></tr>
+          <tr class="feat-row"><td>綜所稅試算</td><td class="ck-y">✓</td><td class="ck-y">✓</td><td class="ck-y">✓</td></tr>
           <tr class="group-row"><td colspan="4">進階模組</td></tr>
           <tr class="feat-row"><td>完整建議報告（全四節）</td><td class="ck-n">—</td><td class="ck-y">✓</td><td class="ck-y">✓</td></tr>
           <tr class="feat-row"><td>PDF 匯出</td><td class="ck-n">—</td><td class="ck-y">✓</td><td class="ck-y">✓</td></tr>
           <tr class="feat-row"><td>子女養育試算</td><td class="ck-n">—</td><td class="ck-y">✓</td><td class="ck-y">✓</td></tr>
-          <tr class="feat-row"><td>勞退勞保估算</td><td class="ck-n">—</td><td class="ck-y">✓</td><td class="ck-y">✓</td></tr>
           <tr class="feat-row"><td>保險防護分析</td><td class="ck-n">—</td><td class="ck-y">✓</td><td class="ck-y">✓</td></tr>
           <tr class="feat-row"><td>投資配置模型</td><td class="ck-n">—</td><td class="ck-y">✓</td><td class="ck-y">✓</td></tr>
           <tr class="group-row"><td colspan="4">訂閱專屬</td></tr>
           <tr class="feat-row"><td>歷史規劃快照</td><td class="ck-n">—</td><td class="ck-n">—</td><td class="ck-y">✓</td></tr>
           <tr class="group-row"><td colspan="4">加購模組（完整版／訂閱制用戶可購買）</td></tr>
-          <tr class="feat-row"><td>綜所稅試算（NT$<span id="price-tbl-taxcalc">299</span> 買斷）</td><td class="ck-n">—</td><td class="ck-accent">＋加購</td><td class="ck-accent">＋加購</td></tr>
-          <tr class="feat-row"><td>郵局薪資試算（NT$<span id="price-tbl-postal">99</span> 買斷）</td><td class="ck-n">—</td><td class="ck-accent">＋加購</td><td class="ck-accent">＋加購</td></tr>
           <tr class="feat-row"><td>房地產投報試算（開發中）</td><td class="ck-n">—</td><td class="ck-n">即將推出</td><td class="ck-n">即將推出</td></tr>
         </tbody>
       </table>
@@ -531,10 +520,6 @@ details[open] summary::after { content: '−'; }
     set('price-full', pFull.toLocaleString('zh-TW'));
     set('price-sub', pSub);
     set('price-sub-annual', Math.round(pSub * 12 * 0.8).toLocaleString('zh-TW'));
-    const addonMap = {};
-    addons.forEach(a => { addonMap[a.module_key] = a.price_onetime; });
-    if (addonMap.taxcalc) { set('price-addon-taxcalc', addonMap.taxcalc); set('price-tbl-taxcalc', addonMap.taxcalc); }
-    if (addonMap.postal) { set('price-addon-postal', addonMap.postal); set('price-tbl-postal', addonMap.postal); }
   }).catch(() => {});
 })();
 </script>
