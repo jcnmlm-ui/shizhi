@@ -1,0 +1,154 @@
+---
+import Base from '../../layouts/Base.astro';
+import { SUPABASE_URL, supabaseHeaders } from '../../lib/supabase.js';
+
+const now = new Date().toISOString();
+let posts: any[] = [];
+try {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/fp_posts?select=id,slug,title,excerpt,category,cover_emoji,author,published_at,created_at&published=eq.true&or=(scheduled_at.is.null,scheduled_at.lte.${now})&order=published_at.desc`,
+    { headers: supabaseHeaders() }
+  );
+  if (res.ok) posts = await res.json();
+} catch {}
+
+const CAT_LABELS: Record<string, string> = {
+  story: '產品故事',
+  case_study: '服務案例分享',
+  finance_knowledge: '理財知識',
+  finance_concept: '理財觀念',
+  creator_note: '創作者心得',
+};
+
+function fmtDate(ts: string | null) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  return `${d.getFullYear()} 年 ${d.getMonth() + 1} 月 ${d.getDate()} 日`;
+}
+---
+<Base
+  title="故事與文章 · 時值"
+  description="時值財務地圖的產品故事、個人理財知識與創作者心得。"
+>
+  <script type="application/ld+json" slot="head">
+  {
+    "@context": "https://schema.org",
+    "@type": "Blog",
+    "name": "時值 · 故事與文章",
+    "url": "https://valuelens.tw/story/",
+    "description": "時值財務地圖的產品故事、個人理財知識與創作者心得。",
+    "publisher": {
+      "@type": "Organization",
+      "name": "時值 · 財務地圖",
+      "url": "https://valuelens.tw/"
+    }
+  }
+  </script>
+
+  <nav>
+    <a class="nav-brand" href="/">時值</a>
+    <a class="nav-tool" href="/app.html">前往工具 →</a>
+  </nav>
+
+  <div class="wrap">
+    <div class="page-header">
+      <h1>故事與文章</h1>
+      <p>產品誕生的心路歷程，以及個人理財的知識與觀念分享</p>
+    </div>
+
+    <div class="filter-bar" role="group" aria-label="文章分類篩選">
+      <button class="filter-btn active" data-filter="all">全部</button>
+      <button class="filter-btn" data-filter="story">產品故事</button>
+      <button class="filter-btn" data-filter="finance_knowledge">理財知識</button>
+      <button class="filter-btn" data-filter="finance_concept">理財觀念</button>
+      <button class="filter-btn" data-filter="creator_note">創作者心得</button>
+    </div>
+
+    {posts.length === 0 ? (
+      <div class="empty-state">
+        <div class="icon">📭</div>
+        <p>目前還沒有文章</p>
+      </div>
+    ) : (
+      <div class="card-grid" id="post-grid">
+        {posts.map(p => {
+          const cat = ['case_study','finance_knowledge','finance_concept','creator_note'].includes(p.category) ? p.category : 'story';
+          const label = CAT_LABELS[p.category] || p.category;
+          return (
+            <a class="post-card" href={`/story/${p.slug}`} data-cat={p.category || 'story'}>
+              <div class="card-emoji">{p.cover_emoji || '📝'}</div>
+              <span class={`card-cat ${cat}`}>{label}</span>
+              <div class="card-title">{p.title}</div>
+              {p.excerpt && <div class="card-excerpt">{p.excerpt}</div>}
+              <div class="card-meta">
+                <span>✍️ {p.author || '鄭家弦'}</span>
+                <span>· {fmtDate(p.published_at || p.created_at)}</span>
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    )}
+  </div>
+
+  <footer>
+    <a href="/about">關於我們</a>
+    <a href="/terms">使用者條款與隱私政策</a>
+    <a href="/">時值 · 財務地圖</a>
+  </footer>
+</Base>
+
+<script>
+const btns = document.querySelectorAll<HTMLButtonElement>('.filter-btn');
+const cards = document.querySelectorAll<HTMLElement>('[data-cat]');
+
+btns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const f = btn.dataset.filter!;
+    btns.forEach(b => b.classList.toggle('active', b.dataset.filter === f));
+    cards.forEach(c => {
+      c.style.display = (f === 'all' || c.dataset.cat === f) ? '' : 'none';
+    });
+  });
+});
+</script>
+
+<style>
+nav { position: sticky; top: 0; z-index: 100; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; height: 60px; background: rgba(246,242,233,.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+.nav-brand { font-family: var(--font-display); font-weight: 600; font-size: 20px; color: var(--primary-2); }
+.nav-tool { font-size: 13.5px; color: var(--primary); font-weight: 500; }
+.nav-tool:hover { text-decoration: underline; }
+.wrap { max-width: 820px; margin: 0 auto; padding: 48px 40px 100px; }
+.page-header { margin-bottom: 32px; }
+.page-header h1 { font-family: var(--font-display); font-weight: 500; font-size: 34px; margin: 0 0 6px; }
+.page-header p { color: var(--muted); font-size: 14px; }
+.filter-bar { display: flex; gap: 8px; margin-bottom: 32px; flex-wrap: wrap; }
+.filter-btn { border: 1.5px solid var(--line-2); background: var(--surface); color: var(--muted); padding: 7px 18px; border-radius: 99px; font-size: 13.5px; font-weight: 500; cursor: pointer; font-family: var(--font-body); transition: .15s; }
+.filter-btn:hover { border-color: var(--primary); color: var(--primary); }
+.filter-btn.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+.post-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow); transition: .2s; text-decoration: none; display: block; color: inherit; }
+.post-card:hover { transform: translateY(-2px); box-shadow: 0 2px 6px rgba(27,38,32,.08), 0 16px 40px -16px rgba(27,38,32,.26); border-color: var(--line-2); }
+.card-emoji { width: 48px; height: 48px; background: var(--primary-soft); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; margin-bottom: 14px; }
+.card-cat { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 3px 9px; border-radius: 99px; margin-bottom: 10px; }
+.card-cat.story { background: var(--primary-soft); color: var(--primary-2); }
+.card-cat.case_study { background: var(--accent-soft); color: var(--accent); }
+.card-cat.finance_knowledge { background: #e8f4fd; color: #1a6fa8; }
+.card-cat.finance_concept { background: #f3e8ff; color: #6d28d9; }
+.card-cat.creator_note { background: #fff0f6; color: #be185d; }
+.card-title { font-family: var(--font-display); font-size: 19px; font-weight: 500; line-height: 1.35; margin-bottom: 8px; }
+.card-excerpt { font-size: 13.5px; color: var(--muted); line-height: 1.6; margin-bottom: 14px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.card-meta { font-size: 12px; color: var(--faint); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.empty-state { text-align: center; padding: 64px 20px; }
+.empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+.empty-state p { color: var(--muted); }
+footer { text-align: center; padding: 28px 20px; font-size: 13px; color: var(--faint); border-top: 1px solid var(--line); }
+footer a { color: var(--primary); margin: 0 6px; }
+@media (max-width: 600px) {
+  nav { padding: 0 16px; }
+  .wrap { padding: 28px 16px 80px; }
+  .card-grid { grid-template-columns: 1fr; }
+  .filter-bar { gap: 6px; }
+  .filter-btn { padding: 6px 13px; font-size: 13px; }
+}
+</style>

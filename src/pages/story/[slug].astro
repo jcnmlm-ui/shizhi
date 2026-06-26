@@ -1,0 +1,149 @@
+---
+import Base from '../../layouts/Base.astro';
+import { renderContent } from '../../lib/renderContent.js';
+import { SUPABASE_URL, SUPABASE_ANON, SITE_BASE, supabaseHeaders } from '../../lib/supabase.js';
+
+export async function getStaticPaths() {
+  const { SUPABASE_URL, SUPABASE_ANON, supabaseHeaders } = await import('../../lib/supabase.js');
+  const now = new Date().toISOString();
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/fp_posts?select=*&published=eq.true&or=(scheduled_at.is.null,scheduled_at.lte.${now})&order=published_at.desc`,
+    { headers: supabaseHeaders() }
+  );
+  const posts = res.ok ? await res.json() : [];
+  return posts.map((post: any) => ({
+    params: { slug: post.slug },
+    props:  { post },
+  }));
+}
+
+const { post } = Astro.props;
+
+const CAT_LABELS: Record<string, string> = {
+  story: '產品故事',
+  case_study: '服務案例分享',
+  finance_knowledge: '理財知識',
+  finance_concept: '理財觀念',
+  creator_note: '創作者心得',
+};
+
+function fmtDate(ts: string | null) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  return `${d.getFullYear()} 年 ${d.getMonth() + 1} 月 ${d.getDate()} 日`;
+}
+
+const cat     = ['case_study','finance_knowledge','finance_concept','creator_note'].includes(post.category) ? post.category : 'story';
+const label   = CAT_LABELS[post.category] || post.category;
+const url     = `${SITE_BASE}/story/${post.slug}/`;
+const dateStr = (post.published_at || post.created_at || '').slice(0, 10);
+const htmlBody = renderContent(post.content || '');
+
+const isCase = post.category === 'case_study';
+const disclaimer = isCase
+  ? '<b>案例說明：</b>本案例已完整去識別化處理，人名、金額等識別資訊均已修改，並已取得當事人同意分享。所有內容僅供參考，不構成投資建議或個別財務規劃建議。重大財務決策請諮詢具有合法資格的財務或法律專業人士。'
+  : '<b>免責聲明：</b>本文內容僅供參考，不構成投資建議或財務規劃建議。重大財務決策請諮詢具有合法資格的財務或法律專業人士。';
+
+const schema = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'Article',
+  headline: post.title,
+  description: post.excerpt || '',
+  author: { '@type': 'Person', name: post.author || '鄭家弦' },
+  datePublished: post.published_at || post.created_at,
+  dateModified: post.updated_at || post.published_at || post.created_at,
+  url,
+  publisher: { '@type': 'Organization', name: '時值 · 財務地圖', url: `${SITE_BASE}/` },
+});
+---
+<Base
+  title={`${post.title} · 時值`}
+  description={post.excerpt || post.title}
+>
+  <Fragment slot="head">
+    <script type="application/ld+json" set:html={schema} />
+    {dateStr && <meta property="article:published_time" content={dateStr} />}
+    <link rel="canonical" href={url} />
+  </Fragment>
+
+  <nav>
+    <a class="nav-brand" href="/">時值</a>
+    <a class="nav-back" href="/story">← 返回文章列表</a>
+  </nav>
+
+  <div class="wrap">
+    <div class="article-emoji">{post.cover_emoji || '📝'}</div>
+    <div class="article-cat"><span class={`card-cat ${cat}`}>{label}</span></div>
+    <h1 class="article-title">{post.title}</h1>
+    <div class="article-meta">
+      <span>✍️ {post.author || '鄭家弦'}</span>
+      <span>·</span>
+      <span>{fmtDate(post.published_at || post.created_at)}</span>
+    </div>
+    <div class="article-body">
+      <Fragment set:html={htmlBody} />
+    </div>
+    <div class="disclaimer" set:html={disclaimer} />
+    <div class="article-footer">
+      <a class="back-link" href="/story">← 返回文章列表</a>
+      <a class="cta-link" href="/app.html">前往時值工具 →</a>
+    </div>
+  </div>
+
+  <footer>
+    <a href="/about">關於我們</a>
+    <a href="/terms">使用者條款與隱私政策</a>
+    <a href="/">時值 · 財務地圖</a>
+  </footer>
+</Base>
+
+<style>
+nav { position: sticky; top: 0; z-index: 100; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; height: 60px; background: rgba(246,242,233,.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+.nav-brand { font-family: var(--font-display); font-weight: 600; font-size: 20px; color: var(--primary-2); }
+.nav-back { font-size: 13.5px; color: var(--muted); }
+.nav-back:hover { color: var(--primary); }
+.wrap { max-width: 740px; margin: 0 auto; padding: 48px 40px 100px; }
+.article-emoji { font-size: 48px; text-align: center; margin-bottom: 20px; }
+.article-cat { text-align: center; margin-bottom: 12px; }
+.card-cat { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 3px 9px; border-radius: 99px; }
+.card-cat.story { background: var(--primary-soft); color: var(--primary-2); }
+.card-cat.case_study { background: var(--accent-soft); color: var(--accent); }
+.card-cat.finance_knowledge { background: #e8f4fd; color: #1a6fa8; }
+.card-cat.finance_concept { background: #f3e8ff; color: #6d28d9; }
+.card-cat.creator_note { background: #fff0f6; color: #be185d; }
+.article-title { font-family: var(--font-display); font-size: 34px; font-weight: 500; line-height: 1.2; margin-bottom: 16px; text-align: center; }
+.article-meta { display: flex; justify-content: center; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; margin-bottom: 44px; flex-wrap: wrap; }
+.article-body { font-size: 15.5px; line-height: 1.85; color: var(--ink); }
+.article-body :global(h1), .article-body :global(h2), .article-body :global(h3) { font-family: var(--font-display); font-weight: 500; margin: 36px 0 14px; line-height: 1.3; }
+.article-body :global(h1) { font-size: 27px; }
+.article-body :global(h2) { font-size: 22px; }
+.article-body :global(h3) { font-size: 18px; }
+.article-body :global(p) { margin-bottom: 18px; }
+.article-body :global(ul), .article-body :global(ol) { margin: 0 0 18px 22px; }
+.article-body :global(li) { margin-bottom: 6px; }
+.article-body :global(blockquote) { border-left: 3px solid var(--primary); padding: 12px 18px; margin: 20px 0; background: var(--primary-soft); border-radius: 0 8px 8px 0; font-style: italic; color: var(--primary-2); }
+.article-body :global(code) { background: var(--line); padding: 2px 6px; border-radius: 4px; font-size: 13px; font-family: monospace; }
+.article-body :global(pre) { background: #1B2620; color: #e8f4ee; padding: 16px 20px; border-radius: 10px; overflow-x: auto; margin: 20px 0; }
+.article-body :global(pre code) { background: none; padding: 0; color: inherit; font-size: 13px; }
+.article-body :global(hr) { border: none; border-top: 1px solid var(--line); margin: 36px 0; }
+.article-body :global(img) { max-width: 100%; border-radius: 10px; margin: 16px 0; }
+.article-body :global(figure) { margin: 20px 0; text-align: center; }
+.article-body :global(figure img) { border-radius: 8px; display: block; margin: 0 auto; max-width: 100%; }
+.article-body :global(figcaption) { text-align: center; font-size: 13px; color: var(--muted); margin-top: 6px; }
+.article-body :global(.embed-wrap) { margin: 20px 0; }
+.article-body :global(.embed-wrap iframe) { width: 100%; aspect-ratio: 16/9; border-radius: 10px; border: 0; }
+.article-body :global(table) { width: 100%; border-collapse: collapse; margin-bottom: 18px; font-size: 14px; }
+.article-body :global(th) { background: var(--primary-soft); color: var(--primary-2); padding: 9px 12px; text-align: left; font-weight: 700; }
+.article-body :global(td) { padding: 9px 12px; border-bottom: 1px solid var(--line); }
+.disclaimer { background: var(--accent-soft); border: 1px solid #e0bb8a; border-radius: 10px; padding: 14px 18px; margin-top: 44px; font-size: 13px; color: #7a5018; line-height: 1.65; }
+.article-footer { margin-top: 32px; padding-top: 28px; border-top: 1px solid var(--line); display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+.back-link { color: var(--muted); font-size: 13.5px; }
+.cta-link { color: var(--primary); font-size: 13.5px; margin-left: auto; }
+footer { text-align: center; padding: 28px 20px; font-size: 13px; color: var(--faint); border-top: 1px solid var(--line); }
+footer a { color: var(--primary); margin: 0 6px; }
+@media (max-width: 600px) {
+  nav { padding: 0 16px; }
+  .wrap { padding: 36px 20px 80px; }
+  .article-title { font-size: 26px; }
+}
+</style>
