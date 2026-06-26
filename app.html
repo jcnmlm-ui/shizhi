@@ -2554,7 +2554,7 @@ function renderPostal(){
     body.innerHTML=h+`<div class="card" style="background:var(--surface-2)"><p class="hint" style="margin:0">中華郵政「職階人員待遇表」（114/1/1 起）採薪級制：每年晉升一個薪級，薪額隨之提高（薪級數字越小薪額越高）；另依「職責層次」加上「職務加發薪額」（職位加給）。<br><br>勾選上方開關啟用，並填入你的薪級與職責層次即可。停用時，系統沿用「設定」頁的固定薪資成長率。</p></div>`;
     return;
   }
-  const layerOpts=POSTAL_ALLOW.map((a,i)=>{const L=i+1;const t=POSTAL_TITLE[L]?(' '+POSTAL_TITLE[L]):'';return `<option value="${L}" ${L==Math.round(p.layer)?'selected':''}>${L}${t}（加發 ${fmtMoney(a).replace('NT$','')}）</option>`;}).join('');
+  const layerOpts=POSTAL_ALLOW.map((a,i)=>{const L=i+1;return `<option value="${L}" ${L==Math.round(p.layer)?'selected':''}>${L}（加發 ${fmtMoney(a).replace('NT$','')}）</option>`;}).join('');
   const curBand=(p.band==='ops1'||p.band==='ops2')?'ops':(p.band||'prof2');
   const bandOpts=POSTAL_BANDS.map(b=>`<option value="${b.key}" ${b.key===curBand?'selected':''}>${b.name}${(POSTAL_BAND_CAP[b.key]!=null&&POSTAL_BAND_FLOOR[b.key]!=null)?'（薪級 '+POSTAL_BAND_CAP[b.key]+'–'+POSTAL_BAND_FLOOR[b.key]+'）':''}</option>`).join('');
   const curCap=POSTAL_BAND_CAP[curBand]||1;

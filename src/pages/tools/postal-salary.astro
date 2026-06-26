@@ -225,10 +225,9 @@ function initLayerSelect(){
   const sel = document.getElementById('inp-layer');
   POSTAL_ALLOW.forEach((a, i) => {
     const L = i + 1;
-    const title = POSTAL_TITLE[L] ? ` · ${POSTAL_TITLE[L]}` : '';
     const opt = document.createElement('option');
     opt.value = L;
-    opt.textContent = `第${L}層${title}（加發 ${Math.round(a).toLocaleString('zh-TW')}）`;
+    opt.textContent = `第${L}層（加發 ${Math.round(a).toLocaleString('zh-TW')}）`;
     if(L === 3) opt.selected = true;
     sel.appendChild(opt);
   });
