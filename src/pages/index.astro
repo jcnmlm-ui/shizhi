@@ -198,6 +198,12 @@ import Footer from '../components/Footer.astro';
           <div class="tool-desc">試算勞保老年年金、勞退帳戶累積與自提節稅效果，找出最適合你的退休規劃組合。</div>
           <div class="tool-link">立即試算 →</div>
         </a>
+        <a href="/tools/tax-calc/" class="tool-card">
+          <div class="tool-icon">🧾</div>
+          <div class="tool-name">綜所稅試算</div>
+          <div class="tool-desc">試算 113/114 年度個人所得稅，標準與列舉扣除額自動比對，即時算出退稅或補稅金額。</div>
+          <div class="tool-link">立即試算 →</div>
+        </a>
         <div class="tool-card coming">
           <div class="tool-icon">🏠</div>
           <div class="tool-name">買房頭期款規劃 <span class="badge-soon">即將推出</span></div>
@@ -426,7 +432,7 @@ section { padding: 88px 40px; }
 
 /* ── FREE TOOLS ── */
 .tools-section { background: var(--surface-2); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-.tools-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 20px; }
+.tools-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
 .tool-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px 24px; box-shadow: var(--shadow); text-decoration: none; color: inherit; display: block; transition: .2s; }
 .tool-card:not(.coming):hover { transform: translateY(-2px); box-shadow: 0 2px 6px rgba(27,38,32,.08), 0 16px 40px -16px rgba(27,38,32,.26); border-color: var(--primary); }
 .tool-card.coming { opacity: .55; cursor: default; }

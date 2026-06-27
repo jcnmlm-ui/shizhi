@@ -1,0 +1,483 @@
+---
+import Base from '../../layouts/Base.astro';
+
+const schema = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'WebApplication',
+  name: '台灣綜所稅試算器',
+  url: 'https://valuelens.tw/tools/tax-calc/',
+  description: '免費試算台灣綜合所得稅，支援 113/114 年度，標準與列舉扣除額自動比較，即時計算退稅或補稅金額。',
+  applicationCategory: 'FinanceApplication',
+  operatingSystem: 'Web',
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'TWD' },
+});
+---
+<Base
+  title="綜所稅試算 2025 · 台灣個人所得稅免費計算機（113/114 年度）"
+  description="免費試算台灣個人綜合所得稅。支援 113/114 年度、單身或合併申報、標準與列舉扣除額自動比較，即時計算應納稅額、退稅或補稅金額。"
+>
+  <Fragment slot="head">
+    <script type="application/ld+json" set:html={schema} />
+    <link rel="canonical" href="https://valuelens.tw/tools/tax-calc/" />
+  </Fragment>
+
+  <nav>
+    <a class="nav-brand" href="/">時值</a>
+    <a class="nav-tool" href="/app.html">前往完整工具 →</a>
+  </nav>
+
+  <div class="wrap">
+    <div class="page-header">
+      <div class="eyebrow">免費試算工具</div>
+      <h1>台灣綜合所得稅試算</h1>
+      <p>填入收入與扣除項目，即時試算應繳稅額、有效稅率，以及退稅或補稅估算。<br>支援 113/114 年度 · 單身 / 合併申報 · 標準與列舉扣除額自動比對。<br>資料不儲存、不需帳號。</p>
+    </div>
+
+    <!-- 申報方式 -->
+    <div class="card">
+      <h2>申報方式與扶養</h2>
+      <div class="grid2">
+        <div class="field">
+          <label>申報年度</label>
+          <select id="inp-year">
+            <option value="113">113 年度（2024 年所得）</option>
+            <option value="114">114 年度（2025 年所得）</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>申報方式</label>
+          <select id="inp-filing">
+            <option value="single">單身 / 個人申報</option>
+            <option value="joint">合併申報（含配偶）</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>一般扶養人數 <span class="tip">每人免稅額 NT$92,000（父母未滿 70 歲、子女、兄弟姊妹等）</span></label>
+          <input type="number" id="inp-dep-gen" min="0" max="15" value="0">
+        </div>
+        <div class="field">
+          <label>70 歲以上扶養人數 <span class="tip">每人免稅額 NT$138,000，適用 70 歲以上受扶養父母、祖父母</span></label>
+          <input type="number" id="inp-dep-eld" min="0" max="10" value="0">
+        </div>
+      </div>
+      <div id="exempt-kpi" class="kpi-row"></div>
+    </div>
+
+    <!-- 所得 -->
+    <div class="card">
+      <h2>所得資料</h2>
+      <div class="grid2">
+        <div class="field">
+          <label>薪資所得（全年）<span class="tip">底薪＋加給＋獎金＋加班費，全年 1–12 月加總。以扣繳憑單「薪資所得」欄為準。</span></label>
+          <input type="number" id="inp-salary" min="0" step="1000" value="600000" placeholder="0">
+        </div>
+        <div class="field">
+          <label>其他所得 <span class="tip">租賃所得、執行業務（接案/顧問費）、稿費版稅等。填「所得額」而非收入，租賃可用 43% 必要費用率換算。</span></label>
+          <input type="number" id="inp-other-inc" min="0" step="1000" value="0" placeholder="0">
+        </div>
+        <div class="field">
+          <label>已扣繳稅款 <span class="tip">薪資單「代扣所得稅」全年合計＋各扣繳憑單稅額。不確定可填 0，試算結果僅供估算。</span></label>
+          <input type="number" id="inp-withheld" min="0" step="1000" value="0" placeholder="0">
+        </div>
+      </div>
+      <div id="income-kpi" class="kpi-row"></div>
+    </div>
+
+    <!-- 扣除額 -->
+    <div class="card">
+      <h2>扣除額</h2>
+      <div class="ded-toggle">
+        <label class="radio-label">
+          <input type="radio" name="ded-type" id="rad-standard" value="standard" checked>
+          <span><b>標準扣除額</b><span id="std-label"></span></span>
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="ded-type" id="rad-itemized" value="itemized">
+          <span><b>列舉扣除額</b><span id="item-label"></span></span>
+        </label>
+      </div>
+      <div id="itemized-fields" class="grid2" style="display:none;margin-top:16px">
+        <div class="field">
+          <label>商業保費 <span class="tip">每人上限 NT$24,000，以申報人數合計計算上限</span></label>
+          <input type="number" id="inp-ins" min="0" step="1000" value="0" placeholder="0">
+        </div>
+        <div class="field">
+          <label>醫療費用 <span class="tip">無列舉上限，需有正式收據。健保自費部分可列舉。</span></label>
+          <input type="number" id="inp-medical" min="0" step="1000" value="0" placeholder="0">
+        </div>
+        <div class="field">
+          <label>房貸利息 <span class="tip">自用住宅房貸利息，上限 NT$300,000。與租金支出擇一列舉。</span></label>
+          <input type="number" id="inp-mortgage" min="0" step="1000" value="0" placeholder="0">
+        </div>
+        <div class="field">
+          <label>租金支出 <span class="tip">自用住宅租金，上限 NT$120,000。已填房貸利息者無法同時列舉。</span></label>
+          <input type="number" id="inp-rent" min="0" step="1000" value="0" placeholder="0">
+        </div>
+        <div class="field">
+          <label>捐贈 <span class="tip">一般捐贈上限為所得總額 20%；捐給政府機關、公立學校、財團法人可全額扣除（勾選下方）</span></label>
+          <input type="number" id="inp-charity" min="0" step="1000" value="0" placeholder="0">
+          <label class="check-label" style="margin-top:6px">
+            <input type="checkbox" id="chk-charity-unlimited">
+            <span>捐政府／學校（無上限）</span>
+          </label>
+        </div>
+      </div>
+      <div id="ded-hint"></div>
+      <div id="ded-kpi" class="kpi-row" style="margin-top:12px"></div>
+    </div>
+
+    <!-- 特別扣除額 -->
+    <div class="card">
+      <h2>特別扣除額</h2>
+      <p class="hint" style="margin:-8px 0 14px">薪資特別扣除（上限 NT$207,000）已自動計算。以下填入個人符合的項目。</p>
+      <div class="grid2">
+        <div class="field">
+          <label>身心障礙特別扣除人數（每人 NT$200,000）</label>
+          <input type="number" id="inp-disability" min="0" max="20" value="0" placeholder="0">
+        </div>
+        <div class="field">
+          <label>幼兒學前扣除（6 歲以下子女人數，每人 NT$120,000）<span class="tip">適用稅率 20% 以上者減半（NT$60,000/人）</span></label>
+          <input type="number" id="inp-preschool" min="0" max="10" value="0" placeholder="0">
+        </div>
+        <div class="field">
+          <label>長期照顧扣除人數（每人 NT$120,000）<span class="tip">領有長照服務給付、身心障礙手冊或長照需求等級 2 以上。適用稅率 20% 以上者減半。</span></label>
+          <input type="number" id="inp-ltc" min="0" max="10" value="0" placeholder="0">
+        </div>
+      </div>
+      <div id="special-kpi" class="kpi-row" style="margin-top:12px"></div>
+    </div>
+
+    <!-- 試算結果 -->
+    <div class="card result-card">
+      <h2 id="result-title">試算結果</h2>
+      <div id="result-grid" class="result-grid"></div>
+      <div id="bracket-details" style="margin-top:16px"></div>
+    </div>
+
+    <!-- 免責聲明 -->
+    <div class="card note-card">
+      <h2>計算說明 & 免責聲明</h2>
+      <p>本頁依台灣 113/114 年度個人綜合所得稅法規計算，<b>不構成正式申報建議</b>。</p>
+      <p><b>未納入本試算：</b>股利二擇一（合併計稅或分離課稅 28%）、基本稅額（AMT）、境外所得、各類憑證要求、退職所得或其他特殊所得計算方式。</p>
+      <p>正式申報請使用財政部電子申報系統（eTax），或洽稅務師 / 記帳士。實際稅額依國稅局核定為準。</p>
+    </div>
+
+    <!-- CTA -->
+    <div class="cta-box">
+      <div class="cta-icon">💰</div>
+      <div class="cta-content">
+        <div class="cta-title">想把稅負整合進完整財務規劃？</div>
+        <div class="cta-sub">時值可以把綜所稅、收支、退休時間軸、投資配置全部整合試算，免費開始使用。</div>
+      </div>
+      <a href="/app.html#login" class="cta-btn">免費試用時值 →</a>
+    </div>
+  </div>
+
+  <footer>
+    <a href="/about">關於我們</a>
+    <a href="/terms">使用者條款</a>
+    <a href="/story">理財文章</a>
+    <a href="/">時值 · 財務地圖</a>
+  </footer>
+</Base>
+
+<script>
+// ── 稅務參數 ──────────────────────────────────────────
+const TAX_PARAMS = {
+  113: {
+    exempt: 92000, exemptEld: 138000,
+    stdSingle: 124000, stdJoint: 248000,
+    salarySpecialMax: 207000,
+    disabilityDed: 200000,
+    preschoolMax: 120000,
+    ltcMax: 120000,
+    insPremPerPerson: 24000,
+    brackets: [
+      {limit:590000,   rate:0.05},
+      {limit:1330000,  rate:0.12},
+      {limit:2660000,  rate:0.20},
+      {limit:4980000,  rate:0.30},
+      {limit:Infinity, rate:0.40},
+    ],
+  },
+  114: {
+    exempt: 92000, exemptEld: 138000,
+    stdSingle: 124000, stdJoint: 248000,
+    salarySpecialMax: 207000,
+    disabilityDed: 200000,
+    preschoolMax: 120000,
+    ltcMax: 120000,
+    insPremPerPerson: 24000,
+    brackets: [
+      {limit:590000,   rate:0.05},
+      {limit:1330000,  rate:0.12},
+      {limit:2660000,  rate:0.20},
+      {limit:4980000,  rate:0.30},
+      {limit:Infinity, rate:0.40},
+    ],
+  },
+};
+
+// ── 工具函式 ──────────────────────────────────────────
+function fmt(v){ return 'NT$' + Math.round(v).toLocaleString('zh-TW'); }
+function g(id){ return Number(document.getElementById(id).value) || 0; }
+function gv(id){ return document.getElementById(id).value; }
+function checked(id){ return document.getElementById(id).checked; }
+
+// ── 渲染 ─────────────────────────────────────────────
+function render(){
+  const year    = Number(gv('inp-year')) || 113;
+  const P       = TAX_PARAMS[year] || TAX_PARAMS[113];
+  const filing  = gv('inp-filing');
+  const depGen  = g('inp-dep-gen');
+  const depEld  = g('inp-dep-eld');
+  const dedType = document.querySelector('input[name="ded-type"]:checked')?.value || 'standard';
+  const salary  = g('inp-salary');
+  const otherInc= g('inp-other-inc');
+  const withheld= g('inp-withheld');
+  const totalIncome = salary + otherInc;
+
+  // 列舉欄位顯示
+  document.getElementById('itemized-fields').style.display = dedType === 'itemized' ? '' : 'none';
+
+  // ── 免稅額 ──────────────────────────────────────────
+  const spouseExempt = filing === 'joint' ? P.exempt : 0;
+  const totalExempt  = P.exempt + spouseExempt + depGen * P.exempt + depEld * P.exemptEld;
+  const totalPersons = 1 + (filing === 'joint' ? 1 : 0) + depGen + depEld;
+
+  // 免稅額 KPI
+  const exemptItems = [];
+  exemptItems.push(`<div class="kpi"><div class="kpi-l">本人免稅額</div><div class="kpi-v">${fmt(P.exempt)}</div></div>`);
+  if(filing === 'joint') exemptItems.push(`<div class="kpi"><div class="kpi-l">配偶免稅額</div><div class="kpi-v">${fmt(P.exempt)}</div></div>`);
+  if(depGen > 0) exemptItems.push(`<div class="kpi"><div class="kpi-l">一般扶養（×${depGen}）</div><div class="kpi-v">${fmt(depGen * P.exempt)}</div></div>`);
+  if(depEld > 0) exemptItems.push(`<div class="kpi"><div class="kpi-l">70歲以上扶養（×${depEld}）</div><div class="kpi-v">${fmt(depEld * P.exemptEld)}</div></div>`);
+  exemptItems.push(`<div class="kpi kpi-total"><div class="kpi-l">免稅額合計</div><div class="kpi-v">${fmt(totalExempt)}</div></div>`);
+  document.getElementById('exempt-kpi').innerHTML = exemptItems.join('');
+
+  // 所得 KPI
+  const incItems = [];
+  incItems.push(`<div class="kpi"><div class="kpi-l">薪資所得</div><div class="kpi-v">${fmt(salary)}</div></div>`);
+  if(otherInc > 0) incItems.push(`<div class="kpi"><div class="kpi-l">其他所得</div><div class="kpi-v">${fmt(otherInc)}</div></div>`);
+  incItems.push(`<div class="kpi kpi-total"><div class="kpi-l">所得總額</div><div class="kpi-v">${fmt(totalIncome)}</div></div>`);
+  document.getElementById('income-kpi').innerHTML = incItems.join('');
+
+  // ── 扣除額 ──────────────────────────────────────────
+  const stdDed = filing === 'joint' ? P.stdJoint : P.stdSingle;
+  const insPremCap  = totalPersons * P.insPremPerPerson;
+  const insPrem     = g('inp-ins');
+  const medical     = g('inp-medical');
+  const mortgageInt = g('inp-mortgage');
+  const rent        = g('inp-rent');
+  const charity     = g('inp-charity');
+  const charityUnlimited = checked('chk-charity-unlimited');
+
+  const insItemized   = Math.min(insPrem, insPremCap);
+  const mortgageDed   = Math.min(mortgageInt, 300000);
+  const rentDed       = mortgageInt > 0 ? 0 : Math.min(rent, 120000);
+  const charityLimit  = totalIncome * 0.20;
+  const charityDed    = charityUnlimited ? charity : Math.min(charity, charityLimit);
+  const itemizedTotal = insItemized + medical + mortgageDed + rentDed + charityDed;
+  const betterItemize = itemizedTotal > stdDed;
+  const chosenDed     = dedType === 'itemized' ? itemizedTotal : stdDed;
+
+  // 扣除額標籤更新
+  document.getElementById('std-label').textContent = `（${fmt(stdDed)}）${dedType==='standard' && !betterItemize ? ' ✅ 建議' : ''}`;
+  document.getElementById('item-label').textContent = `（${fmt(itemizedTotal)}）${betterItemize ? ' ✅ 建議' : ''}`;
+
+  // 列舉 KPI
+  const dedItems = [];
+  if(dedType === 'itemized'){
+    if(insItemized > 0) dedItems.push(`<div class="kpi"><div class="kpi-l">保費列舉</div><div class="kpi-v">${fmt(insItemized)}</div></div>`);
+    if(medical > 0)     dedItems.push(`<div class="kpi"><div class="kpi-l">醫療費</div><div class="kpi-v">${fmt(medical)}</div></div>`);
+    if(mortgageDed > 0) dedItems.push(`<div class="kpi"><div class="kpi-l">房貸利息</div><div class="kpi-v">${fmt(mortgageDed)}</div></div>`);
+    if(rentDed > 0)     dedItems.push(`<div class="kpi"><div class="kpi-l">租金</div><div class="kpi-v">${fmt(rentDed)}</div></div>`);
+    if(charityDed > 0)  dedItems.push(`<div class="kpi"><div class="kpi-l">捐贈</div><div class="kpi-v">${fmt(charityDed)}</div></div>`);
+    dedItems.push(`<div class="kpi kpi-total"><div class="kpi-l">列舉合計</div><div class="kpi-v">${fmt(itemizedTotal)}</div></div>`);
+  }
+  document.getElementById('ded-kpi').innerHTML = dedItems.join('');
+
+  // 扣除額提示
+  let dedHint = '';
+  if(dedType === 'standard' && betterItemize)
+    dedHint = `<div class="note-good">💡 你的列舉合計（${fmt(itemizedTotal)}）<b>高於</b>標準扣除額（${fmt(stdDed)}），切換列舉可節稅更多。</div>`;
+  else if(dedType === 'itemized' && !betterItemize)
+    dedHint = `<div class="note-hint">ℹ️ 標準扣除額（${fmt(stdDed)}）比目前列舉（${fmt(itemizedTotal)}）多 ${fmt(stdDed - itemizedTotal)}，改選標準較有利。</div>`;
+  else if(dedType === 'itemized')
+    dedHint = `<div class="note-good">✅ 列舉（${fmt(itemizedTotal)}）確實比標準（${fmt(stdDed)}）多 ${fmt(itemizedTotal - stdDed)}，選擇正確。</div>`;
+  if(!charityUnlimited && charity > charityLimit && charityLimit > 0)
+    dedHint += `<div class="note-warn">⚠ 捐贈超出所得 20% 上限（${fmt(Math.round(charityLimit))}），超出部分不可列舉。</div>`;
+  document.getElementById('ded-hint').innerHTML = dedHint;
+
+  // ── 特別扣除額 ──────────────────────────────────────
+  const salarySpecial  = Math.min(salary, P.salarySpecialMax);
+  const disCount       = g('inp-disability');
+  const preschoolCount = g('inp-preschool');
+  const ltcCount       = g('inp-ltc');
+  const disabilityDed  = disCount * P.disabilityDed;
+  const preschoolDed   = preschoolCount * P.preschoolMax;
+  const ltcDed         = ltcCount * P.ltcMax;
+  const totalSpecial   = salarySpecial + disabilityDed + preschoolDed + ltcDed;
+
+  const specItems = [];
+  specItems.push(`<div class="kpi"><div class="kpi-l">薪資特別扣除</div><div class="kpi-v">${fmt(salarySpecial)}</div></div>`);
+  if(disabilityDed > 0) specItems.push(`<div class="kpi"><div class="kpi-l">身障（×${disCount}）</div><div class="kpi-v">${fmt(disabilityDed)}</div></div>`);
+  if(preschoolDed > 0)  specItems.push(`<div class="kpi"><div class="kpi-l">幼兒學前（×${preschoolCount}）</div><div class="kpi-v">${fmt(preschoolDed)}</div></div>`);
+  if(ltcDed > 0)        specItems.push(`<div class="kpi"><div class="kpi-l">長照（×${ltcCount}）</div><div class="kpi-v">${fmt(ltcDed)}</div></div>`);
+  specItems.push(`<div class="kpi kpi-total"><div class="kpi-l">特別扣除合計</div><div class="kpi-v">${fmt(totalSpecial)}</div></div>`);
+  document.getElementById('special-kpi').innerHTML = specItems.join('');
+
+  // ── 綜合所得淨額 & 累進稅額 ─────────────────────────
+  const taxableIncome = Math.max(0, totalIncome - totalExempt - chosenDed - totalSpecial);
+
+  let grossTax = 0, rem = taxableIncome, prev = 0;
+  const bracketRows = [];
+  for(const b of P.brackets){
+    if(rem <= 0) break;
+    const chunk = Math.min(rem, b.limit === Infinity ? rem : (b.limit - prev));
+    const t = Math.round(chunk * b.rate);
+    if(chunk > 0) bracketRows.push({ from: prev, to: b.limit === Infinity ? null : b.limit, rate: b.rate, taxable: chunk, tax: t });
+    grossTax += t; rem -= chunk; prev = b.limit;
+  }
+  const finalTax     = Math.max(0, grossTax);
+  const refundOrPay  = withheld - finalTax;
+  const effectiveRate = totalIncome > 0 ? finalTax / totalIncome : 0;
+  const marginalRate  = bracketRows.length > 0 ? bracketRows[bracketRows.length - 1].rate : 0.05;
+
+  // 更新標題
+  document.getElementById('result-title').textContent = `${year} 年度試算結果`;
+
+  // 結果 grid
+  const resItems = [];
+  resItems.push(`<div class="res-item"><div class="res-l">所得總額</div><div class="res-v">${fmt(totalIncome)}</div></div>`);
+  resItems.push(`<div class="res-item"><div class="res-l">減：免稅額合計</div><div class="res-v minus">－${fmt(totalExempt)}</div></div>`);
+  resItems.push(`<div class="res-item"><div class="res-l">減：${dedType==='itemized'?'列舉':'標準'}扣除額</div><div class="res-v minus">－${fmt(chosenDed)}</div></div>`);
+  resItems.push(`<div class="res-item"><div class="res-l">減：特別扣除額合計</div><div class="res-v minus">－${fmt(totalSpecial)}</div></div>`);
+  resItems.push(`<div class="res-item res-highlight"><div class="res-l">綜合所得淨額（課稅基礎）</div><div class="res-v">${fmt(taxableIncome)}</div></div>`);
+  resItems.push(`<div class="res-item res-highlight"><div class="res-l">估算應納稅額</div><div class="res-v">${fmt(finalTax)}</div></div>`);
+  resItems.push(`<div class="res-item"><div class="res-l">有效稅率</div><div class="res-v">${(effectiveRate*100).toFixed(1)}%</div></div>`);
+  resItems.push(`<div class="res-item"><div class="res-l">邊際稅率（最高適用）</div><div class="res-v">${(marginalRate*100).toFixed(0)}%</div></div>`);
+  if(withheld > 0){
+    resItems.push(`<div class="res-item"><div class="res-l">已扣繳稅款</div><div class="res-v">－${fmt(withheld)}</div></div>`);
+    const isRefund = refundOrPay >= 0;
+    resItems.push(`<div class="res-item res-refund ${isRefund?'refund':'pay'}"><div class="res-l">${isRefund?'🎉 估算退稅金額':'⚠️ 估算補稅金額'}</div><div class="res-v">${fmt(Math.abs(refundOrPay))}</div></div>`);
+  }
+  document.getElementById('result-grid').innerHTML = resItems.join('');
+
+  // 稅率級距明細
+  if(bracketRows.length > 0){
+    document.getElementById('bracket-details').innerHTML = `
+      <details>
+        <summary>▶ 各稅率級距明細</summary>
+        <table class="bracket-table">
+          <thead><tr><th>稅率</th><th>課稅所得範圍</th><th>本級應稅金額</th><th>本級稅額</th></tr></thead>
+          <tbody>${bracketRows.map(r=>`<tr>
+            <td>${(r.rate*100).toFixed(0)}%</td>
+            <td>${fmt(r.from + 1)} ～ ${r.to ? fmt(r.to) : '以上'}</td>
+            <td>${fmt(r.taxable)}</td>
+            <td>${fmt(r.tax)}</td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </details>`;
+  } else {
+    document.getElementById('bracket-details').innerHTML = '';
+  }
+}
+
+// ── 事件綁定 ─────────────────────────────────────────
+['inp-year','inp-filing','inp-dep-gen','inp-dep-eld',
+ 'inp-salary','inp-other-inc','inp-withheld',
+ 'inp-ins','inp-medical','inp-mortgage','inp-rent','inp-charity'].forEach(id => {
+  document.getElementById(id).addEventListener('input', render);
+});
+['rad-standard','rad-itemized'].forEach(id => {
+  document.getElementById(id).addEventListener('change', render);
+});
+document.getElementById('chk-charity-unlimited').addEventListener('change', render);
+
+render();
+</script>
+
+<style>
+nav { position: sticky; top: 0; z-index: 100; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; height: 60px; background: rgba(246,242,233,.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+.nav-brand { font-family: var(--font-display); font-weight: 600; font-size: 20px; color: var(--primary-2); }
+.nav-tool { font-size: 13.5px; color: var(--primary); font-weight: 500; }
+.nav-tool:hover { text-decoration: underline; }
+
+.wrap { max-width: 900px; margin: 0 auto; padding: 48px 40px 100px; }
+.page-header { margin-bottom: 32px; }
+.eyebrow { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--primary); background: var(--primary-soft); border-radius: 999px; padding: 4px 12px; margin-bottom: 12px; }
+.page-header h1 { font-family: var(--font-display); font-size: 32px; font-weight: 500; margin: 0 0 8px; }
+.page-header p { color: var(--muted); font-size: 14px; line-height: 1.7; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px 28px; box-shadow: var(--shadow); margin-bottom: 16px; }
+.card h2 { font-family: var(--font-display); font-size: 17px; font-weight: 500; margin: 0 0 16px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+
+.grid2 { display: grid; grid-template-columns: repeat(2,1fr); gap: 16px; }
+
+.field label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 5px; }
+.field .tip { font-size: 11px; font-weight: 400; color: var(--faint); display: block; margin-top: 2px; line-height: 1.4; }
+.field input, .field select { width: 100%; border: 1.5px solid var(--line-2); border-radius: 8px; padding: 8px 10px; font-size: 14px; font-family: var(--font-body); background: var(--surface); color: var(--ink); }
+.field input:focus, .field select:focus { outline: none; border-color: var(--primary); }
+
+.kpi-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.kpi { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; flex: 1 1 140px; min-width: 120px; }
+.kpi.kpi-total { background: var(--accent-soft, #f4e7d2); border-color: var(--accent, #c0863a); }
+.kpi-l { font-size: 11px; color: var(--muted); margin-bottom: 4px; line-height: 1.4; }
+.kpi-v { font-family: var(--font-display); font-size: 16px; font-weight: 600; color: var(--ink); }
+
+.ded-toggle { display: flex; gap: 24px; flex-wrap: wrap; }
+.radio-label { cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.check-label { cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+
+.note-good { background: var(--primary-soft); border-left: 3px solid var(--primary); border-radius: 8px; padding: 10px 14px; font-size: 13px; color: var(--ink); line-height: 1.65; margin-top: 12px; }
+.note-hint { background: var(--surface-2); border-left: 3px solid var(--line-2); border-radius: 8px; padding: 10px 14px; font-size: 13px; color: var(--muted); line-height: 1.65; margin-top: 12px; }
+.note-warn { background: #fff8e1; border-left: 3px solid #f5a623; border-radius: 8px; padding: 10px 14px; font-size: 13px; color: var(--ink); line-height: 1.65; margin-top: 8px; }
+
+.hint { font-size: 13px; color: var(--muted); line-height: 1.7; }
+
+/* 結果卡 */
+.result-card { background: linear-gradient(135deg, var(--surface) 60%, var(--primary-soft)); border-color: var(--primary); border-width: 1.5px; }
+.result-card h2 { border-color: rgba(30,107,80,.2); }
+.result-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; }
+.res-item { background: rgba(255,255,255,.6); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.res-item.res-highlight { background: var(--primary); border-color: transparent; }
+.res-highlight .res-l { color: rgba(255,255,255,.8); font-weight: 700; }
+.res-highlight .res-v { color: #fff; font-size: 22px; }
+.res-item.res-refund.refund { background: #e0f0e8; border-color: var(--primary); }
+.res-item.res-refund.pay    { background: #fff0f0; border-color: #c0392b; }
+.res-refund.refund .res-v { color: var(--primary); font-size: 20px; }
+.res-refund.pay    .res-v { color: #c0392b; font-size: 20px; }
+.res-l { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.res-v { font-family: var(--font-display); font-size: 18px; font-weight: 600; color: var(--ink); }
+.res-v.minus { color: var(--muted); font-size: 15px; }
+
+details summary { cursor: pointer; font-size: 13px; color: var(--muted); user-select: none; }
+.bracket-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
+.bracket-table th { text-align: left; font-weight: 600; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--line); padding: 6px 8px; }
+.bracket-table td { padding: 7px 8px; border-bottom: 1px solid var(--line); }
+
+.note-card { background: var(--surface-2); }
+.note-card h2 { font-size: 15px; }
+.note-card p { font-size: 13px; color: var(--muted); line-height: 1.75; margin-bottom: 10px; }
+.note-card p:last-child { margin-bottom: 0; }
+
+.cta-box { background: var(--primary); border-radius: var(--radius); padding: 28px 32px; display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-top: 8px; }
+.cta-icon { font-size: 32px; flex: 0 0 auto; }
+.cta-content { flex: 1; min-width: 200px; }
+.cta-title { font-family: var(--font-display); font-size: 18px; font-weight: 500; color: #fff; margin-bottom: 4px; }
+.cta-sub { font-size: 13px; color: rgba(255,255,255,.75); line-height: 1.6; }
+.cta-btn { background: #fff; color: var(--primary-2); border-radius: 10px; padding: 12px 24px; font-weight: 700; font-size: 14px; flex: 0 0 auto; white-space: nowrap; transition: .15s; }
+.cta-btn:hover { background: var(--primary-soft); color: var(--primary-2); }
+
+footer { text-align: center; padding: 28px 20px; font-size: 13px; color: var(--faint); border-top: 1px solid var(--line); }
+footer a { color: var(--primary); margin: 0 8px; }
+
+@media (max-width: 700px) {
+  nav { padding: 0 16px; }
+  .wrap { padding: 28px 16px 80px; }
+  .grid2 { grid-template-columns: 1fr; }
+  .result-grid { grid-template-columns: 1fr; }
+  .kpi-row { flex-direction: column; }
+  .cta-box { flex-direction: column; text-align: center; }
+}
+</style>
