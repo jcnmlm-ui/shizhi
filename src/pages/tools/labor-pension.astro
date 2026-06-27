@@ -1,0 +1,379 @@
+---
+import Base from '../../layouts/Base.astro';
+
+const schema = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'WebApplication',
+  name: '勞退勞保試算器',
+  url: 'https://valuelens.tw/tools/labor-pension/',
+  description: '免費試算勞保老年年金與勞退個人專戶，計算自提節稅效果，找出最適合你的退休規劃。',
+  applicationCategory: 'FinanceApplication',
+  operatingSystem: 'Web',
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'TWD' },
+});
+---
+<Base
+  title="勞退自提試算 2025 · 勞保年金 + 勞退帳戶免費計算機"
+  description="免費試算勞保老年年金、勞退個人專戶與自提節稅效果。輸入投保薪資、年資、提繳率，即時看退休可領多少，以及自提能省多少稅。"
+>
+  <Fragment slot="head">
+    <script type="application/ld+json" set:html={schema} />
+    <link rel="canonical" href="https://valuelens.tw/tools/labor-pension/" />
+  </Fragment>
+
+  <nav>
+    <a class="nav-brand" href="/">時值</a>
+    <a class="nav-tool" href="/app.html">前往完整工具 →</a>
+  </nav>
+
+  <div class="wrap">
+    <div class="page-header">
+      <div class="eyebrow">免費試算工具</div>
+      <h1>勞退 + 勞保 退休試算</h1>
+      <p>輸入你的投保薪資、年資與提繳設定，即時試算退休後每月可領多少，以及勞退自提能幫你省多少稅。<br>資料不儲存、不需帳號。</p>
+    </div>
+
+    <!-- 基本設定 -->
+    <div class="card">
+      <h2>基本設定</h2>
+      <div class="grid3">
+        <div class="field">
+          <label>目前年齡</label>
+          <input type="number" id="inp-age" min="20" max="70" value="30">
+        </div>
+        <div class="field">
+          <label>預計退休年齡</label>
+          <input type="number" id="inp-retire" min="50" max="75" value="65">
+        </div>
+        <div class="field">
+          <label>預計壽命</label>
+          <input type="number" id="inp-life" min="60" max="110" value="85">
+        </div>
+      </div>
+    </div>
+
+    <!-- 勞保 -->
+    <div class="card">
+      <h2>勞保老年年金</h2>
+      <p class="hint" style="margin:-8px 0 16px">兩式擇優：① 月投保薪資 × 年資 × 1.55%　② 月投保薪資 × 年資 × 0.775% + 3,000。法定請領年齡 65 歲；提早或延後請領每年 ±4%。</p>
+      <div class="grid3">
+        <div class="field">
+          <label>平均月投保薪資 <span class="tip">上限 45,800</span></label>
+          <input type="number" id="inp-li-salary" min="0" max="45800" value="34800">
+        </div>
+        <div class="field">
+          <label>退休時預計年資（年）</label>
+          <input type="number" id="inp-li-years" min="0" max="45" value="35">
+        </div>
+        <div class="field">
+          <label>請領年齡（60–70）</label>
+          <input type="number" id="inp-li-age" min="60" max="70" value="65">
+        </div>
+      </div>
+      <div id="li-badge" class="adj-badge"></div>
+      <div class="kpi-row" id="li-kpi"></div>
+    </div>
+
+    <!-- 勞退 -->
+    <div class="card">
+      <h2>勞退新制個人專戶</h2>
+      <p class="hint" style="margin:-8px 0 16px">雇主每月提繳月提繳工資的 6%，你可自願再提 0–6%（自提部分當年可從薪資所得扣除，有節稅效果）。月提繳工資上限 150,000。</p>
+      <div class="grid3">
+        <div class="field">
+          <label>月提繳工資 <span class="tip">上限 150,000</span></label>
+          <input type="number" id="inp-lp-wage" min="0" max="150000" value="34800">
+        </div>
+        <div class="field">
+          <label>自願提繳率（0–6%）</label>
+          <input type="number" id="inp-lp-self" min="0" max="6" step="0.5" value="0">
+        </div>
+        <div class="field">
+          <label>目前帳戶餘額</label>
+          <input type="number" id="inp-lp-bal" min="0" value="0">
+        </div>
+      </div>
+      <div class="grid3">
+        <div class="field">
+          <label>帳戶預估年化報酬（%）</label>
+          <input type="number" id="inp-lp-ret" min="0" max="15" step="0.1" value="3">
+        </div>
+        <div class="field">
+          <label>年薪（估算節稅用）</label>
+          <input type="number" id="inp-annual-income" min="0" value="418000" placeholder="如 418000">
+        </div>
+      </div>
+      <div class="kpi-row" id="lp-kpi"></div>
+      <div id="lp-tax-note" class="tax-note"></div>
+    </div>
+
+    <!-- 退休收入總覽 -->
+    <div class="card summary-card">
+      <h2>退休收入總覽</h2>
+      <div id="summary-grid" class="summary-grid"></div>
+      <p class="hint" style="margin:12px 0 0">以上為估算值，實際金額以勞保局 / 勞動部核發為準。勞退月退以「帳戶 ÷ 平均餘命月數」概算，未計年金給付利率。</p>
+    </div>
+
+    <!-- 說明 -->
+    <div class="card note-card">
+      <h2>計算說明</h2>
+      <p><b>勞保老年年金（兩式擇優）：</b><br>
+      公式一：月投保薪資 × 年資 × 1.55%<br>
+      公式二：月投保薪資 × 年資 × 0.775% + 3,000<br>
+      取兩者較高值，再乘以增減給係數。投保薪資上限 NT$45,800。</p>
+      <p><b>提前 / 延後請領：</b>法定年齡為 65 歲。每提前 1 年減 4%（最多提前 5 年減 20%）；每延後 1 年增 4%（最多延後 5 年增 20%）。</p>
+      <p><b>勞退個人專戶：</b>以現有餘額 + 每月提繳額（雇主 6% + 自提），依預估報酬率複利到退休年齡，再除以（壽命 - 退休年齡）月數估算每月可領金額。</p>
+      <p><b>節稅估算：</b>自提金額可列舉扣除，依台灣累進稅率（113/114 年度）估算邊際稅率。僅供參考，正式申報請洽稅務專業人士。</p>
+      <p><b>資料來源：</b>勞動部勞工保險局、勞工退休金條例相關法規。如有異動請告知更新。</p>
+    </div>
+
+    <!-- CTA -->
+    <div class="cta-box">
+      <div class="cta-icon">📊</div>
+      <div class="cta-content">
+        <div class="cta-title">想把勞退勞保整合進整體財務規劃？</div>
+        <div class="cta-sub">時值可以把勞退勞保、收支、目標、退休時間軸全部整合計算，免費開始使用。</div>
+      </div>
+      <a href="/app.html#login" class="cta-btn">免費試用時值 →</a>
+    </div>
+  </div>
+
+  <footer>
+    <a href="/about">關於我們</a>
+    <a href="/terms">使用者條款</a>
+    <a href="/story">理財文章</a>
+    <a href="/">時值 · 財務地圖</a>
+  </footer>
+</Base>
+
+<script>
+// ── 常數 ──────────────────────────────────────────────
+const LI_SALARY_CAP = 45800;
+const LP_WAGE_CAP   = 150000;
+
+// ── 格式化 ──────────────────────────────────────────
+function fmtMoney(v){ return 'NT$' + Math.round(v).toLocaleString('zh-TW'); }
+function pct(v){ return (v * 100).toFixed(0) + '%'; }
+
+// ── 取輸入值 ─────────────────────────────────────────
+function g(id){ return Number(document.getElementById(id).value) || 0; }
+
+// ── 勞保計算 ─────────────────────────────────────────
+function liAdjFactor(claimAge){
+  const diff = claimAge - 65;
+  if(diff < 0) return Math.max(0.80, 1 + diff * 0.04);
+  if(diff > 0) return Math.min(1.20, 1 + diff * 0.04);
+  return 1.0;
+}
+
+function liMonthly(){
+  const sal  = Math.min(LI_SALARY_CAP, g('inp-li-salary'));
+  const yrs  = Math.max(0, g('inp-li-years'));
+  const claim= Math.round(g('inp-li-age'));
+  const f1   = sal * yrs * 0.0155;
+  const f2   = sal * yrs * 0.00775 + 3000;
+  return Math.max(f1, f2) * liAdjFactor(claim);
+}
+
+// ── 勞退計算 ─────────────────────────────────────────
+function lpAccrued(){
+  const wage   = Math.min(LP_WAGE_CAP, g('inp-lp-wage'));
+  const self   = Math.max(0, Math.min(0.06, g('inp-lp-self') / 100));
+  const bal    = g('inp-lp-bal');
+  const r      = g('inp-lp-ret') / 100;
+  const age    = Math.round(g('inp-age'));
+  const retire = Math.round(g('inp-retire'));
+  const years  = Math.max(0, retire - age);
+  const n      = years * 12;
+  const monthly = wage * (0.06 + self);
+  const rm     = Math.pow(1 + r, 1/12) - 1;
+  const fvBal  = bal * Math.pow(1 + r, years);
+  const fvContr= Math.abs(rm) < 1e-9 ? monthly * n : monthly * ((Math.pow(1 + rm, n) - 1) / rm);
+  return fvBal + fvContr;
+}
+
+function lpMonthly(){
+  const retire  = Math.round(g('inp-retire'));
+  const life    = Math.round(g('inp-life'));
+  const months  = Math.max(1, (life - retire) * 12);
+  return lpAccrued() / months;
+}
+
+function lpSelfMonthly(){
+  const wage = Math.min(LP_WAGE_CAP, g('inp-lp-wage'));
+  const self = Math.max(0, Math.min(0.06, g('inp-lp-self') / 100));
+  return wage * self;
+}
+
+// ── 邊際稅率（台灣 113/114 年度，單身標準申報概估）──
+function marginalRate(){
+  const ann     = g('inp-annual-income');
+  const taxable = Math.max(0, ann - 92000 - 124000 - Math.min(207000, ann));
+  if(taxable <= 590000)   return 0.05;
+  if(taxable <= 1330000)  return 0.12;
+  if(taxable <= 2660000)  return 0.20;
+  if(taxable <= 4980000)  return 0.30;
+  return 0.40;
+}
+
+// ── 渲染 ─────────────────────────────────────────────
+function render(){
+  const claimAge = Math.round(g('inp-li-age'));
+  const diff     = claimAge - 65;
+  const factor   = liAdjFactor(claimAge);
+  const sal      = Math.min(LI_SALARY_CAP, g('inp-li-salary'));
+  const yrs      = Math.max(0, g('inp-li-years'));
+  const f1       = sal * yrs * 0.0155;
+  const f2       = sal * yrs * 0.00775 + 3000;
+  const liM      = liMonthly();
+  const liA      = liM * 12;
+
+  // 勞保增減給提示
+  const badgeColor = diff < 0 ? '#c0392b' : diff > 0 ? 'var(--primary)' : 'var(--muted)';
+  const badgeText  = diff < 0
+    ? `提前 ${Math.abs(diff)} 年請領 → 月年金 × ${pct(factor)}（每年 −4%，共 −${Math.abs(diff)*4}%）`
+    : diff > 0
+    ? `延後 ${diff} 年請領 → 月年金 × ${pct(factor)}（每年 +4%，共 +${diff*4}%）`
+    : '法定年齡 65 歲請領，不增減';
+  document.getElementById('li-badge').innerHTML =
+    `<div class="adj-badge-inner" style="color:${badgeColor}">📌 ${badgeText}</div>`;
+
+  // 勞保 KPI
+  document.getElementById('li-kpi').innerHTML = `
+    <div class="kpi"><div class="kpi-l">採用公式</div><div class="kpi-v">${f1 >= f2 ? '1.55% 式' : '0.775%+3,000 式'}</div></div>
+    <div class="kpi"><div class="kpi-l">增減給係數</div><div class="kpi-v">${pct(factor)}</div></div>
+    <div class="kpi"><div class="kpi-l">每月可領</div><div class="kpi-v" style="color:var(--primary)">${fmtMoney(liM)}</div></div>
+    <div class="kpi"><div class="kpi-l">每年可領</div><div class="kpi-v" style="color:var(--primary)">${fmtMoney(liA)}</div></div>
+  `;
+
+  // 勞退 KPI
+  const acc        = lpAccrued();
+  const lpM        = lpMonthly();
+  const selfM      = lpSelfMonthly();
+  const wage       = Math.min(LP_WAGE_CAP, g('inp-lp-wage'));
+  const self       = Math.max(0, Math.min(0.06, g('inp-lp-self') / 100));
+  const totalContrib = wage * (0.06 + self);
+  document.getElementById('lp-kpi').innerHTML = `
+    <div class="kpi"><div class="kpi-l">每月共提繳（雇主＋自提）</div><div class="kpi-v">${fmtMoney(totalContrib)}</div></div>
+    <div class="kpi"><div class="kpi-l">其中自提（月扣薪資）</div><div class="kpi-v">${fmtMoney(selfM)}</div></div>
+    <div class="kpi"><div class="kpi-l">退休時帳戶估值</div><div class="kpi-v" style="color:var(--primary)">${fmtMoney(acc)}</div></div>
+    <div class="kpi"><div class="kpi-l">估算每月可領</div><div class="kpi-v" style="color:var(--primary)">${fmtMoney(lpM)}</div></div>
+  `;
+
+  // 節稅提示
+  const rate       = marginalRate();
+  const selfAnnual = selfM * 12;
+  const taxSaved   = Math.round(selfAnnual * rate);
+  if(selfM > 0){
+    document.getElementById('lp-tax-note').innerHTML = `
+      <div class="note-good">💡 <b>節稅效果：</b>自提每月 ${fmtMoney(selfM)} × 12 = <b>${fmtMoney(selfAnnual)}/年</b>可從應稅所得扣除。
+      以估算邊際稅率 <b>${Math.round(rate*100)}%</b>，<b>每年約可節稅 ${fmtMoney(taxSaved)}</b>
+      （30 年名目累計約 ${fmtMoney(taxSaved * 30)}）。</div>`;
+  } else {
+    document.getElementById('lp-tax-note').innerHTML = `
+      <div class="note-hint">💡 <b>節稅提示：</b>勞退自提（目前 0%）可從薪資所得扣除，以你的收入估算邊際稅率 <b>${Math.round(rate*100)}%</b>，每自提 NT$1,000／月每年可節稅約 <b>${fmtMoney(Math.round(12000*rate))}</b>。調整上方「自願提繳率」即時試算。</div>`;
+  }
+
+  // 總覽
+  const retire   = Math.round(g('inp-retire'));
+  const liClaim  = Math.round(g('inp-li-age'));
+  document.getElementById('summary-grid').innerHTML = `
+    <div class="sum-item">
+      <div class="sum-label">勞保年金（${liClaim} 歲起領）</div>
+      <div class="sum-val">${fmtMoney(liM)}<span class="sum-unit">/月</span></div>
+      <div class="sum-sub">${fmtMoney(liA)} / 年</div>
+    </div>
+    <div class="sum-item">
+      <div class="sum-label">勞退帳戶（${retire} 歲退休）</div>
+      <div class="sum-val">${fmtMoney(lpM)}<span class="sum-unit">/月</span></div>
+      <div class="sum-sub">帳戶總值 ${fmtMoney(acc)}</div>
+    </div>
+    <div class="sum-item sum-total">
+      <div class="sum-label">合計退休月收入</div>
+      <div class="sum-val">${fmtMoney(liM + lpM)}<span class="sum-unit">/月</span></div>
+      <div class="sum-sub">${fmtMoney((liM + lpM) * 12)} / 年</div>
+    </div>
+  `;
+}
+
+// ── 事件綁定 ─────────────────────────────────────────
+['inp-age','inp-retire','inp-life',
+ 'inp-li-salary','inp-li-years','inp-li-age',
+ 'inp-lp-wage','inp-lp-self','inp-lp-bal','inp-lp-ret','inp-annual-income']
+  .forEach(id => document.getElementById(id).addEventListener('input', render));
+
+render();
+</script>
+
+<style>
+nav { position: sticky; top: 0; z-index: 100; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; height: 60px; background: rgba(246,242,233,.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+.nav-brand { font-family: var(--font-display); font-weight: 600; font-size: 20px; color: var(--primary-2); }
+.nav-tool { font-size: 13.5px; color: var(--primary); font-weight: 500; }
+.nav-tool:hover { text-decoration: underline; }
+
+.wrap { max-width: 900px; margin: 0 auto; padding: 48px 40px 100px; }
+.page-header { margin-bottom: 32px; }
+.eyebrow { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--primary); background: var(--primary-soft); border-radius: 999px; padding: 4px 12px; margin-bottom: 12px; }
+.page-header h1 { font-family: var(--font-display); font-size: 32px; font-weight: 500; margin: 0 0 8px; }
+.page-header p { color: var(--muted); font-size: 14px; line-height: 1.7; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px 28px; box-shadow: var(--shadow); margin-bottom: 16px; }
+.card h2 { font-family: var(--font-display); font-size: 17px; font-weight: 500; margin: 0 0 16px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+
+.grid3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-bottom: 14px; }
+
+.field label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 5px; }
+.field .tip { font-size: 11px; font-weight: 400; color: var(--faint); }
+.field input { width: 100%; border: 1.5px solid var(--line-2); border-radius: 8px; padding: 8px 10px; font-size: 14px; font-family: var(--font-body); background: var(--surface); color: var(--ink); }
+.field input:focus { outline: none; border-color: var(--primary); }
+
+.adj-badge { margin: 0 0 12px; }
+.adj-badge-inner { font-size: 13px; background: var(--surface-2); border-radius: 8px; padding: 8px 12px; }
+
+.kpi-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 8px; }
+.kpi { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.kpi-l { font-size: 11px; color: var(--muted); margin-bottom: 4px; line-height: 1.4; }
+.kpi-v { font-family: var(--font-display); font-size: 18px; font-weight: 600; color: var(--ink); }
+
+.tax-note { margin-top: 4px; }
+.note-good { background: var(--primary-soft); border-left: 3px solid var(--primary); border-radius: 8px; padding: 12px 14px; font-size: 13.5px; color: var(--ink); line-height: 1.65; }
+.note-hint { background: var(--surface-2); border-left: 3px solid var(--line-2); border-radius: 8px; padding: 12px 14px; font-size: 13.5px; color: var(--muted); line-height: 1.65; }
+
+.summary-card { background: linear-gradient(135deg, var(--surface) 60%, var(--primary-soft)); border-color: var(--primary); border-width: 1.5px; }
+.summary-card h2 { border-color: rgba(30,107,80,.2); }
+.summary-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+.sum-item { padding: 16px; background: rgba(255,255,255,.6); border-radius: 10px; }
+.sum-item.sum-total { background: var(--primary); }
+.sum-total .sum-label, .sum-total .sum-sub { color: rgba(255,255,255,.8); }
+.sum-total .sum-val { color: #fff; }
+.sum-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.sum-val { font-family: var(--font-display); font-size: 26px; font-weight: 600; color: var(--primary-2); line-height: 1; }
+.sum-unit { font-size: 13px; font-weight: 400; margin-left: 2px; }
+.sum-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+.hint { font-size: 13px; color: var(--muted); line-height: 1.7; }
+
+.note-card { background: var(--surface-2); }
+.note-card h2 { font-size: 15px; }
+.note-card p { font-size: 13px; color: var(--muted); line-height: 1.75; margin-bottom: 10px; }
+.note-card p:last-child { margin-bottom: 0; }
+
+.cta-box { background: var(--primary); border-radius: var(--radius); padding: 28px 32px; display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-top: 8px; }
+.cta-icon { font-size: 32px; flex: 0 0 auto; }
+.cta-content { flex: 1; min-width: 200px; }
+.cta-title { font-family: var(--font-display); font-size: 18px; font-weight: 500; color: #fff; margin-bottom: 4px; }
+.cta-sub { font-size: 13px; color: rgba(255,255,255,.75); line-height: 1.6; }
+.cta-btn { background: #fff; color: var(--primary-2); border-radius: 10px; padding: 12px 24px; font-weight: 700; font-size: 14px; flex: 0 0 auto; white-space: nowrap; transition: .15s; }
+.cta-btn:hover { background: var(--primary-soft); color: var(--primary-2); }
+
+footer { text-align: center; padding: 28px 20px; font-size: 13px; color: var(--faint); border-top: 1px solid var(--line); }
+footer a { color: var(--primary); margin: 0 8px; }
+
+@media (max-width: 700px) {
+  nav { padding: 0 16px; }
+  .wrap { padding: 28px 16px 80px; }
+  .grid3 { grid-template-columns: 1fr 1fr; }
+  .kpi-row { grid-template-columns: repeat(2,1fr); }
+  .summary-grid { grid-template-columns: 1fr; }
+  .cta-box { flex-direction: column; text-align: center; }
+}
+</style>
