@@ -3,14 +3,15 @@ import Base from '../layouts/Base.astro';
 import Nav from '../components/Nav.astro';
 import Footer from '../components/Footer.astro';
 ---
-<Base title="時值 · 把你的人生，算清楚。" description="台灣人專屬的個人財務規劃工具。收支、資產、目標、退休，一頁全覽。免費開始，無需信用卡。">
+<Base title="時值 · 把你的人生，算清楚。" description="財務理清楚，未來不迷路。台灣人專屬的個人財務規劃工具，收支、資產、目標、退休一頁全覽。免費版永久可用，無需信用卡。">
   <Nav />
 
   <!-- HERO -->
   <section class="hero">
     <div class="hero-eyebrow">台灣人專屬的個人財務規劃工具</div>
     <h1>把你的人生，<em>算清楚。</em></h1>
-    <p class="hero-sub">收支、資產、退休、目標——一頁全覽。從現在開始，讓數字說話，讓未來更篤定。</p>
+    <p class="hero-tagline">財務理清楚，未來不迷路。</p>
+    <p class="hero-sub">收支、資產、退休、目標——一頁全覽。讓每一個財務決定都有數字支撐，不再靠感覺猜未來。</p>
     <div class="hero-btns">
       <a href="/app.html#login" class="btn-primary">免費開始使用</a>
       <a href="#features" class="btn-ghost">了解功能 ↓</a>
@@ -355,7 +356,7 @@ import Footer from '../components/Footer.astro';
 
   <!-- FOOTER CTA -->
   <div class="footer-cta">
-    <h2>今天就開始，讓數字說話。</h2>
+    <h2>財務理清楚，未來不迷路。</h2>
     <p>免費版永久可用，5 分鐘填完基本資料，馬上看到你的財務全貌。</p>
     <a href="/app.html#login" class="btn-white">免費開始使用 →</a>
     <p class="note">無需信用卡 · 資料在你手上 · 隨時可匯出</p>
@@ -370,6 +371,7 @@ import Footer from '../components/Footer.astro';
 .hero-eyebrow { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--primary); background: var(--primary-soft); border-radius: 999px; padding: 5px 14px; margin-bottom: 24px; }
 .hero h1 { font-family: var(--font-display); font-weight: 600; font-size: clamp(36px,6vw,64px); line-height: 1.15; letter-spacing: .2px; color: var(--ink); margin-bottom: 20px; }
 .hero h1 em { font-style: normal; color: var(--primary); }
+.hero-tagline { font-family: var(--font-display); font-size: clamp(15px,2vw,20px); color: var(--muted); margin: 10px 0 24px; letter-spacing: .3px; }
 .hero-sub { font-size: 18px; color: var(--muted); max-width: 520px; margin: 0 auto 40px; line-height: 1.7; }
 .hero-btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 .hero-note { margin-top: 14px; font-size: 12.5px; color: var(--faint); }
