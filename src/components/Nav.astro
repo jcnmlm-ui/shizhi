@@ -80,14 +80,13 @@ nav {
 .nav-dropdown:hover .drop-arrow { transform: rotate(180deg); }
 
 .drop-menu {
-  position: absolute; top: calc(100% + 12px); left: 50%;
-  transform: translateX(-50%);
+  position: absolute; top: 100%; left: 50%;
+  transform: translateX(-50%) translateY(-4px);
   background: var(--surface, #FFFDF8);
   border: 1px solid var(--line); border-radius: 14px;
   box-shadow: 0 4px 6px rgba(27,38,32,.04), 0 16px 40px -12px rgba(27,38,32,.2);
-  padding: 8px; min-width: 260px;
+  padding: 14px 8px 8px; min-width: 260px;
   opacity: 0; visibility: hidden; pointer-events: none;
-  transform: translateX(-50%) translateY(-6px);
   transition: opacity .18s ease, transform .18s ease, visibility .18s;
 }
 .nav-dropdown:hover .drop-menu {
