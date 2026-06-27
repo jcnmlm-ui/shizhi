@@ -12,9 +12,15 @@ CLAUDE.md
 memory.md
 .claude/
 marketing-seo-plan.md
+marketing/
 supabase_setup.sql
 index.ts
 md2pdf.py
+
+# ── 舊版獨立 HTML（已由 Astro src/pages 取代）──────────
+about.html
+story.html
+terms.html
 
 # ── 產品規劃書（任何版本、任何格式）───────────────────
 時值_產品規劃書*.md
