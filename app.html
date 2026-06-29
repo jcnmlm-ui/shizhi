@@ -1524,7 +1524,7 @@ const SCHEMAS = {
   ], def:{name:'',target_amount:0,target_years:5,cycle_years:null,start_amount:0,return_rate:null,priority:3}, grid:'1.2fr 1.1fr .55fr .55fr 1fr .6fr .55fr .9fr .8fr 40px', computed:true },
 
   policies:{ cols:[
-    {key:'name',      label:'保單／附約名稱', type:'text', ph:'例：南山主約'},
+    {key:'name',      label:'保單／附約名稱', type:'text', ph:'例：定期壽險主約'},
     {key:'ins_type',  label:'類型', type:'select', options:[
       ['life',         '壽險（一般身故）'],
       ['accident',     '意外傷害'],
@@ -3871,7 +3871,7 @@ function showPaymentUpgrade(triggerFeature){
       +'<div id="sub-month-chips" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">'+subChips+'</div></div>'
       +'<div class="field"><label>匯款末五碼</label><input id="pay-last5" type="text" maxlength="5" placeholder="例：12345" style="letter-spacing:.1em;font-family:monospace;font-size:16px"></div>'
       +'<div class="field"><label>匯款金額（NT$）</label><input id="pay-amount" type="number" placeholder="例：'+pc.price_full+'"></div>'
-      +'<div class="field"><label>備註（選填）</label><input id="pay-note" type="text" placeholder="例：ATM 匯款 / 台新銀行"></div>'
+      +'<div class="field"><label>備註（選填）</label><input id="pay-note" type="text" placeholder="例：ATM 匯款 / 網路銀行"></div>'
       +'</div><button class="btn primary" onclick="submitPaymentRequest()" style="width:100%;padding:11px">送出驗證申請</button>'
       +'<p style="font-size:11.5px;color:var(--faint);margin-top:10px;text-align:center">送出即表示你同意 <a href="terms.html" target="_blank" style="color:var(--primary)">使用者條款</a> 與 <a href="terms.html#privacy" target="_blank" style="color:var(--primary)">隱私政策</a></p>'
       +'<p id="pay-msg" style="margin:8px 0 0;font-size:13px"></p></div>'
@@ -4053,7 +4053,7 @@ function upgradeCard(tab){
           </div>
           <div class="field"><label>匯款末五碼</label><input id="addon-pay-last5" type="text" maxlength="5" placeholder="例：12345" style="letter-spacing:.1em;font-family:monospace;font-size:16px"></div>
           <div class="field"><label>匯款金額（NT$）</label><input id="addon-pay-amount" type="number" value="${addonDef.price_onetime}"></div>
-          <div class="field"><label>備註（選填）</label><input id="addon-pay-note" type="text" placeholder="例：ATM 匯款 / 台新銀行"></div>
+          <div class="field"><label>備註（選填）</label><input id="addon-pay-note" type="text" placeholder="例：ATM 匯款 / 網路銀行"></div>
         </div>
         <button class="btn btn-primary" style="width:100%;padding:11px" onclick="submitAddonRequest('${tab}')">送出加購申請</button>
         <p id="addon-pay-msg" style="margin:8px 0 0;font-size:13px"></p>
