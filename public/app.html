@@ -886,7 +886,7 @@ const Store = {
         this.mode='cloud';
         const { data } = await sb.auth.getSession();
         session = data.session;
-        sb.auth.onAuthStateChange(async (e,s)=>{ session=s; if(e==='PASSWORD_RECOVERY') pwRecovery=true; renderCloudArea(); if(s){ await fetchFeatures(); renderNav(); if(e!=='TOKEN_REFRESHED'){ await Store.loadAll(); renderAll(); rerenderActiveTab(); } if(e==='SIGNED_IN'){ maybeShowTourPrompt(); } } else { allowedFeatures=['dash','flow','balance','goals','report','settings','addon-store','pension','postal','taxcalc']; currentPlan='free'; allowedAddons=[]; closeUpgradeModal(); syncPrintBtn(); renderAll(); } });
+        sb.auth.onAuthStateChange(async (e,s)=>{ const wasSignedIn=!!session; session=s; if(e==='PASSWORD_RECOVERY') pwRecovery=true; renderCloudArea(); if(s){ await fetchFeatures(); renderNav(); if(e==='SIGNED_IN' && !wasSignedIn){ await Store.loadAll(); renderAll(); rerenderActiveTab(); maybeShowTourPrompt(); } } else { allowedFeatures=['dash','flow','balance','goals','report','settings','addon-store','pension','postal','taxcalc']; currentPlan='free'; allowedAddons=[]; closeUpgradeModal(); syncPrintBtn(); renderAll(); } });
       }catch(err){ console.error('Supabase 載入失敗，改用本地模式',err); this.mode='local'; }
     }
   },
