@@ -2838,10 +2838,11 @@ function renderTaxCalc(){
   // 各年度稅務參數（免稅額、扣除上限、稅率級距）
   const TAX_PARAMS = {
     113: {
-      exempt: 92000, exemptEld: 138000,
-      stdSingle: 124000, stdJoint: 248000,
-      salarySpecialMax: 207000, disabilityMax: 200000,
-      preschoolMax: 120000, ltcMax: 120000,
+      // 財政部公告：113年度（2024年所得，115年5月申報）
+      exempt: 97000, exemptEld: 145500,
+      stdSingle: 131000, stdJoint: 262000,
+      salarySpecialMax: 218000, disabilityMax: 218000,
+      preschoolMax: 120000, preschoolMax2: null, ltcMax: 120000,
       insPremPerPerson: 24000,
       brackets: [
         {limit:590000,   rate:0.05},
@@ -2852,11 +2853,12 @@ function renderTaxCalc(){
       ],
     },
     114: {
-      // 114年度（2025年所得）— 財政部公告同113年，如有更新請以官方公告為準
-      exempt: 92000, exemptEld: 138000,
-      stdSingle: 124000, stdJoint: 248000,
-      salarySpecialMax: 207000, disabilityMax: 200000,
-      preschoolMax: 120000, ltcMax: 120000,
+      // 財政部公告：114年度（2025年所得，115年5月申報）
+      // 幼兒學前改分級：第1名15萬、第2名起22.5萬；長照從12萬升至18萬
+      exempt: 97000, exemptEld: 145500,
+      stdSingle: 131000, stdJoint: 262000,
+      salarySpecialMax: 218000, disabilityMax: 218000,
+      preschoolMax: 150000, preschoolMax2: 225000, ltcMax: 180000,
       insPremPerPerson: 24000,
       brackets: [
         {limit:590000,   rate:0.05},
@@ -2897,7 +2899,10 @@ function renderTaxCalc(){
   // 特別扣除額
   const salarySpecial = Math.min(manualSalary, P.salarySpecialMax);
   const disabilityDed = disCount * P.disabilityMax;
-  const preschoolDed  = preschool * P.preschoolMax;
+  const preschoolDed  = preschool <= 0 ? 0
+    : P.preschoolMax2
+      ? P.preschoolMax + Math.max(0, preschool - 1) * P.preschoolMax2
+      : preschool * P.preschoolMax;
   const ltcDed        = ltcCount * P.ltcMax;
   const totalSpecial  = salarySpecial + disabilityDed + preschoolDed + ltcDed;
 
@@ -3044,20 +3049,20 @@ function renderTaxCalc(){
 
   <div class="card">
     <h2>特別扣除額</h2>
-    <p class="hint" style="margin:0 0 12px">薪資特別扣除（上限 NT$207,000）自動計算為 ${fmtMoney(salarySpecial)}。以下填入個人符合的項目。</p>
+    <p class="hint" style="margin:0 0 12px">薪資特別扣除（上限 ${fmtMoney(P.salarySpecialMax)}）自動計算為 ${fmtMoney(salarySpecial)}。以下填入個人符合的項目。</p>
     <div class="cgrid">
-      <div class="cfield"><label>身心障礙特別扣除人數（每人 NT$200,000）</label>
+      <div class="cfield"><label>身心障礙特別扣除人數（每人 ${fmtMoney(P.disabilityMax)}）</label>
         <input type="number" min="0" max="20" data-setting="tax_disability" value="${disCount}" placeholder="0">
       </div>
-      <div class="cfield"><label>幼兒學前扣除（6 歲以下子女人數，每人 NT$120,000）<span class="tip" data-tip="${adYear}年1月1日前出生且未滿 6 歲。高稅率者（20%以上）減半適用，最高 NT$60,000/人。">ⓘ</span></label>
+      <div class="cfield"><label>幼兒學前扣除（6 歲以下子女人數）<span class="tip" data-tip="${adYear}年1月1日前出生且未滿 6 歲。${P.preschoolMax2?`第 1 名 ${fmtMoney(P.preschoolMax)}、第 2 名起每人 ${fmtMoney(P.preschoolMax2)}`:`每人 ${fmtMoney(P.preschoolMax)}`}。高稅率者（20%以上）減半適用。">ⓘ</span></label>
         <input type="number" min="0" max="10" data-setting="tax_preschool" value="${preschool}" placeholder="0">
       </div>
-      <div class="cfield"><label>長期照顧扣除人數（每人 NT$120,000）<span class="tip" data-tip="領有長照服務給付、身心障礙手冊或長照需求等級 2 以上。高稅率者減半適用。">ⓘ</span></label>
+      <div class="cfield"><label>長期照顧扣除人數（每人 ${fmtMoney(P.ltcMax)}）<span class="tip" data-tip="領有長照服務給付、身心障礙手冊或長照需求等級 2 以上。高稅率者減半適用。">ⓘ</span></label>
         <input type="number" min="0" max="10" data-setting="tax_ltc" value="${ltcCount}" placeholder="0">
       </div>
     </div>
     <div class="cgrid2" style="margin-top:10px">
-      <div class="rep-kpi"><div class="l">薪資特別扣除（上限 NT$207,000）</div><div class="v">${fmtMoney(salarySpecial)}</div></div>
+      <div class="rep-kpi"><div class="l">薪資特別扣除（上限 ${fmtMoney(P.salarySpecialMax)}）</div><div class="v">${fmtMoney(salarySpecial)}</div></div>
       ${disabilityDed>0?`<div class="rep-kpi"><div class="l">身障扣除（×${disCount}）</div><div class="v">${fmtMoney(disabilityDed)}</div></div>`:''}
       ${preschoolDed>0?`<div class="rep-kpi"><div class="l">幼兒學前扣除（×${preschool}）</div><div class="v">${fmtMoney(preschoolDed)}</div></div>`:''}
       ${ltcDed>0?`<div class="rep-kpi"><div class="l">長照扣除（×${ltcCount}）</div><div class="v">${fmtMoney(ltcDed)}</div></div>`:''}
