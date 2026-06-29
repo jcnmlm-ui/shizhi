@@ -4123,6 +4123,16 @@ document.addEventListener('input', e=>{
     pfApply(t.dataset.pf, parseFloat(t.value)||0);
     pfSyncSliders(); pfLiveUpdate();
   }
+  // 同步 state（不存 DB，避免 change 前 re-render 吃到舊值）
+  if(t.matches && t.matches('[data-setting]') && t.type!=='checkbox'){
+    const key=t.dataset.setting, pct=t.dataset.pct==='true';
+    let v=parseFloat(t.value)||0; if(pct) v=v/100; if(t.dataset.wan) v=v*10000;
+    state.settings[key]=v;
+  }
+  if(t.matches && t.matches('[data-tax]')){
+    const key=t.dataset.tax, raw=t.value;
+    state.settings[key]=(raw===''&&DEFAULT_SETTINGS[key]===null)?null:(isNaN(parseFloat(raw))?raw:(parseFloat(raw)||0));
+  }
   // 千位符：打字時即時更新
   if(t.matches && t.matches('.cfield input[type="number"]') && !t.dataset.wan){
     const parent=t.closest('.cfield');
