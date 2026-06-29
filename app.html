@@ -870,6 +870,7 @@ function sanitizeCatConfig(o){
 let state = { settings:{...DEFAULT_SETTINGS}, incomes:[], expenses:[], assets:[], liabilities:[], goals:[], children:[], purchases:[], policies:[], childCosts:deepClone(DEFAULT_CHILD_COSTS), postal:{...DEFAULT_POSTAL}, catConfig:deepClone(DEFAULT_CAT_CONFIG) };
 let sb = null;            // supabase client
 let session = null;
+let dataLoaded = false;
 let pwRecovery = false;
 let chart = null;
 let showReal = false;
@@ -886,7 +887,8 @@ const Store = {
         this.mode='cloud';
         const { data } = await sb.auth.getSession();
         session = data.session;
-        sb.auth.onAuthStateChange(async (e,s)=>{ const wasSignedIn=!!session; session=s; if(e==='PASSWORD_RECOVERY') pwRecovery=true; renderCloudArea(); if(s){ await fetchFeatures(); renderNav(); if(e==='SIGNED_IN' && !wasSignedIn){ await Store.loadAll(); renderAll(); rerenderActiveTab(); maybeShowTourPrompt(); } } else { allowedFeatures=['dash','flow','balance','goals','report','settings','addon-store','pension','postal','taxcalc']; currentPlan='free'; allowedAddons=[]; closeUpgradeModal(); syncPrintBtn(); renderAll(); } });
+        if(session) dataLoaded = true; // 已有 session，標記資料待 init IIFE 載入，防止 onAuthStateChange 重複 loadAll
+        sb.auth.onAuthStateChange(async (e,s)=>{ session=s; if(e==='PASSWORD_RECOVERY') pwRecovery=true; renderCloudArea(); if(s){ await fetchFeatures(); renderNav(); if(!dataLoaded){ dataLoaded=true; await Store.loadAll(); renderAll(); rerenderActiveTab(); if(e==='SIGNED_IN') maybeShowTourPrompt(); } } else { dataLoaded=false; allowedFeatures=['dash','flow','balance','goals','report','settings','addon-store','pension','postal','taxcalc']; currentPlan='free'; allowedAddons=[]; closeUpgradeModal(); syncPrintBtn(); renderAll(); } });
       }catch(err){ console.error('Supabase 載入失敗，改用本地模式',err); this.mode='local'; }
     }
   },
