@@ -6,15 +6,15 @@ const schema = JSON.stringify({
   '@type': 'WebApplication',
   name: '台灣綜所稅試算器',
   url: 'https://valuelens.tw/tools/tax-calc/',
-  description: '免費試算台灣綜合所得稅，支援 113/114 年度，標準與列舉扣除額自動比較，即時計算退稅或補稅金額。',
+  description: '免費試算台灣綜合所得稅，支援 113–115 年度，標準與列舉扣除額自動比較，即時計算退稅或補稅金額。',
   applicationCategory: 'FinanceApplication',
   operatingSystem: 'Web',
   offers: { '@type': 'Offer', price: '0', priceCurrency: 'TWD' },
 });
 ---
 <Base
-  title="綜所稅試算 2025 · 台灣個人所得稅免費計算機（113/114 年度）"
-  description="免費試算台灣個人綜合所得稅。支援 113/114 年度、單身或合併申報、標準與列舉扣除額自動比較，即時計算應納稅額、退稅或補稅金額。"
+  title="綜所稅試算 2025 · 台灣個人所得稅免費計算機（113–115 年度）"
+  description="免費試算台灣個人綜合所得稅。支援 113–115 年度、單身或合併申報、標準與列舉扣除額自動比較，即時計算應納稅額、退稅或補稅金額。"
 >
   <Fragment slot="head">
     <script type="application/ld+json" set:html={schema} />
@@ -30,7 +30,7 @@ const schema = JSON.stringify({
     <div class="page-header">
       <div class="eyebrow">免費試算工具</div>
       <h1>台灣綜合所得稅試算</h1>
-      <p>填入收入與扣除項目，即時試算應繳稅額、有效稅率，以及退稅或補稅估算。<br>支援 113/114 年度 · 單身 / 合併申報 · 標準與列舉扣除額自動比對。<br>資料不儲存、不需帳號。</p>
+      <p>填入收入與扣除項目，即時試算應繳稅額、有效稅率，以及退稅或補稅估算。<br>支援 113–115 年度 · 單身 / 合併申報 · 標準與列舉扣除額自動比對。<br>資料不儲存、不需帳號。</p>
     </div>
 
     <!-- 申報方式 -->
@@ -41,7 +41,8 @@ const schema = JSON.stringify({
           <label>申報年度</label>
           <select id="inp-year">
             <option value="113">113 年度（2024 年所得）</option>
-            <option value="114">114 年度（2025 年所得）</option>
+            <option value="114" selected>114 年度（2025 年所得）</option>
+            <option value="115">115 年度（2026 年所得）</option>
           </select>
         </div>
         <div class="field">
@@ -136,7 +137,7 @@ const schema = JSON.stringify({
           <input type="number" id="inp-disability" min="0" max="20" value="0" placeholder="0">
         </div>
         <div class="field">
-          <label>幼兒學前扣除（6 歲以下子女人數，每人 NT$120,000）<span class="tip">適用稅率 20% 以上者減半（NT$60,000/人）</span></label>
+          <label>幼兒學前扣除（6 歲以下子女人數）<span class="tip">114/115年度：第 1 名 NT$150,000，第 2 名起 NT$225,000。113年度：每人 NT$120,000。稅率 20% 以上者減半。</span></label>
           <input type="number" id="inp-preschool" min="0" max="10" value="0" placeholder="0">
         </div>
         <div class="field">
@@ -157,7 +158,7 @@ const schema = JSON.stringify({
     <!-- 免責聲明 -->
     <div class="card note-card">
       <h2>計算說明 & 免責聲明</h2>
-      <p>本頁依台灣 113/114 年度個人綜合所得稅法規計算，<b>不構成正式申報建議</b>。</p>
+      <p>本頁依台灣 113–115 年度個人綜合所得稅法規計算，<b>不構成正式申報建議</b>。</p>
       <p><b>未納入本試算：</b>股利二擇一（合併計稅或分離課稅 28%）、基本稅額（AMT）、境外所得、各類憑證要求、退職所得或其他特殊所得計算方式。</p>
       <p>正式申報請使用財政部電子申報系統（eTax），或洽稅務師 / 記帳士。實際稅額依國稅局核定為準。</p>
     </div>
@@ -185,12 +186,11 @@ const schema = JSON.stringify({
 // ── 稅務參數 ──────────────────────────────────────────
 const TAX_PARAMS = {
   113: {
-    exempt: 92000, exemptEld: 138000,
-    stdSingle: 124000, stdJoint: 248000,
-    salarySpecialMax: 207000,
-    disabilityDed: 200000,
-    preschoolMax: 120000,
-    ltcMax: 120000,
+    // 財政部公告 113年度（2024年所得）
+    exempt: 97000, exemptEld: 145500,
+    stdSingle: 131000, stdJoint: 262000,
+    salarySpecialMax: 218000, disabilityDed: 218000,
+    preschoolMax: 120000, preschoolMax2: null, ltcMax: 120000,
     insPremPerPerson: 24000,
     brackets: [
       {limit:590000,   rate:0.05},
@@ -201,12 +201,26 @@ const TAX_PARAMS = {
     ],
   },
   114: {
-    exempt: 92000, exemptEld: 138000,
-    stdSingle: 124000, stdJoint: 248000,
-    salarySpecialMax: 207000,
-    disabilityDed: 200000,
-    preschoolMax: 120000,
-    ltcMax: 120000,
+    // 財政部公告 114年度（2025年所得）— 幼兒學前改分級、長照升至18萬
+    exempt: 97000, exemptEld: 145500,
+    stdSingle: 131000, stdJoint: 262000,
+    salarySpecialMax: 218000, disabilityDed: 218000,
+    preschoolMax: 150000, preschoolMax2: 225000, ltcMax: 180000,
+    insPremPerPerson: 24000,
+    brackets: [
+      {limit:590000,   rate:0.05},
+      {limit:1330000,  rate:0.12},
+      {limit:2660000,  rate:0.20},
+      {limit:4980000,  rate:0.30},
+      {limit:Infinity, rate:0.40},
+    ],
+  },
+  115: {
+    // 財政部公告 115年度（2026年所得）— 標準扣除額、薪資/身障扣除額調升
+    exempt: 97000, exemptEld: 145500,
+    stdSingle: 136000, stdJoint: 272000,
+    salarySpecialMax: 227000, disabilityDed: 227000,
+    preschoolMax: 150000, preschoolMax2: 225000, ltcMax: 180000,
     insPremPerPerson: 24000,
     brackets: [
       {limit:590000,   rate:0.05},
@@ -314,7 +328,10 @@ function render(){
   const preschoolCount = g('inp-preschool');
   const ltcCount       = g('inp-ltc');
   const disabilityDed  = disCount * P.disabilityDed;
-  const preschoolDed   = preschoolCount * P.preschoolMax;
+  const preschoolDed   = preschoolCount <= 0 ? 0
+    : P.preschoolMax2
+      ? P.preschoolMax + Math.max(0, preschoolCount - 1) * P.preschoolMax2
+      : preschoolCount * P.preschoolMax;
   const ltcDed         = ltcCount * P.ltcMax;
   const totalSpecial   = salarySpecial + disabilityDed + preschoolDed + ltcDed;
 
