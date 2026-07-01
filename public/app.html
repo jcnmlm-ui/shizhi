@@ -832,7 +832,7 @@ const POSTAL_BAND_CAP   = { mgmt1:1,  mgmt2:6,  ops:17, prof1:29, prof2:36 };
 // 各職階保底薪級（起跳，目前薪級不可高於此數）
 const POSTAL_BAND_FLOOR = { mgmt1:19, mgmt2:25, ops:41, prof1:53, prof2:55 };
 // 郵局預設：專業職(二)・薪級55・115年入局新進人員
-const DEFAULT_POSTAL = { enabled:false, level:55, layer:3, step:1, max_level:36, bonus_months:0, band:'prof2', join_year:115 };
+const DEFAULT_POSTAL = { enabled:false, include_income:true, level:55, layer:3, step:1, max_level:36, bonus_months:0, band:'prof2', join_year:115 };
 
 const DEFAULT_CAT_CONFIG = {
   expenses:[
@@ -1028,7 +1028,7 @@ function sanitizePostal(o){
   const d={...DEFAULT_POSTAL}; if(!o||typeof o!=='object') return d;
   let band=(typeof o.band==='string'?o.band:d.band);
   if(band==='ops1'||band==='ops2') band='ops';   // 舊資料：營運職(一)/(二) → 營運職
-  return { enabled:!!o.enabled, level:Number(o.level)||d.level, layer:Number(o.layer)||d.layer,
+  return { enabled:!!o.enabled, include_income:o.include_income!==false, level:Number(o.level)||d.level, layer:Number(o.layer)||d.layer,
     step:(o.step!=null?Number(o.step):d.step), max_level:Number(o.max_level)||d.max_level,
     bonus_months:Number(o.bonus_months)||0, band, join_year:Number(o.join_year)||0 };
 }
@@ -1100,6 +1100,8 @@ function postalAdvance(t){
 function postalRawLevelAtYear(t){ const p=state.postal||DEFAULT_POSTAL; return Math.round(p.level) - postalAdvance(t); }
 function postalLevelAtYear(t){ const p=state.postal||DEFAULT_POSTAL; return Math.max(Math.round(p.max_level||1), postalRawLevelAtYear(t)); }
 function postalOn(){ return !!(state.postal && state.postal.enabled); }
+// 郵局薪資是否「帶入主計算」（收入/儀表板/退休/現金流）。試算顯示不受此影響。預設帶入。
+function postalCountsIncome(){ return postalOn() && (state.postal.include_income!==false); }
 // 是否為「每5年年資」的那一年（不論是否已封頂）
 function postalIsFiveYearService(t){
   const S0=postalServiceNow();
@@ -1122,7 +1124,7 @@ function postalMonthlyAtYear(t){ if(!postalOn()) return 0; return postalBaseAt(p
 function postalAnnualAtYear(t){ if(!postalOn()) return 0; return postalMonthlyAtYear(t)*(12 + (Number(state.postal.bonus_months)||0) + postalCapMonthsAtYear(t)); }
 
 function metrics(){
-  const annualIncome=sumAnnual(state.incomes) + (postalOn()?postalAnnualAtYear(0):0), annualExpense=sumAnnual(state.expenses);
+  const annualIncome=sumAnnual(state.incomes) + (postalCountsIncome()?postalAnnualAtYear(0):0), annualExpense=sumAnnual(state.expenses);
   const mIncome=annualIncome/12, mExpense=annualExpense/12;
   const mDebt=monthlyDebtPayment();
   const net=mIncome-mExpense-mDebt;
@@ -1303,7 +1305,7 @@ function projection(real, ovrRet, ovrInfl, dRet){
     ages.push(age); vals.push(Math.round(Math.max(0,v)));
     if(age===ret) retValue = v;
     const working = age<ret;
-    const income = working ? (aIncome*Math.pow(1+sg,t) + postalAnnualAtYear(t)) : 0;
+    const income = working ? (aIncome*Math.pow(1+sg,t) + (postalCountsIncome()?postalAnnualAtYear(t):0)) : 0;
     const pension = (age>=laborInsClaimAge()) ? laborInsAnnual() : 0;
     const expense = aExpense*Math.pow(1+infl,t);
     const dOut = (debt[t]||0) + (pur.inst[t]||0) + (pur.down[t]||0); // 負債還款 + 分期金 + 頭期款（名目固定）
@@ -1385,7 +1387,7 @@ function runMonteCarlo(N=800){
       if(age===ret) hold+=labPen;
       allVals[t][sim]=Math.max(0,hold+fresh+cash);
       const working=age<ret;
-      const income=working?(aIncome*Math.pow(1+sg,t)+postalAnnualAtYear(t)):0;
+      const income=working?(aIncome*Math.pow(1+sg,t)+(postalCountsIncome()?postalAnnualAtYear(t):0)):0;
       const pension=age>=labAge?labAnn:0;
       const expense=aExpense*Math.pow(1+infl,t);
       const dOut=(debt[t]||0)+(pur.inst[t]||0)+(pur.down[t]||0);
@@ -1786,6 +1788,13 @@ function abcdAllocation(){
 // 依 data-tab 切到指定分頁（沿用 nav 既有點擊流程，含 feature flag 檢查）
 function gotoTab(t){ document.querySelector('#nav button[data-tab="'+t+'"]')?.click(); }
 
+// 把 ABCD 的 D 帳戶建議金額套用為「每月定期投入」設定（使用者主動觸發，非自動寫回）→ 退休試算隨之一致
+async function applyAbcdInvest(amount){
+  state.settings.monthly_invest=Math.max(0,Math.round(Number(amount)||0));
+  await Store.saveSettings();
+  renderReport(); recalc();
+}
+
 // 規則式建議引擎
 function buildRecommendations(){
   const m=metrics(); const recs=[]; const s=state.settings;
@@ -2005,6 +2014,9 @@ function renderReport(){
       <div style="flex:0 0 auto;text-align:right;font-weight:700">${amount}</div>
     </div>`;
   const abcdPctSpan=v=>`<span style="color:var(--muted);font-size:12px;font-weight:400"> · 佔結餘 ${abcdPct(v)}</span>`;
+  const curInvest=Number(state.settings.monthly_invest)||0;
+  const dInvest=Math.round(abcd.D);
+  const investMatch=Math.abs(curInvest-dInvest)<=1;
   const abcdBody = abcd.distributable<=0
     ? `<div class="rec warn" style="margin-top:4px"><div><div class="rt">目前沒有可分配的結餘</div><div class="rd">每月結餘為 ${fmtMoney(abcd.net)}。先讓現金流轉正，再回來看 B／C／D 分配。</div></div></div>`
     : `${abcdRow('B','緊急預備金'+abcdPctSpan(abcd.B),
@@ -2016,8 +2028,9 @@ function renderReport(){
           !abcd.hasGoals ? `<a onclick="gotoTab('goals')" style="color:var(--primary);font-size:12px;cursor:pointer">前往設定目標 →</a>` : '')}
        ${abcdRow('D','投資'+abcdPctSpan(abcd.D),
           '緊急金與目標之外的餘額，建議投入長期投資',
-          fmtMoney(Math.round(abcd.D)),
-          `<a onclick="gotoTab('portfolio')" style="color:var(--primary);font-size:12px;cursor:pointer">這筆錢怎麼配置？前往投資配置 →</a>`)}`;
+          fmtMoney(dInvest),
+          `<div style="font-size:12px;color:var(--muted);margin-top:4px">目前定期定額投入 ${fmtMoney(curInvest)}${investMatch?' <span style="color:var(--primary)">✓ 與建議一致，退休試算已同步</span>':` · <a onclick="applyAbcdInvest(${dInvest})" style="color:var(--primary);cursor:pointer;font-weight:600">套用為每月定期投入 →</a>`}</div>
+           <a onclick="gotoTab('portfolio')" style="color:var(--primary);font-size:12px;cursor:pointer">這筆錢怎麼配置？前往投資配置 →</a>`)}`;
   const abcdHtml = `
     <div class="card">
       <h2>ABCD 帳戶分配建議 <span class="tip" data-tip="把每月結餘依「緊急預備金→目標→投資」順序分到三個帳戶。\nA 生活費為已發生支出，僅供對照。\n此為依你的數字試算的參考，實際做法可自行調整。">ⓘ</span></h2>
@@ -2606,13 +2619,16 @@ function renderPurchases(){
 let postalChart=null;
 function renderPostal(){
   const body=document.getElementById('postal-body'); if(!body) return;
-  const p=state.postal||DEFAULT_POSTAL; const on=!!p.enabled;
+  const p=state.postal||DEFAULT_POSTAL; const on=!!p.enabled; const inc=p.include_income!==false;
   let h=`<div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
       <div><h2 style="border:0;margin:0">郵局薪級成長模式</h2><p class="hint" style="margin:4px 0 0">啟用後，本薪改以「每年升一薪級＋職位加給」推算，取代固定成長率，並自動計入儀表板與時間軸。</p></div>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:700;white-space:nowrap"><input type="checkbox" id="postalEnabled" ${on?'checked':''}> <span>${on?'已啟用':'未啟用'}</span></label>
     </div>
-  </div>`;
+  </div>` + (on? `<div class="card" style="background:var(--surface-2)">
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:700"><input type="checkbox" id="postalIncludeIncome" ${inc?'checked':''}> <span>帶入收入計算</span></label>
+    <p class="hint" style="margin:6px 0 0">${inc?'郵局薪資<b>已自動計入</b>總收入、儀表板與退休試算。<b style="color:var(--danger)">請勿在「收支」頁重複填寫郵局薪水</b>，否則會重複計算。':'目前僅在本頁試算，<b>未計入</b>主計算。勾選後才會計入收入、儀表板與退休試算。'}</p>
+  </div>` : '');
   if(!on){
     body.innerHTML=h+`<div class="card" style="background:var(--surface-2)"><p class="hint" style="margin:0">中華郵政「職階人員待遇表」（114/1/1 起）採薪級制：每年晉升一個薪級，薪額隨之提高（薪級數字越小薪額越高）；另依「職責層次」加上「職務加發薪額」（職位加給）。<br><br>勾選上方開關啟用，並填入你的薪級與職責層次即可。停用時，系統沿用「設定」頁的固定薪資成長率。</p></div>`;
     return;
@@ -3785,7 +3801,7 @@ function annualFlowMonthly(){
   };
   state.incomes.forEach(it=>add(it,inM));
   state.expenses.forEach(it=>add(it,outM));
-  if(postalOn()){
+  if(postalCountsIncome()){
     const pm=postalMonthlyAtYear(0);
     const bonusM=Number(state.postal.bonus_months)||0;
     const capM=postalCapMonthsAtYear(0);
@@ -4274,6 +4290,10 @@ document.addEventListener('change', async e=>{
   if(t.id==='postalEnabled'){
     if(!state.postal) state.postal={...DEFAULT_POSTAL};
     state.postal.enabled=t.checked; await Store.saveSettings(); renderPostal(); recalc();
+  }
+  if(t.id==='postalIncludeIncome'){
+    if(!state.postal) state.postal={...DEFAULT_POSTAL};
+    state.postal.include_income=t.checked; await Store.saveSettings(); renderPostal(); recalc();
   }
   if(t.matches('[data-ar]')){
     const k=t.dataset.ar; const key='ar_'+k;
