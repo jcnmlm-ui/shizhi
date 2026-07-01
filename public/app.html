@@ -1771,9 +1771,9 @@ function abcdAllocation(){
   const A=m.mExpense+m.mDebt;                       // A 生活費（含還款），僅顯示
   const distributable=Math.max(0,m.net);            // 可分配結餘
   let pool=distributable;
-  // B 緊急預備金：與 KPI 同一定義的缺口，建議約一年（12 個月）補足
+  // B 緊急預備金：與 KPI 同一定義的缺口，以兩年（24 個月）攤提補足（節奏較緩，避免吃掉過多結餘）
   const emGap=Math.max(0, emTarget*m.mExpense - liquidAssets());
-  const B=Math.min(emGap/12, pool); pool-=B;
+  const B=Math.min(emGap/24, pool); pool-=B;
   // C 目標基金：排除「緊急/預備金」類目標（該筆已由 B 處理，避免重複計算），加總每月需求後受結餘上限
   const isEmGoal=g=>g.name&&(g.name.includes('緊急')||g.name.includes('預備金'));
   const nonEmGoals=state.goals.filter(g=>!isEmGoal(g));
@@ -2019,8 +2019,8 @@ function renderReport(){
   const investMatch=Math.abs(curInvest-dInvest)<=1;
   const abcdBody = abcd.distributable<=0
     ? `<div class="rec warn" style="margin-top:4px"><div><div class="rt">目前沒有可分配的結餘</div><div class="rd">每月結餘為 ${fmtMoney(abcd.net)}。先讓現金流轉正，再回來看 B／C／D 分配。</div></div></div>`
-    : `${abcdRow('B','緊急預備金'+abcdPctSpan(abcd.B),
-          abcd.emMet ? `已達 ${abcd.emTarget} 個月目標，這筆可轉往 C／D` : `距 ${abcd.emTarget} 個月目標還缺 ${fmtMoney(abcd.emGap)}，建議約一年補足`,
+    : `${abcdRow('B','緊急預備金 <span class="tip" data-tip="這是把緊急預備金補到「設定」的目標月數、以兩年（24 個月）攤提的每月金額。\n若覺得每月要撥的金額太緊，可到「設定」頁調低「緊急預備金目標」的月數——缺口與這裡的每月撥補會跟著降低。">ⓘ</span>'+abcdPctSpan(abcd.B),
+          abcd.emMet ? `已達 ${abcd.emTarget} 個月目標，這筆可轉往 C／D` : `距 ${abcd.emTarget} 個月目標還缺 ${fmtMoney(abcd.emGap)}，以兩年攤提補足`,
           fmtMoney(Math.round(abcd.B)))}
        ${abcdRow('C','目標基金'+abcdPctSpan(abcd.C),
           !abcd.hasGoals ? '尚未設定目標，設定後自動計算' : (abcd.goalShort ? `目標每月需求 ${fmtMoney(Math.round(abcd.goalReqSum))}，結餘不足，先分配可用額度` : '依你設定的目標，每月需存這麼多'),
