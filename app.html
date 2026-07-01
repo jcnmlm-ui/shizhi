@@ -1761,6 +1761,31 @@ function allocateGoals(){
   });
 }
 
+// ABCD 帳戶分配（免費・唯讀試算）：把每月結餘依「緊急預備金→目標→投資」順序分配到 B/C/D 三個帳戶，
+// A 生活費為已發生支出，僅供對照。單向讀取現有收支/資產/目標資料，不寫回任何來源。
+function abcdAllocation(){
+  const m=metrics();
+  const emTarget=Number(state.settings.emergency_target_months)||6;
+  const A=m.mExpense+m.mDebt;                       // A 生活費（含還款），僅顯示
+  const distributable=Math.max(0,m.net);            // 可分配結餘
+  let pool=distributable;
+  // B 緊急預備金：與 KPI 同一定義的缺口，建議約一年（12 個月）補足
+  const emGap=Math.max(0, emTarget*m.mExpense - liquidAssets());
+  const B=Math.min(emGap/12, pool); pool-=B;
+  // C 目標基金：排除「緊急/預備金」類目標（該筆已由 B 處理，避免重複計算），加總每月需求後受結餘上限
+  const isEmGoal=g=>g.name&&(g.name.includes('緊急')||g.name.includes('預備金'));
+  const nonEmGoals=state.goals.filter(g=>!isEmGoal(g));
+  const goalReqSum=nonEmGoals.reduce((s,g)=>s+requiredMonthly(g),0);
+  const C=Math.min(goalReqSum, pool); pool-=C;
+  // D 投資：其餘
+  const D=pool;
+  return {A,B,C,D,net:m.net,distributable,emGap,emTarget,emMet:emGap<=0,
+          hasGoals:nonEmGoals.length>0,goalReqSum,goalShort:C<goalReqSum-1};
+}
+
+// 依 data-tab 切到指定分頁（沿用 nav 既有點擊流程，含 feature flag 檢查）
+function gotoTab(t){ document.querySelector('#nav button[data-tab="'+t+'"]')?.click(); }
+
 // 規則式建議引擎
 function buildRecommendations(){
   const m=metrics(); const recs=[]; const s=state.settings;
@@ -1966,6 +1991,44 @@ function renderReport(){
 
   const isFree = currentPlan === 'free';
 
+  // ABCD 帳戶分配建議（免費，全用戶可見；唯讀）
+  const abcd=abcdAllocation();
+  const abcdPct=v=> abcd.distributable>0 ? Math.round(v/abcd.distributable*100)+'%' : '—';
+  const abcdRow=(tag,name,note,amount,extra)=>`
+    <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 2px;border-bottom:1px solid var(--line)">
+      <div style="flex:0 0 30px;height:30px;border-radius:8px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px">${tag}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600">${name}</div>
+        <div style="color:var(--muted);font-size:12px;margin-top:3px;line-height:1.5">${note}</div>
+        ${extra||''}
+      </div>
+      <div style="flex:0 0 auto;text-align:right;font-weight:700">${amount}</div>
+    </div>`;
+  const abcdPctSpan=v=>`<span style="color:var(--muted);font-size:12px;font-weight:400"> · 佔結餘 ${abcdPct(v)}</span>`;
+  const abcdBody = abcd.distributable<=0
+    ? `<div class="rec warn" style="margin-top:4px"><div><div class="rt">目前沒有可分配的結餘</div><div class="rd">每月結餘為 ${fmtMoney(abcd.net)}。先讓現金流轉正，再回來看 B／C／D 分配。</div></div></div>`
+    : `${abcdRow('B','緊急預備金'+abcdPctSpan(abcd.B),
+          abcd.emMet ? `已達 ${abcd.emTarget} 個月目標，這筆可轉往 C／D` : `距 ${abcd.emTarget} 個月目標還缺 ${fmtMoney(abcd.emGap)}，建議約一年補足`,
+          fmtMoney(Math.round(abcd.B)))}
+       ${abcdRow('C','目標基金'+abcdPctSpan(abcd.C),
+          !abcd.hasGoals ? '尚未設定目標，設定後自動計算' : (abcd.goalShort ? `目標每月需求 ${fmtMoney(Math.round(abcd.goalReqSum))}，結餘不足，先分配可用額度` : '依你設定的目標，每月需存這麼多'),
+          fmtMoney(Math.round(abcd.C)),
+          !abcd.hasGoals ? `<a onclick="gotoTab('goals')" style="color:var(--primary);font-size:12px;cursor:pointer">前往設定目標 →</a>` : '')}
+       ${abcdRow('D','投資'+abcdPctSpan(abcd.D),
+          '緊急金與目標之外的餘額，建議投入長期投資',
+          fmtMoney(Math.round(abcd.D)),
+          `<a onclick="gotoTab('portfolio')" style="color:var(--primary);font-size:12px;cursor:pointer">這筆錢怎麼配置？前往投資配置 →</a>`)}`;
+  const abcdHtml = `
+    <div class="card">
+      <h2>ABCD 帳戶分配建議 <span class="tip" data-tip="把每月結餘依「緊急預備金→目標→投資」順序分到三個帳戶。\nA 生活費為已發生支出，僅供對照。\n此為依你的數字試算的參考，實際做法可自行調整。">ⓘ</span></h2>
+      <p class="hint">把你每月的結餘 <b>${fmtMoney(abcd.distributable)}</b>，依「緊急預備金 → 目標 → 投資」的順序分配到三個帳戶。你可以照這個比例去銀行設定自動轉帳。</p>
+      <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:10px 0;display:flex;justify-content:space-between;align-items:center;gap:12px">
+        <div style="min-width:0"><div style="font-weight:600">A 生活費<span style="color:var(--muted);font-size:12px;font-weight:400"> · 每月已支出（含還款）</span></div><div style="color:var(--muted);font-size:12px;margin-top:2px">這筆是已經花掉的，不參與分配，僅供對照</div></div>
+        <div style="font-weight:700;white-space:nowrap">${fmtMoney(Math.round(abcd.A))}</div>
+      </div>
+      ${abcdBody}
+    </div>`;
+
   const lockedHtml = isFree ? `
     <div class="paywall-wrap">
       <div class="paywall-content">
@@ -2041,6 +2104,7 @@ function renderReport(){
         ${kpi('每月支出+還款', fmtMoney(m.mExpense+m.mDebt))}
       </div>
     </div>
+    ${abcdHtml}
     ${lockedHtml}
     ${isFree ? '' : '<div class="disclaimer">本報告由「時值」依你輸入之資料與假設自動產生，所有數字均為估算，並非投資建議或報酬保證；退休/稅務等為簡化試算。重大財務決策請諮詢合格專業人士。</div>'}`;
 
