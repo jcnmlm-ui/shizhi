@@ -2042,6 +2042,83 @@ function renderReport(){
       ${abcdBody}
     </div>`;
 
+  // ── 模組摘要（串接既有模組資料補充報告完整度；資料不足則整段不顯示）──
+  const ig=insuranceGap();
+  const insReportHtml = !ig.engaged ? '' : `
+    <div class="card">
+      <h2>保障缺口摘要 <span class="tip" data-tip="遺族需求法：家庭生活費＋負債＋子女教育金＋喪葬金，減去可變現資產與壽險保額。詳見「保險防護」頁。">ⓘ</span></h2>
+      <div class="rep-grid" style="margin-top:6px">
+        ${kpi('家庭需求合計', fmtMoney(ig.needs))}
+        ${kpi('現有資源', fmtMoney(ig.resources))}
+        ${kpi('保障缺口', (ig.gap>0?'':'+')+fmtMoney(Math.abs(ig.gap)), ig.gap>0?'bad':'')}
+      </div>
+      <div class="rec ${ig.gap<=0?'good':(ig.gap>m.annualIncome*5?'bad':'warn')}" style="margin-top:12px"><div><div class="rt">${ig.gap<=0?'保障看起來充足':'建議補足缺口'}</div><div class="rd">${ig.gap<=0?`現有資源 ${fmtMoney(ig.resources)} 已覆蓋家庭需求 ${fmtMoney(ig.needs)}，尚有餘裕 ${fmtMoney(-ig.gap)}。建議每幾年重新檢視。`:`家庭需求 ${fmtMoney(ig.needs)} 高於現有資源 ${fmtMoney(ig.resources)}，缺口約 ${fmtMoney(ig.gap)}，可考慮以定期壽險補足（保費低、CP 值高）。`}</div></div></div>
+    </div>`;
+
+  const debtList=(state.liabilities||[]).filter(l=>Number(l.balance||0)>0);
+  const debtReportHtml = !debtList.length ? '' : (()=>{
+    const totalBal=debtList.reduce((x,l)=>x+Number(l.balance||0),0);
+    const rows=debtList.slice().sort((a,b)=>Number(b.interest_rate||0)-Number(a.interest_rate||0)).map(l=>{
+      const rate=Number(l.interest_rate||0), hi=rate>0.06;
+      return `<tr><td>${escapeHtml(l.name||'(未命名)')}</td><td class="n">${fmtMoney(Number(l.balance||0))}</td><td class="n" style="${hi?'color:var(--danger);font-weight:700':''}">${fmtPct(rate)}${hi?' ⚠':''}</td></tr>`;
+    }).join('');
+    const hiCount=debtList.filter(l=>Number(l.interest_rate||0)>0.06).length;
+    return `<div class="card">
+      <h2>負債明細</h2>
+      <table class="rep"><thead><tr><th>項目</th><th class="n">餘額</th><th class="n">年利率</th></tr></thead>
+      <tbody>${rows}<tr style="border-top:2px solid var(--line-2)"><td><b>合計</b></td><td class="n"><b>${fmtMoney(totalBal)}</b></td><td></td></tr></tbody></table>
+      ${hiCount?`<p class="hint" style="margin-top:8px;color:var(--danger)">有 ${hiCount} 筆年利率高於 6%，通常高於長期投資報酬，建議優先償還。</p>`:''}
+    </div>`;
+  })();
+
+  // pf_* 與 monthly_invest 皆有預設值，不能當「已填寫」訊號；改以「有投資性資產或有收入」判斷是否顯示配置摘要
+  const pfEngaged=state.assets.some(a=>!a.is_liquid && !a.exclude_projection) || sumAnnual(state.incomes)>0;
+  const pfReportHtml = !pfEngaged ? '' : (()=>{
+    const w=pfWeights(), stg=pfStage(), pr=pfReturn();
+    const growthPct=Math.round((w.stock+w.reit)*100);
+    const alloText=PF_CLASSES.map(k=>`${ASSET_LABELS[k]} ${Math.round(w[k]*100)}%`).join('　');
+    return `<div class="card">
+      <h2>投資配置現況 <span class="tip" data-tip="依你在「投資配置」頁設定的權重計算。成長型資產＝股票＋REITs 佔比，決定風險屬性。">ⓘ</span></h2>
+      <div class="rep-grid" style="margin-top:6px">
+        ${kpi('風險屬性', stg.label)}
+        ${kpi('成長型資產佔比', growthPct+'%')}
+        ${kpi('預期年報酬', fmtPct(pr))}
+      </div>
+      <p class="hint" style="margin-top:10px">目前配置：${alloText}</p>
+    </div>`;
+  })();
+
+  const kids=state.children||[];
+  const childReportHtml = !kids.length ? '' : (()=>{
+    let cToday=0,cNominal=0,cMonthly=0,cFund=0;
+    kids.forEach(ch=>{const cs=childSummary(ch); cToday+=cs.today; cNominal+=cs.nominal; cMonthly+=cs.monthlyNow; cFund+=cs.collegeFundMonthly;});
+    return `<div class="card">
+      <h2>子女養育成本（${kids.length} 位）</h2>
+      <div class="rep-grid" style="margin-top:6px">
+        ${kpi('剩餘養育成本（今日價）', fmtMoney(cToday))}
+        ${kpi('預估實付（含通膨）', fmtMoney(cNominal))}
+        ${kpi('目前每月養育支出', fmtMoney(cMonthly))}
+        ${kpi('大學教育金每月需存', fmtMoney(cFund))}
+      </div>
+    </div>`;
+  })();
+
+  const _taxRate=estimateMarginalTaxRate();
+  const _lpSelfMon=laborPenSelfContribMonthly();
+  const _lpSaved=Math.round(_lpSelfMon*12*_taxRate);
+  const _insSaved=Math.round(Math.min(ig.totalPremium,24000)*_taxRate);
+  const _taxItems=[];
+  if(_lpSaved>0) _taxItems.push(`勞退自提每月 ${fmtMoney(_lpSelfMon)}，可從當年應稅所得扣除，約節稅 ${fmtMoney(_lpSaved)}／年`);
+  if(_insSaved>0) _taxItems.push(`商業保費列舉扣除（每人上限 2.4 萬／年），約節稅 ${fmtMoney(_insSaved)}／年`);
+  const taxReportHtml = !_taxItems.length ? '' : `
+    <div class="card">
+      <h2>節稅機會彙總 <span class="tip" data-tip="以估算邊際稅率概算，僅供參考，實際以報稅為準。詳見「勞退勞保」「保險防護」頁。">ⓘ</span></h2>
+      <p class="hint">依你目前設定，估計每年可節稅合計約 <b>${fmtMoney(_lpSaved+_insSaved)}</b>（估算邊際稅率約 ${Math.round(_taxRate*100)}%）。</p>
+      <ul style="margin:8px 0 0;padding-left:20px;line-height:1.9;font-size:14px">${_taxItems.map(t=>`<li>${t}</li>`).join('')}</ul>
+    </div>`;
+
+  const moduleSummaryHtml = insReportHtml+debtReportHtml+pfReportHtml+childReportHtml+taxReportHtml;
+
   const lockedHtml = isFree ? `
     <div class="paywall-wrap">
       <div class="paywall-content">
@@ -2062,6 +2139,7 @@ function renderReport(){
             <tbody>${goalRows}</tbody>
           </table>
         </div>
+        ${moduleSummaryHtml}
         <div class="card">
           <h2>四、行動建議</h2>
           <div class="recs">${recHtml}</div>
@@ -2092,6 +2170,7 @@ function renderReport(){
         <tbody>${goalRows}</tbody>
       </table>
     </div>
+    ${moduleSummaryHtml}
     <div class="card">
       <h2>四、行動建議</h2>
       <div class="recs">${recHtml}</div>
@@ -2751,6 +2830,31 @@ function renderPension(){
 }
 
 /* ===== 保險防護 ===== */
+// 壽險保障缺口（遺族需求法）——集中計算，供「保險防護」頁與「建議報告」共用同一組數字
+function insuranceGap(){
+  const m=metrics(), s=state.settings;
+  const age=Number(s.current_age)||27;
+  const policies=state.policies||[];
+  const isActive=(p,a)=>p.duration==='whole'||(a>=(Number(p.start_age)||0)&&(!(Number(p.end_age)||0)||a<=(Number(p.end_age)||0)));
+  const active=policies.filter(p=>isActive(p,age));
+  const totalDeathCov=active.filter(p=>['life','accident','cancer_death'].includes(p.ins_type)).reduce((x,p)=>x+(Number(p.coverage)||0),0);
+  const totalPremium=active.reduce((x,p)=>x+(Number(p.premium)||0),0);
+  const years=Math.max(0,Number(s.ins_years)||0);
+  const living=m.annualExpense*years;
+  const debt=m.liab;
+  const edu=(state.children||[]).reduce((x,ch)=>x+(childSummary(ch).collegeNominal||0),0);
+  const funeral=Number(s.ins_funeral)||0;
+  const needs=living+debt+edu+funeral;
+  // 排除勾選「不計退休」的資產（通常為自住房，遺族仍需居住，不宜計入可變現資源）
+  const assetsAvail=state.assets.filter(a=>!a.exclude_projection).reduce((x,a)=>x+Number(a.value||0),0);
+  const existingLife=policies.length>0?totalDeathCov:(Number(s.ins_life)||0);
+  const resources=assetsAvail+existingLife;
+  const gap=needs-resources;
+  // engaged：僅在使用者「已記錄壽險保額」時才於報告顯示（ins_years 有預設值 10，不能當作已填寫的訊號）
+  const engaged=policies.length>0||Number(s.ins_life)>0;
+  return {years,living,debt,edu,funeral,needs,assetsAvail,existingLife,resources,gap,totalDeathCov,totalPremium,engaged,hasPolicies:policies.length>0};
+}
+
 function renderInsurance(){
   const body=document.getElementById('insurance-body'); if(!body) return;
   const _w=v=>{ const n=Math.round(v/1e4); return (n>=0?'':'-')+Math.abs(n).toLocaleString('zh-TW')+'萬'; };
@@ -2772,18 +2876,8 @@ function renderInsurance(){
   const tenten      =m.annualIncome*10;
   const premiumCap  =m.annualIncome*0.10;
 
-  // 壽險缺口（遺族需求法）
-  const years =Math.max(0,Number(s.ins_years)||0);
-  const living=m.annualExpense*years;
-  const debt  =m.liab;
-  const edu   =(state.children||[]).reduce((x,ch)=>x+(childSummary(ch).collegeNominal||0),0);
-  const funeral=Number(s.ins_funeral)||0;
-  const needs =living+debt+edu+funeral;
-  // 遺族需求法：排除勾選「不計退休」的資產（通常為自住房，遺族仍需居住，不宜計入可變現資源）
-  const assetsAvail=state.assets.filter(a=>!a.exclude_projection).reduce((s,a)=>s+Number(a.value||0),0);
-  const existingLife=policies.length>0?totalDeathCov:(Number(s.ins_life)||0);
-  const resources=assetsAvail+existingLife;
-  const gap=needs-resources;
+  // 壽險缺口（遺族需求法）——計算集中於 insuranceGap()，與「建議報告」共用同一組數字
+  const {years,living,debt,edu,funeral,needs,assetsAvail,existingLife,resources,gap}=insuranceGap();
 
   const gapCls=gap<=0?'good':gap>tenten*0.5?'bad':'warn';
   const gapVerdict=gap<=0
