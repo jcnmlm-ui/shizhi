@@ -2119,6 +2119,16 @@ function renderReport(){
 
   const moduleSummaryHtml = insReportHtml+debtReportHtml+pfReportHtml+childReportHtml+taxReportHtml;
 
+  // 退休準備度透明註記：勞退專戶已併入退休資產、勞保年金屬退休後收入——只在有開對應模組時顯示
+  const _lpOn=laborPenOn(), _liOn=laborOn();
+  const pensionNoteHtml = (!_lpOn && !_liOn) ? '' : (()=>{
+    const parts=[];
+    if(_lpOn) parts.push(`退休時預估資產<b>已含勞退個人專戶約 ${fmtMoney(laborPenAccrued())}</b>（雇主 6%＋自提，於退休當年一次併入）`);
+    if(_liOn) parts.push(`<b>勞保老年年金約月領 ${fmtMoney(laborInsMonthly())}</b>，自 ${laborInsClaimAge()} 歲起計入退休後收入、可延長資產可用年數（屬退休後收入，不計入上表「退休時預估資產」）`);
+    const dupNote=_lpOn?`<br><span style="color:var(--muted);font-size:12px">※ 若已把勞退專戶餘額另外填入「資產負債」，請避免重複計入。</span>`:'';
+    return `<div class="ins-note good" style="margin-top:12px">🏦 <div>${parts.join('；<br>')}。${dupNote}</div></div>`;
+  })();
+
   const lockedHtml = isFree ? `
     <div class="paywall-wrap">
       <div class="paywall-content">
@@ -2130,6 +2140,7 @@ function renderReport(){
             <thead><tr><th>情境</th><th class="n">退休時預估資產</th><th class="n">退休目標</th><th class="n">差額</th></tr></thead>
             <tbody>${scRows}</tbody>
           </table>
+          ${pensionNoteHtml}
         </div>
         <div class="card">
           <h2>三、目標可行性與資金分配</h2>
@@ -2161,6 +2172,7 @@ function renderReport(){
         <thead><tr><th>情境</th><th class="n">退休時預估資產</th><th class="n">退休目標</th><th class="n">差額</th></tr></thead>
         <tbody>${scRows}</tbody>
       </table>
+      ${pensionNoteHtml}
     </div>
     <div class="card">
       <h2>三、目標可行性與資金分配</h2>
