@@ -1,36 +1,76 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+
+  <!-- 首頁 -->
   <url>
     <loc>https://valuelens.tw/</loc>
+    <lastmod>2026-07-06</lastmod>
     <priority>1.0</priority>
     <changefreq>weekly</changefreq>
   </url>
+
+  <!-- 理財故事列表 -->
   <url>
-    <loc>https://valuelens.tw/story.html</loc>
+    <loc>https://valuelens.tw/story/</loc>
+    <lastmod>2026-06-29</lastmod>
     <priority>0.9</priority>
     <changefreq>weekly</changefreq>
   </url>
+
+  <!-- 關於 -->
   <url>
-    <loc>https://valuelens.tw/about.html</loc>
+    <loc>https://valuelens.tw/about/</loc>
     <lastmod>2026-06-26</lastmod>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
     <changefreq>monthly</changefreq>
   </url>
+
+  <!-- 服務條款 -->
   <url>
-    <loc>https://valuelens.tw/posts/why-i-built-shizhi/</loc>
+    <loc>https://valuelens.tw/terms/</loc>
     <lastmod>2026-06-26</lastmod>
-    <priority>0.8</priority>
-    <changefreq>monthly</changefreq>
-  </url>
-  <url>
-    <loc>https://valuelens.tw/posts/labor-pension-self-contribution-2026/</loc>
-    <lastmod>2026-06-26</lastmod>
-    <priority>0.8</priority>
-    <changefreq>monthly</changefreq>
-  </url>
-  <url>
-    <loc>https://valuelens.tw/terms.html</loc>
-    <priority>0.5</priority>
+    <priority>0.4</priority>
     <changefreq>yearly</changefreq>
   </url>
+
+  <!-- 公開試算工具 -->
+  <url>
+    <loc>https://valuelens.tw/tools/labor-pension/</loc>
+    <lastmod>2026-06-27</lastmod>
+    <priority>0.9</priority>
+    <changefreq>monthly</changefreq>
+  </url>
+  <url>
+    <loc>https://valuelens.tw/tools/postal-salary/</loc>
+    <lastmod>2026-06-27</lastmod>
+    <priority>0.9</priority>
+    <changefreq>monthly</changefreq>
+  </url>
+  <url>
+    <loc>https://valuelens.tw/tools/tax-calc/</loc>
+    <lastmod>2026-06-30</lastmod>
+    <priority>0.9</priority>
+    <changefreq>monthly</changefreq>
+  </url>
+
+  <!-- 理財故事文章 -->
+  <url>
+    <loc>https://valuelens.tw/story/why-i-built-shizhi/</loc>
+    <lastmod>2026-06-26</lastmod>
+    <priority>0.8</priority>
+    <changefreq>monthly</changefreq>
+  </url>
+  <url>
+    <loc>https://valuelens.tw/story/labor-pension-self-contribution-2026/</loc>
+    <lastmod>2026-06-26</lastmod>
+    <priority>0.8</priority>
+    <changefreq>monthly</changefreq>
+  </url>
+  <url>
+    <loc>https://valuelens.tw/story/financial-checkup-5-numbers/</loc>
+    <lastmod>2026-06-29</lastmod>
+    <priority>0.8</priority>
+    <changefreq>monthly</changefreq>
+  </url>
+
 </urlset>

@@ -92,6 +92,54 @@ import Footer from '../components/Footer.astro';
     </div>
   </section>
 
+  <!-- QUICK CALC -->
+  <section class="quickcalc">
+    <div class="container" style="max-width:600px">
+      <div style="text-align:center;margin-bottom:32px">
+        <div class="sec-eyebrow">30 秒，先算一次</div>
+        <h2 class="sec-title" style="font-size:clamp(22px,3.4vw,30px)">同樣的錢，放著跟拿去投資，差多少？</h2>
+        <p class="sec-sub" style="margin:0 auto">免登入、免留資料，拖拖看時間軸。</p>
+      </div>
+      <div class="qc-card">
+        <div class="qc-inputs">
+          <div class="qc-field">
+            <label for="qc-income">月收入</label>
+            <input id="qc-income" type="number" inputmode="numeric" value="45000">
+          </div>
+          <div class="qc-field">
+            <label for="qc-expense">月支出</label>
+            <input id="qc-expense" type="number" inputmode="numeric" value="28000">
+          </div>
+        </div>
+        <div class="qc-slider-row">
+          <label for="qc-years">拖動看不同年數</label>
+          <span class="qc-years-val"><span id="qc-years-label">10</span> 年後</span>
+        </div>
+        <input id="qc-years" type="range" min="3" max="30" value="10" step="1">
+        <div class="qc-chart-wrap">
+          <svg id="qc-chart" viewBox="0 0 560 150" preserveAspectRatio="none">
+            <line x1="0" y1="149" x2="560" y2="149" stroke="var(--line)" stroke-width="1"></line>
+            <path id="qc-path-plain" fill="none" stroke="var(--faint)" stroke-width="2.4"></path>
+            <path id="qc-path-invest" fill="none" stroke="var(--accent)" stroke-width="2.6"></path>
+          </svg>
+        </div>
+        <div class="qc-results">
+          <div class="qc-result-box">
+            <div class="qc-result-label">單純存起來</div>
+            <div class="qc-result-val" id="qc-plain">NT$0</div>
+          </div>
+          <div class="qc-result-box accent">
+            <div class="qc-result-label">保守投資 3%</div>
+            <div class="qc-result-val" id="qc-invested">NT$0</div>
+          </div>
+        </div>
+        <div class="qc-diff">差額 <span id="qc-diff">+NT$0</span> —— 這就是複利的力道</div>
+        <div class="qc-disclaimer">保守試算年報酬 3%，僅供參考，非報酬保證。資料只在瀏覽器中計算，不會被送出或儲存。</div>
+        <a href="/app.html#login" class="btn-primary qc-cta">想看完整的財務全貌？免費開始使用 →</a>
+      </div>
+    </div>
+  </section>
+
   <!-- FEATURES -->
   <section id="features">
     <div class="container">
@@ -415,6 +463,30 @@ section { padding: 88px 40px; }
 .pain-q { font-family: var(--font-display); font-size: 18px; font-weight: 500; margin-bottom: 10px; line-height: 1.35; }
 .pain-a { font-size: 13.5px; color: var(--muted); line-height: 1.7; }
 
+/* ── QUICK CALC ── */
+.quickcalc { background: var(--surface-2); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.qc-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 28px 24px; }
+.qc-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px; }
+.qc-field label { display: block; font-size: 12.5px; color: var(--muted); margin-bottom: 6px; }
+.qc-field input[type="number"] { width: 100%; height: 40px; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 0 12px; font-size: 14px; color: var(--ink); background: var(--surface-2); font-family: inherit; }
+.qc-field input[type="number"]:focus { outline: none; border-color: var(--primary); }
+.qc-slider-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+.qc-slider-row label { font-size: 12.5px; color: var(--muted); }
+.qc-years-val { font-size: 15px; font-weight: 700; color: var(--primary-2); }
+#qc-years { width: 100%; margin-bottom: 20px; accent-color: var(--primary); }
+.qc-chart-wrap { position: relative; height: 130px; margin-bottom: 16px; }
+.qc-chart-wrap svg { width: 100%; height: 100%; overflow: visible; }
+.qc-results { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.qc-result-box { background: var(--surface-2); border-radius: var(--radius-sm); padding: 14px; text-align: center; }
+.qc-result-box.accent { background: var(--accent-soft); }
+.qc-result-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.qc-result-box.accent .qc-result-label { color: var(--accent); font-weight: 700; }
+.qc-result-val { font-family: var(--font-display); font-size: 19px; font-weight: 700; color: var(--ink); }
+.qc-result-box.accent .qc-result-val { color: var(--primary-2); }
+.qc-diff { text-align: center; font-size: 13.5px; color: var(--primary-2); font-weight: 700; margin-bottom: 6px; }
+.qc-disclaimer { text-align: center; font-size: 11px; color: var(--faint); margin-bottom: 18px; line-height: 1.6; }
+.qc-cta { display: block; width: 100%; text-align: center; box-shadow: none; }
+
 /* ── FEATURES ── */
 .feat-header { text-align: center; margin-bottom: 56px; }
 .feat-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 20px; }
@@ -525,5 +597,64 @@ details[open] summary::after { content: '−'; }
     set('price-sub', pSub);
     set('price-sub-annual', Math.round(pSub * 12 * 0.8).toLocaleString('zh-TW'));
   }).catch(() => {});
+})();
+
+(function() {
+  // 純前端試算，不 fetch、不寫入 localStorage/sessionStorage、不送任何後端或分析工具。
+  // 這是刻意的隱私設計：三個數字算完即丟，重新整理頁面就沒了。日後若要加使用量追蹤，
+  // 只能記錄「有沒有互動過」的布林事件，不可挾帶任何輸入值。
+  const incomeEl = document.getElementById('qc-income');
+  const expenseEl = document.getElementById('qc-expense');
+  const yearsEl = document.getElementById('qc-years');
+  if (!incomeEl || !expenseEl || !yearsEl) return;
+
+  const fmt = n => 'NT$' + Math.round(n).toLocaleString('zh-TW');
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+
+  function seriesUpTo(surplus, years) {
+    const rm = Math.pow(1.03, 1/12) - 1;
+    const plain = [], invest = [];
+    for (let y = 0; y <= years; y++) {
+      const n = y * 12;
+      plain.push(surplus * n);
+      invest.push(Math.abs(rm) < 1e-9 ? surplus * n : surplus * ((Math.pow(1+rm, n) - 1) / rm));
+    }
+    return { plain, invest };
+  }
+
+  function pathFrom(arr, maxVal, years) {
+    const w = 560, h = 150, pad = 6;
+    return arr.map((v, i) => {
+      const x = (i / years) * w;
+      const y = h - pad - ((v / maxVal) * (h - pad * 2));
+      return (i === 0 ? 'M' : 'L') + x.toFixed(1) + ',' + y.toFixed(1);
+    }).join(' ');
+  }
+
+  function render() {
+    const income = Number(incomeEl.value) || 0;
+    const expense = Number(expenseEl.value) || 0;
+    const years = Number(yearsEl.value) || 10;
+    set('qc-years-label', years);
+    const surplus = income - expense;
+    const s = seriesUpTo(surplus, years);
+    const plainFinal = s.plain[s.plain.length - 1];
+    const investFinal = s.invest[s.invest.length - 1];
+    const maxVal = Math.max(plainFinal, investFinal, 1);
+
+    const pPlain = document.getElementById('qc-path-plain');
+    const pInvest = document.getElementById('qc-path-invest');
+    if (pPlain) pPlain.setAttribute('d', pathFrom(s.plain, maxVal, years));
+    if (pInvest) pInvest.setAttribute('d', pathFrom(s.invest, maxVal, years));
+
+    set('qc-plain', fmt(plainFinal));
+    set('qc-invested', fmt(investFinal));
+    set('qc-diff', '+' + fmt(investFinal - plainFinal));
+  }
+
+  incomeEl.addEventListener('input', render);
+  expenseEl.addEventListener('input', render);
+  yearsEl.addEventListener('input', render);
+  render();
 })();
 </script>
