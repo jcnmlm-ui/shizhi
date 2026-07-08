@@ -367,7 +367,8 @@ if(document.readyState === 'loading'){
 }
 </script>
 
-<style>
+<!-- is:global 必要：KPI/表格列/徽章等元素由 JS 動態生成，沒有 Astro scoped 屬性，預設 scoped 樣式套不到 -->
+<style is:global>
 nav { position: sticky; top: 0; z-index: 100; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; height: 60px; background: rgba(246,242,233,.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
 .nav-brand { font-family: var(--font-display); font-weight: 600; font-size: 20px; color: var(--primary-2); }
 .nav-tool { font-size: 13.5px; color: var(--primary); font-weight: 500; }
@@ -430,10 +431,27 @@ footer a { color: var(--primary); margin: 0 8px; }
 @media (max-width: 700px) {
   nav { padding: 0 16px; }
   .wrap { padding: 28px 16px 80px; }
-  .grid3, .grid4 { grid-template-columns: repeat(2,1fr); }
-  .grid2-narrow { grid-template-columns: 1fr 1fr; max-width: 100%; }
+  .page-header h1 { font-size: 26px; }
+  .page-header p br { display: none; }
+  .card { padding: 20px 16px; }
+  /* iOS Safari：input 字體 <16px 聚焦會強制放大頁面，固定 16px 避免 */
+  .field input, .field select { font-size: 16px; padding: 10px 12px; min-height: 44px; }
+  .field label { font-size: 13px; }
+  .field .tip { display: block; margin-top: 2px; }
+  .grid3, .grid4 { grid-template-columns: repeat(2,1fr); gap: 12px; }
+  .grid2-narrow { grid-template-columns: 1fr 1fr; max-width: 100%; gap: 12px; }
   .kpi-row { grid-template-columns: repeat(2,1fr); }
   .summary-grid { grid-template-columns: 1fr; }
-  .cta-box { flex-direction: column; text-align: center; }
+  .cta-box { flex-direction: column; text-align: center; padding: 24px 20px; }
+  .cta-btn { width: 100%; text-align: center; }
+}
+
+@media (max-width: 480px) {
+  .grid3 { grid-template-columns: 1fr; }   /* 職階/職責層次下拉選項文字長，單欄避免截斷 */
+  .kpi { padding: 12px 14px; }
+  .kpi-v { font-size: 17px; }
+  .chart-wrap { height: 220px; }
+  thead th, tbody td { padding: 8px; font-size: 12.5px; }
+  .badge-g, .badge-m { display: block; width: fit-content; margin-top: 3px; }
 }
 </style>

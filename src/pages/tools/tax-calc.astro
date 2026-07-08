@@ -385,6 +385,7 @@ function render(){
     document.getElementById('bracket-details').innerHTML = `
       <details>
         <summary>▶ 各稅率級距明細</summary>
+        <div class="bracket-scroll">
         <table class="bracket-table">
           <thead><tr><th>稅率</th><th>課稅所得範圍</th><th>本級應稅金額</th><th>本級稅額</th></tr></thead>
           <tbody>${bracketRows.map(r=>`<tr>
@@ -394,6 +395,7 @@ function render(){
             <td>${fmt(r.tax)}</td>
           </tr>`).join('')}</tbody>
         </table>
+        </div>
       </details>`;
   } else {
     document.getElementById('bracket-details').innerHTML = '';
@@ -414,7 +416,8 @@ document.getElementById('chk-charity-unlimited').addEventListener('change', rend
 render();
 </script>
 
-<style>
+<!-- is:global 必要：KPI/結果卡/級距表等元素由 JS 動態生成，沒有 Astro scoped 屬性，預設 scoped 樣式套不到 -->
+<style is:global>
 nav { position: sticky; top: 0; z-index: 100; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; height: 60px; background: rgba(246,242,233,.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
 .nav-brand { font-family: var(--font-display); font-weight: 600; font-size: 20px; color: var(--primary-2); }
 .nav-tool { font-size: 13.5px; color: var(--primary); font-weight: 500; }
@@ -492,9 +495,27 @@ footer a { color: var(--primary); margin: 0 8px; }
 @media (max-width: 700px) {
   nav { padding: 0 16px; }
   .wrap { padding: 28px 16px 80px; }
+  .page-header h1 { font-size: 26px; }
+  .page-header p br { display: none; }
+  .card { padding: 20px 16px; }
+  /* iOS Safari：input 字體 <16px 聚焦會強制放大頁面，固定 16px 避免 */
+  .field input, .field select { font-size: 16px; padding: 10px 12px; min-height: 44px; }
+  .field label { font-size: 13px; }
   .grid2 { grid-template-columns: 1fr; }
   .result-grid { grid-template-columns: 1fr; }
-  .kpi-row { flex-direction: column; }
-  .cta-box { flex-direction: column; text-align: center; }
+  /* KPI 維持一列兩張，數字短、整欄堆疊會讓頁面過長 */
+  .kpi { flex: 1 1 40%; min-width: 0; }
+  .ded-toggle { flex-direction: column; gap: 10px; }
+  .bracket-scroll { overflow-x: auto; }
+  .bracket-table { min-width: 480px; }
+  .cta-box { flex-direction: column; text-align: center; padding: 24px 20px; }
+  .cta-btn { width: 100%; text-align: center; }
+}
+
+@media (max-width: 480px) {
+  .kpi { padding: 10px 12px; }
+  .kpi-v { font-size: 15px; }
+  .res-v { font-size: 16px; }
+  .res-highlight .res-v { font-size: 20px; }
 }
 </style>
