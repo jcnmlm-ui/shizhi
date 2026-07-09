@@ -1,0 +1,269 @@
+---
+import Base from '../../layouts/Base.astro';
+
+const schema = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'WebApplication',
+  name: '房貸試算器',
+  url: 'https://valuelens.tw/tools/mortgage/',
+  description: '免費房貸試算：月付金、寬限期、房貸負擔率與利率壓力測試，並估算頭期款外的一次性購屋成本。',
+  applicationCategory: 'FinanceApplication',
+  operatingSystem: 'Web',
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'TWD' },
+});
+---
+<Base
+  title="房貸試算 2025 · 月付金 / 寬限期 / 負擔率壓力測試"
+  description="免費試算房貸月付金與寬限期繳法，計算房貸負擔率並做利率上升壓力測試，同時估算頭期款以外的仲介費、稅費、裝潢等一次性購屋成本。"
+>
+  <Fragment slot="head">
+    <script type="application/ld+json" set:html={schema} />
+    <link rel="canonical" href="https://valuelens.tw/tools/mortgage/" />
+  </Fragment>
+
+  <nav>
+    <a class="nav-brand" href="/">時值</a>
+    <a class="nav-tool" href="/app.html">前往完整工具 →</a>
+  </nav>
+
+  <div class="wrap">
+    <div class="page-header">
+      <div class="eyebrow">免費試算工具</div>
+      <h1>房貸試算與負擔壓力測試</h1>
+      <p>輸入房價與貸款條件，即時算出月付金、房貸負擔率，<br>並測試利率上升後你還撐不撐得住。資料不儲存、不需帳號。</p>
+    </div>
+
+    <!-- 貸款條件 -->
+    <div class="card">
+      <h2>貸款條件</h2>
+      <div class="grid3">
+        <div class="field">
+          <label>房屋總價（萬）</label>
+          <input type="number" id="inp-price" min="0" step="50" value="1200">
+        </div>
+        <div class="field">
+          <label>頭期款成數（%）</label>
+          <input type="number" id="inp-down" min="0" max="90" value="20">
+        </div>
+        <div class="field">
+          <label>貸款年限</label>
+          <input type="number" id="inp-years" min="1" max="40" value="30">
+        </div>
+        <div class="field">
+          <label>房貸利率（%）<span class="tip">依你的核貸條件或銀行牌告填入</span></label>
+          <input type="number" id="inp-rate" min="0" max="10" step="0.01" value="2.2">
+        </div>
+        <div class="field">
+          <label>寬限期（年）<span class="tip">期內只繳息，期滿月付變高</span></label>
+          <input type="number" id="inp-grace" min="0" max="5" value="0">
+        </div>
+        <div class="field">
+          <label>家庭月收入 <span class="tip">用來算房貸負擔率</span></label>
+          <input type="number" id="inp-income" min="0" step="1000" value="90000">
+        </div>
+      </div>
+      <div class="kpi-row" id="loan-kpi"></div>
+    </div>
+
+    <!-- 壓力測試 -->
+    <div class="card">
+      <h2>利率壓力測試</h2>
+      <p class="hint" style="margin:-8px 0 14px">內政部房價負擔能力分級：負擔率低於 30% 合理、30–40% 偏高、超過 40% 過重。負擔率以寬限期滿的月付金計算（保守）。</p>
+      <div class="table-wrap">
+        <table><thead><tr><th>情境</th><th class="r">月付金</th><th class="r">負擔率</th></tr></thead><tbody id="stress-tbody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- 一次性成本 -->
+    <div class="card">
+      <h2>頭期款之外：一次性購屋成本</h2>
+      <div class="grid3">
+        <div class="field">
+          <label>仲介費（%）<span class="tip">買方常見 1–2%</span></label>
+          <input type="number" id="inp-agent" min="0" max="5" step="0.5" value="1">
+        </div>
+        <div class="field">
+          <label>契稅＋代書規費概估（萬）<span class="tip">契稅為房屋評定現值 6%，此為合計概估</span></label>
+          <input type="number" id="inp-deed" min="0" step="1" value="8">
+        </div>
+        <div class="field">
+          <label>裝潢預算（萬）</label>
+          <input type="number" id="inp-reno" min="0" step="10" value="50">
+        </div>
+      </div>
+      <div class="kpi-row" id="cost-kpi"></div>
+      <p class="hint" style="margin-top:8px">很多人只準備頭期款就開始看房——實際上手邊建議準備的金額通常高出不少，另外還要保留 6 個月生活費當緊急預備金。</p>
+    </div>
+
+    <!-- 說明 -->
+    <div class="card note-card">
+      <h2>計算說明</h2>
+      <p><b>月付金：</b>等額本息（本息平均攤還）公式計算。寬限期內只繳利息（貸款額 × 月利率）、本金不動；寬限期滿後以剩餘年限攤還，月付金會比全期直攤更高。</p>
+      <p><b>房貸負擔率：</b>月付金 ÷ 家庭月收入。分級參考內政部房價負擔能力統計：低於 30% 合理、30–40% 偏高、超過 40% 過重。</p>
+      <p><b>一次性成本：</b>契稅（房屋評定現值 6%，評定現值遠低於市價）、印花稅、代書費與規費以合計概估欄位表示，實際依個案差異大，請以實際報價為準。</p>
+      <p><b>免責：</b>本工具僅供估算，非貸款或購屋建議。實際核貸成數、利率與費用以銀行與相關機構為準。</p>
+    </div>
+
+    <!-- CTA -->
+    <div class="cta-box">
+      <div class="cta-icon">🏠</div>
+      <div class="cta-content">
+        <div class="cta-title">買了房之後，儲蓄率跟退休計畫會變怎樣？</div>
+        <div class="cta-sub">時值可以把房貸、收支、目標、退休時間軸整合在一起算，買房前先看清全貌，免費開始使用。</div>
+      </div>
+      <a href="/app.html#login" class="cta-btn">免費試用時值 →</a>
+    </div>
+  </div>
+
+  <footer>
+    <a href="/about">關於我們</a>
+    <a href="/terms">使用者條款</a>
+    <a href="/story">理財文章</a>
+    <a href="/">時值 · 財務地圖</a>
+  </footer>
+</Base>
+
+<script>
+// ── 公式核心（與 app.html 房產模組同一套、經獨立測試驗證）──
+function pmt(P, rate, years){
+  const rm = rate / 12, n = years * 12;
+  if (n <= 0) return 0;
+  if (Math.abs(rm) < 1e-12) return P / n;
+  const f = Math.pow(1 + rm, n);
+  return P * rm * f / (f - 1);
+}
+function pmtWithGrace(P, rate, years, g){
+  const gg = Math.max(0, Math.min(g, years));
+  return { grace: P * rate / 12, after: pmt(P, rate, years - gg) };
+}
+function burden(ratio){
+  return ratio < 0.30 ? {label:'合理', color:'var(--primary)'}
+       : ratio <= 0.40 ? {label:'偏高', color:'#C0863A'}
+       : {label:'過重', color:'var(--danger)'};
+}
+function fmtMoney(v){ return 'NT$' + Math.round(v).toLocaleString('zh-TW'); }
+function wan(v){ return Math.round(v / 1e4).toLocaleString('zh-TW') + '萬'; }
+function g(id){ return Number(document.getElementById(id).value) || 0; }
+
+function render(){
+  const price  = g('inp-price') * 1e4;
+  const downP  = g('inp-down') / 100;
+  const years  = Math.max(1, g('inp-years'));
+  const rate   = g('inp-rate') / 100;
+  const grace  = Math.max(0, Math.min(g('inp-grace'), years));
+  const income = g('inp-income');
+
+  const down = price * downP;
+  const P0   = Math.max(0, price - down);
+  const pm   = pmtWithGrace(P0, rate, years, grace);
+  const ratio = income > 0 ? pm.after / income : 0;
+  const b = burden(ratio);
+
+  document.getElementById('loan-kpi').innerHTML = `
+    <div class="kpi"><div class="kpi-l">頭期款（${Math.round(downP*100)}%）</div><div class="kpi-v">${wan(down)}</div></div>
+    <div class="kpi"><div class="kpi-l">貸款金額</div><div class="kpi-v">${wan(P0)}</div></div>
+    ${grace > 0 ? `<div class="kpi"><div class="kpi-l">寬限期內月付（只繳息）</div><div class="kpi-v">${fmtMoney(pm.grace)}</div></div>` : ''}
+    <div class="kpi"><div class="kpi-l">${grace > 0 ? '寬限期滿月付' : '每月月付金'}</div><div class="kpi-v" style="color:var(--primary)">${fmtMoney(pm.after)}</div></div>
+    <div class="kpi"><div class="kpi-l">房貸負擔率</div><div class="kpi-v" style="color:${b.color}">${income > 0 ? (ratio*100).toFixed(0) + '%（' + b.label + '）' : '—'}</div></div>
+  `;
+
+  document.getElementById('stress-tbody').innerHTML = [0, 0.005, 0.01, 0.02].map(d => {
+    const p = pmtWithGrace(P0, rate + d, years, grace).after;
+    const r2 = income > 0 ? p / income : 0;
+    const b2 = burden(r2);
+    const label = d === 0 ? `目前利率 ${(rate*100).toFixed(2)}%` : `+${(d*100).toFixed(1)}% → ${((rate+d)*100).toFixed(2)}%`;
+    return `<tr><td>${label}</td><td class="r">${fmtMoney(p)}</td><td class="r" style="color:${b2.color};font-weight:700">${income > 0 ? (r2*100).toFixed(0) + '%（' + b2.label + '）' : '—'}</td></tr>`;
+  }).join('');
+
+  const agent = price * g('inp-agent') / 100;
+  const deed  = g('inp-deed') * 1e4;
+  const reno  = g('inp-reno') * 1e4;
+  document.getElementById('cost-kpi').innerHTML = `
+    <div class="kpi"><div class="kpi-l">仲介費</div><div class="kpi-v">${wan(agent)}</div></div>
+    <div class="kpi"><div class="kpi-l">契稅＋代書規費</div><div class="kpi-v">${wan(deed)}</div></div>
+    <div class="kpi"><div class="kpi-l">裝潢</div><div class="kpi-v">${wan(reno)}</div></div>
+    <div class="kpi kpi-total"><div class="kpi-l">頭期＋一次性成本合計</div><div class="kpi-v">${wan(down + agent + deed + reno)}</div></div>
+  `;
+}
+
+['inp-price','inp-down','inp-years','inp-rate','inp-grace','inp-income','inp-agent','inp-deed','inp-reno']
+  .forEach(id => document.getElementById(id).addEventListener('input', render));
+render();
+</script>
+
+<!-- is:global 必要：KPI/壓力測試列由 JS 動態生成，沒有 Astro scoped 屬性，預設 scoped 樣式套不到 -->
+<style is:global>
+nav { position: sticky; top: 0; z-index: 100; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; height: 60px; background: rgba(246,242,233,.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+.nav-brand { font-family: var(--font-display); font-weight: 600; font-size: 20px; color: var(--primary-2); }
+.nav-tool { font-size: 13.5px; color: var(--primary); font-weight: 500; }
+.nav-tool:hover { text-decoration: underline; }
+
+.wrap { max-width: 900px; margin: 0 auto; padding: 48px 40px 100px; }
+.page-header { margin-bottom: 32px; }
+.eyebrow { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--primary); background: var(--primary-soft); border-radius: 999px; padding: 4px 12px; margin-bottom: 12px; }
+.page-header h1 { font-family: var(--font-display); font-size: 32px; font-weight: 500; margin: 0 0 8px; }
+.page-header p { color: var(--muted); font-size: 14px; line-height: 1.7; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px 28px; box-shadow: var(--shadow); margin-bottom: 16px; }
+.card h2 { font-family: var(--font-display); font-size: 17px; font-weight: 500; margin: 0 0 16px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+
+.grid3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-bottom: 14px; }
+
+.field label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 5px; }
+.field .tip { font-size: 11px; font-weight: 400; color: var(--faint); }
+.field input { width: 100%; border: 1.5px solid var(--line-2); border-radius: 8px; padding: 8px 10px; font-size: 14px; font-family: var(--font-body); background: var(--surface); color: var(--ink); }
+.field input:focus { outline: none; border-color: var(--primary); }
+
+.kpi-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.kpi { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; flex: 1 1 150px; min-width: 130px; }
+.kpi.kpi-total { background: var(--accent-soft, #f4e7d2); border-color: var(--accent, #c0863a); }
+.kpi-l { font-size: 11px; color: var(--muted); margin-bottom: 4px; line-height: 1.4; }
+.kpi-v { font-family: var(--font-display); font-size: 18px; font-weight: 600; color: var(--ink); }
+
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+thead th { background: var(--surface-2); font-size: 12px; color: var(--muted); font-weight: 600; padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--line); }
+tbody td { padding: 9px 12px; border-bottom: 1px solid var(--line); }
+tbody tr:last-child td { border-bottom: none; }
+.r { text-align: right; font-variant-numeric: tabular-nums; }
+
+.hint { font-size: 13px; color: var(--muted); line-height: 1.7; }
+
+.note-card { background: var(--surface-2); }
+.note-card h2 { font-size: 15px; }
+.note-card p { font-size: 13px; color: var(--muted); line-height: 1.75; margin-bottom: 10px; }
+.note-card p:last-child { margin-bottom: 0; }
+
+.cta-box { background: var(--primary); border-radius: var(--radius); padding: 28px 32px; display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-top: 8px; }
+.cta-icon { font-size: 32px; flex: 0 0 auto; }
+.cta-content { flex: 1; min-width: 200px; }
+.cta-title { font-family: var(--font-display); font-size: 18px; font-weight: 500; color: #fff; margin-bottom: 4px; }
+.cta-sub { font-size: 13px; color: rgba(255,255,255,.75); line-height: 1.6; }
+.cta-btn { background: #fff; color: var(--primary-2); border-radius: 10px; padding: 12px 24px; font-weight: 700; font-size: 14px; flex: 0 0 auto; white-space: nowrap; transition: .15s; }
+.cta-btn:hover { background: var(--primary-soft); color: var(--primary-2); }
+
+footer { text-align: center; padding: 28px 20px; font-size: 13px; color: var(--faint); border-top: 1px solid var(--line); }
+footer a { color: var(--primary); margin: 0 8px; }
+
+@media (max-width: 700px) {
+  nav { padding: 0 16px; }
+  .wrap { padding: 28px 16px 80px; }
+  .page-header h1 { font-size: 26px; }
+  .page-header p br { display: none; }
+  .card { padding: 20px 16px; }
+  /* iOS Safari：input 字體 <16px 聚焦會強制放大頁面，固定 16px 避免 */
+  .field input { font-size: 16px; padding: 10px 12px; min-height: 44px; }
+  .field label { font-size: 13px; }
+  .field .tip { display: block; margin-top: 2px; }
+  .grid3 { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .kpi { flex: 1 1 40%; min-width: 0; }
+  .cta-box { flex-direction: column; text-align: center; padding: 24px 20px; }
+  .cta-btn { width: 100%; text-align: center; }
+}
+
+@media (max-width: 480px) {
+  .kpi { padding: 10px 12px; }
+  .kpi-v { font-size: 16px; }
+  thead th, tbody td { padding: 8px; font-size: 12.5px; }
+}
+</style>

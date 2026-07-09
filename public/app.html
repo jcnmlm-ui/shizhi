@@ -653,13 +653,13 @@ const ADDON_REGISTRY = {
   },
   realestate: {
     label:       '房地產投報試算',
-    description: '租金投報率、貸款壓力測試、持有成本與增值試算',
+    description: '購屋負擔與房貸壓力測試、買 vs 租比較、租金投報與持有出售稅費試算',
     icon:        '🏠',
     navIcon:     '<path d="M3 9.5L12 3l9 6.5V20H3z"/><path d="M9 20v-7h6v7"/>',
     price_onetime: 499,
     sectionId:   'tab-realestate',
-    status:      'coming_soon',
-    render:      ()=> renderComingSoon('realestate'),
+    status:      'available',
+    render:      ()=> renderRealestate(),
   },
 };
 
@@ -3862,6 +3862,191 @@ function renderStartup(){
 
   // 讓 onclick 能呼叫到
   window.su_update = su_update;
+}
+
+// ── 加購模組：房地產投報試算 ────────────────────────────────
+// 資料存本機 localStorage（同創業模板模式），不寫入雲端、不影響主計算
+const REALESTATE_KEY = 'shizhi_realestate_v1';
+let re = {
+  price_wan:1200, down_pct:20, loan_years:30, rate_pct:2.2, grace_years:0, monthly_income:90000,
+  agent_pct:1, deed_wan:8, reno_wan:50,
+  rent:25000, rent_growth_pct:1, home_growth_pct:1.5, invest_return_pct:5, hold_cost_annual:60000, horizon_years:30,
+  inv_rent:25000, vacancy_pct:5, inv_hold_cost:60000, marginal_tax_pct:12, sell_after_years:10,
+};
+function loadRealestate(){ try{ const d=localStorage.getItem(REALESTATE_KEY); if(d) re={...re,...JSON.parse(d)}; }catch(e){} }
+function saveRealestate(){ localStorage.setItem(REALESTATE_KEY, JSON.stringify(re)); }
+
+// 數學核心（等額本息/寬限期/餘額/房地合一2.0/IRR，公式經獨立測試驗證）
+function rePmt(P,rate,years){ const rm=rate/12,n=years*12; if(n<=0) return 0; if(Math.abs(rm)<1e-12) return P/n; const f=Math.pow(1+rm,n); return P*rm*f/(f-1); }
+function rePmtGrace(P,rate,years,g){ const gg=Math.max(0,Math.min(g,years)); return {grace:P*rate/12, after:rePmt(P,rate,years-gg)}; }
+function reBalance(P,rate,years,k){ const rm=rate/12,n=years*12; if(k>=n) return 0; if(Math.abs(rm)<1e-12) return P*(1-k/n); const f=Math.pow(1+rm,n),fk=Math.pow(1+rm,k); return P*(f-fk)/(f-1); }
+function reBalanceGrace(P,rate,years,g,m){ const gm=Math.max(0,Math.min(g,years))*12; if(m<=gm) return P; return reBalance(P,rate,years-gm/12,m-gm); }
+function reHLTax(gain,holdY){ if(gain<=0) return {rate:0,tax:0}; const r=holdY<=2?0.45:holdY<=5?0.35:holdY<=10?0.20:0.15; return {rate:r,tax:Math.round(gain*r)}; }
+function reIrr(flows){ const npv=r=>flows.reduce((s,cf,t)=>s+cf/Math.pow(1+r,t),0); let lo=-0.5,hi=1.0; if(npv(lo)*npv(hi)>0) return null; for(let i=0;i<100;i++){ const mid=(lo+hi)/2; if(npv(lo)*npv(mid)<=0) hi=mid; else lo=mid; } return (lo+hi)/2; }
+// 內政部房價負擔能力分級：<30% 合理、30–40% 偏高、>40% 過重
+function reBurden(ratio){ return ratio<0.30?{label:'合理',color:'var(--primary)'}:ratio<=0.40?{label:'偏高',color:'#C0863A'}:{label:'過重',color:'var(--danger)'}; }
+
+function renderRealestate(){
+  loadRealestate();
+  const body=document.getElementById('realestate-body'); if(!body) return;
+  const W=v=>Math.round(v/1e4).toLocaleString('zh-TW')+'萬';
+
+  // ── 負擔試算 ──
+  const price=(Number(re.price_wan)||0)*1e4;
+  const down=price*(Number(re.down_pct)||0)/100;
+  const P0=Math.max(0,price-down);
+  const rate=(Number(re.rate_pct)||0)/100;
+  const loanY=Math.max(1,Number(re.loan_years)||30);
+  const graceY=Math.max(0,Math.min(Number(re.grace_years)||0,loanY));
+  const pm=rePmtGrace(P0,rate,loanY,graceY);
+  const inc=Number(re.monthly_income)||0;
+  const burden=inc>0?pm.after/inc:0;
+  const bl=reBurden(burden);
+  const stress=[0,0.005,0.01,0.02].map(d=>{
+    const p=rePmtGrace(P0,rate+d,loanY,graceY).after;
+    const r2=inc>0?p/inc:0; const b2=reBurden(r2);
+    return `<tr><td>${d===0?'目前利率 '+(rate*100).toFixed(2)+'%':'+'+(d*100).toFixed(1)+'% → '+((rate+d)*100).toFixed(2)+'%'}</td><td class="n">${fmtMoney(p)}</td><td class="n" style="color:${b2.color};font-weight:700">${inc>0?(r2*100).toFixed(0)+'%（'+b2.label+'）':'—'}</td></tr>`;
+  }).join('');
+  const agent=price*(Number(re.agent_pct)||0)/100;
+  const deed=(Number(re.deed_wan)||0)*1e4;
+  const reno=(Number(re.reno_wan)||0)*1e4;
+  const upfront=down+agent+deed+reno;
+  const mExp=metrics().mExpense;
+  const reserve=(mExp>0?mExp:pm.after)*6;
+
+  // ── 買 vs 租 ──
+  const rent0=Number(re.rent)||0, rg=(Number(re.rent_growth_pct)||0)/100;
+  const hg=(Number(re.home_growth_pct)||0)/100, ri=(Number(re.invest_return_pct)||0)/100;
+  const hold=Number(re.hold_cost_annual)||0;
+  const horizon=Math.max(1,Math.min(50,Number(re.horizon_years)||30));
+  const oneTime=agent+deed+reno;
+  const W0=down+oneTime;
+  let invBuy=0,invRent=0,breakeven=null; const checkRows=[];
+  for(let t=1;t<=horizon;t++){
+    const payM=t>loanY?0:(t<=graceY?pm.grace:pm.after);
+    const ownYear=payM*12+hold;
+    const rentYear=rent0*12*Math.pow(1+rg,t-1);
+    const diff=ownYear-rentYear;
+    invRent=invRent*(1+ri)+Math.max(0,diff);
+    invBuy=invBuy*(1+ri)+Math.max(0,-diff);
+    const nwBuy=price*Math.pow(1+hg,t)-reBalanceGrace(P0,rate,loanY,graceY,t*12)+invBuy;
+    const nwRent=W0*Math.pow(1+ri,t)+invRent;
+    if(breakeven===null&&nwBuy>=nwRent) breakeven=t;
+    if(t===10||t===20||t===horizon) checkRows.push({t,nwBuy,nwRent});
+  }
+  const bvRows=checkRows.map(r=>`<tr><td>第 ${r.t} 年</td><td class="n">${W(r.nwBuy)}</td><td class="n">${W(r.nwRent)}</td><td class="n" style="color:${r.nwBuy>=r.nwRent?'var(--primary)':'var(--danger)'};font-weight:700">${r.nwBuy>=r.nwRent?'買 +':'租 +'}${W(Math.abs(r.nwBuy-r.nwRent))}</td></tr>`).join('');
+
+  // ── 收租投報 ──
+  const iRent=Number(re.inv_rent)||0, vac=(Number(re.vacancy_pct)||0)/100;
+  const iHold=Number(re.inv_hold_cost)||0, mtr=(Number(re.marginal_tax_pct)||0)/100;
+  const grossAnnual=iRent*12, effRent=grossAnnual*(1-vac);
+  const rentTax=effRent*0.57*mtr;           // 租賃所得 43% 必要費用率 → 57% 併綜所
+  const noi=effRent-iHold-rentTax;
+  const grossYield=price>0?grossAnnual/price:0;
+  const netYield=(price+oneTime)>0?noi/(price+oneTime):0;
+  const loanPayY=pm.after*12;
+  const cashflowY=noi-loanPayY;
+  const coc=W0>0?cashflowY/W0:0;
+  const sellY=Math.max(1,Math.min(40,Number(re.sell_after_years)||10));
+  const sellPrice=price*Math.pow(1+hg,sellY);
+  const sellExp=Math.min(sellPrice*0.03,300000);   // 費用推計 3%、上限 30 萬
+  const gain=sellPrice-price-sellExp;
+  const hlt=reHLTax(gain,sellY);
+  const balSell=reBalanceGrace(P0,rate,loanY,graceY,sellY*12);
+  const terminal=sellPrice-sellExp-hlt.tax-balSell;
+  const flows=[-W0]; for(let t=1;t<=sellY;t++) flows.push(cashflowY+(t===sellY?terminal:0));
+  const irrV=reIrr(flows);
+
+  const kpi=(l,v,c)=>`<div class="rep-kpi"><div class="l">${l}</div><div class="v" style="font-size:18px${c?';color:'+c:''}">${v}</div></div>`;
+
+  body.innerHTML=`
+  <div class="pagehead"><div><h1>🏠 房地產投報試算</h1><p>購屋負擔、買租比較、租金投報——全部用你的數字算</p></div></div>
+
+  <div class="card">
+    <h2>一、購屋負擔與房貸壓力測試</h2>
+    <div class="cgrid2">
+      <div class="cfield"><label>房屋總價 <span style="font-size:11px;color:var(--muted)">(萬)</span></label><input type="number" id="re-price" data-wan="true" value="${re.price_wan}"></div>
+      <div class="cfield"><label>頭期款成數（%）</label><input type="number" id="re-down" min="0" max="90" value="${re.down_pct}"></div>
+      <div class="cfield"><label>貸款年限</label><input type="number" id="re-years" min="1" max="40" value="${re.loan_years}"></div>
+      <div class="cfield"><label>房貸利率（%）<span class="tip" data-tip="以目前各銀行牌告或你的核貸條件填入。新青安等優惠方案請自行帶入該利率。">ⓘ</span></label><input type="number" id="re-rate" step="0.01" value="${re.rate_pct}"></div>
+      <div class="cfield"><label>寬限期（年）<span class="tip" data-tip="寬限期內只繳利息不還本金；期滿後以剩餘年限攤還，月付金會比全期直攤更高。">ⓘ</span></label><input type="number" id="re-grace" min="0" max="5" value="${re.grace_years}"></div>
+      <div class="cfield"><label>家庭月收入 <span class="tip" data-tip="用來計算房貸負擔率（月付金÷月收入）。內政部分級：低於30%合理、30–40%偏高、超過40%過重。">ⓘ</span></label><input type="number" id="re-inc" step="1000" value="${re.monthly_income}"></div>
+    </div>
+    <div class="row-actions" style="margin-top:10px"><button class="btn btn-primary" onclick="re_update({price_wan:+document.getElementById('re-price').value,down_pct:+document.getElementById('re-down').value,loan_years:+document.getElementById('re-years').value,rate_pct:+document.getElementById('re-rate').value,grace_years:+document.getElementById('re-grace').value,monthly_income:+document.getElementById('re-inc').value})">更新計算</button></div>
+    <div class="rep-grid" style="grid-template-columns:repeat(4,1fr);margin-top:14px">
+      ${kpi('貸款金額',W(P0))}
+      ${graceY>0?kpi('寬限期內月付（只繳息）',fmtMoney(pm.grace)):kpi('頭期款',W(down))}
+      ${kpi(graceY>0?'寬限期滿月付':'每月月付金',fmtMoney(pm.after),'var(--primary)')}
+      ${kpi('房貸負擔率',inc>0?(burden*100).toFixed(0)+'%（'+bl.label+'）':'—',bl.color)}
+    </div>
+    <h2 style="margin-top:18px;font-size:15px">利率壓力測試 <span class="tip" data-tip="試算利率上升後的月付金與負擔率。負擔率以寬限期滿的月付金計（保守）。">ⓘ</span></h2>
+    <table class="rep"><thead><tr><th>情境</th><th class="n">月付金</th><th class="n">負擔率</th></tr></thead><tbody>${stress}</tbody></table>
+    <h2 style="margin-top:18px;font-size:15px">一次性購屋成本</h2>
+    <div class="cgrid2">
+      <div class="cfield"><label>仲介費（%，買方常見 1–2%）</label><input type="number" id="re-agent" step="0.5" value="${re.agent_pct}"></div>
+      <div class="cfield"><label>契稅＋代書規費概估 <span style="font-size:11px;color:var(--muted)">(萬)</span><span class="tip" data-tip="契稅為房屋評定現值6%（評定現值遠低於市價）、印花稅、代書費與規費的合計概估，實際依個案。">ⓘ</span></label><input type="number" id="re-deed" data-wan="true" value="${re.deed_wan}"></div>
+      <div class="cfield"><label>裝潢預算 <span style="font-size:11px;color:var(--muted)">(萬)</span></label><input type="number" id="re-reno" data-wan="true" value="${re.reno_wan}"></div>
+    </div>
+    <div class="row-actions" style="margin-top:10px"><button class="btn btn-primary" onclick="re_update({agent_pct:+document.getElementById('re-agent').value,deed_wan:+document.getElementById('re-deed').value,reno_wan:+document.getElementById('re-reno').value})">更新計算</button></div>
+    <div class="rep-grid" style="grid-template-columns:repeat(3,1fr);margin-top:14px">
+      ${kpi('頭期＋稅費＋裝潢合計',W(upfront),'var(--primary)')}
+      ${kpi('建議另備緊急預備金',W(reserve))}
+      ${kpi('手邊建議準備總額',W(upfront+reserve),'var(--primary)')}
+    </div>
+    <p class="hint" style="margin-top:8px">緊急預備金以 6 個月${mExp>0?'支出（取自你的收支資料）':'月付金（尚未填收支資料時的替代基準）'}估算。</p>
+  </div>
+
+  <div class="card">
+    <h2>二、買 vs 租比較 <span class="tip" data-tip="兩方案起點同一筆現金（頭期＋一次性成本）。每年住房支出較低的一方，把省下的差額投入投資。買方淨值＝房價增值－貸款餘額＋投資；租方淨值＝這筆現金複利＋投資差額。">ⓘ</span></h2>
+    <p class="hint" style="margin:-6px 0 12px">沿用上方的房價與貸款設定。增值率與報酬率為你自設的假設，非預測。</p>
+    <div class="cgrid2">
+      <div class="cfield"><label>同條件租金（月）</label><input type="number" id="re-rent" step="1000" value="${re.rent}"></div>
+      <div class="cfield"><label>租金年漲幅（%）</label><input type="number" id="re-rg" step="0.5" value="${re.rent_growth_pct}"></div>
+      <div class="cfield"><label>房價年增值率（%）<span class="tip" data-tip="自設假設。長期房價漲跌無法預測，建議用保守值試算，並多試幾種情境。">ⓘ</span></label><input type="number" id="re-hg" step="0.5" value="${re.home_growth_pct}"></div>
+      <div class="cfield"><label>投資年報酬假設（%）<span class="tip" data-tip="租屋方案把頭期款等資金投入投資的報酬假設，僅資產類別層級假設，非任何標的推薦。">ⓘ</span></label><input type="number" id="re-ri" step="0.5" value="${re.invest_return_pct}"></div>
+      <div class="cfield"><label>持有成本（年）<span class="tip" data-tip="房屋稅＋地價稅＋管理費＋維護修繕的年合計概估。">ⓘ</span></label><input type="number" id="re-hold" step="5000" value="${re.hold_cost_annual}"></div>
+      <div class="cfield"><label>比較年數</label><input type="number" id="re-hz" min="5" max="50" value="${re.horizon_years}"></div>
+    </div>
+    <div class="row-actions" style="margin-top:10px"><button class="btn btn-primary" onclick="re_update({rent:+document.getElementById('re-rent').value,rent_growth_pct:+document.getElementById('re-rg').value,home_growth_pct:+document.getElementById('re-hg').value,invest_return_pct:+document.getElementById('re-ri').value,hold_cost_annual:+document.getElementById('re-hold').value,horizon_years:+document.getElementById('re-hz').value})">更新計算</button></div>
+    <div class="rep-grid" style="grid-template-columns:repeat(2,1fr);margin-top:14px">
+      ${kpi('損益兩平年',breakeven?'第 '+breakeven+' 年起買方領先':horizon+' 年內租方領先','var(--primary)')}
+      ${kpi('第 '+horizon+' 年淨值差',(checkRows.at(-1).nwBuy>=checkRows.at(-1).nwRent?'買方 +':'租方 +')+W(Math.abs(checkRows.at(-1).nwBuy-checkRows.at(-1).nwRent)))}
+    </div>
+    <table class="rep" style="margin-top:12px"><thead><tr><th>檢查點</th><th class="n">買屋淨值</th><th class="n">租屋淨值</th><th class="n">領先</th></tr></thead><tbody>${bvRows}</tbody></table>
+    <p class="hint" style="margin-top:8px">未計出售稅費與搬遷等成本；持有成本以固定金額計。此為兩方案的簡化對照，不構成買房或租屋建議。</p>
+  </div>
+
+  <div class="card">
+    <h2>三、收租投報與出售試算</h2>
+    <p class="hint" style="margin:-6px 0 12px">沿用上方的房價、貸款與增值率假設。</p>
+    <div class="cgrid2">
+      <div class="cfield"><label>預期租金（月）</label><input type="number" id="re-irent" step="1000" value="${re.inv_rent}"></div>
+      <div class="cfield"><label>空置率（%）<span class="tip" data-tip="一年中租不出去的比例。換約空窗、整理期常見抓 5–8%。">ⓘ</span></label><input type="number" id="re-vac" step="1" value="${re.vacancy_pct}"></div>
+      <div class="cfield"><label>持有費用（年）<span class="tip" data-tip="房屋稅＋地價稅＋管理費＋修繕的年合計。出租用住宅稅率與自住不同，請以實際為準。">ⓘ</span></label><input type="number" id="re-ihold" step="5000" value="${re.inv_hold_cost}"></div>
+      <div class="cfield"><label>綜所稅邊際稅率（%）<span class="tip" data-tip="租金所得可減除43%必要費用後併入綜所稅。你的邊際稅率可在「綜所稅試算」查得。">ⓘ</span></label><input type="number" id="re-mtr" step="1" value="${re.marginal_tax_pct}"></div>
+      <div class="cfield"><label>持有幾年後出售</label><input type="number" id="re-selly" min="1" max="40" value="${re.sell_after_years}"></div>
+    </div>
+    <div class="row-actions" style="margin-top:10px"><button class="btn btn-primary" onclick="re_update({inv_rent:+document.getElementById('re-irent').value,vacancy_pct:+document.getElementById('re-vac').value,inv_hold_cost:+document.getElementById('re-ihold').value,marginal_tax_pct:+document.getElementById('re-mtr').value,sell_after_years:+document.getElementById('re-selly').value})">更新計算</button></div>
+    <div class="rep-grid" style="grid-template-columns:repeat(4,1fr);margin-top:14px">
+      ${kpi('毛投報率',(grossYield*100).toFixed(2)+'%')}
+      ${kpi('淨投報率 <span class="tip" data-tip="（有效租金－持有費用－租金所得稅）÷（房價＋一次性成本）">ⓘ</span>',(netYield*100).toFixed(2)+'%')}
+      ${kpi('貸款後現金流（月）',fmtMoney(cashflowY/12),cashflowY>=0?'var(--primary)':'var(--danger)')}
+      ${kpi('現金報酬率 CoC <span class="tip" data-tip="年現金流 ÷ 投入自備款（頭期＋一次性成本）。負值代表每年要倒貼現金。">ⓘ</span>',(coc*100).toFixed(2)+'%',coc>=0?'var(--primary)':'var(--danger)')}
+    </div>
+    <h2 style="margin-top:18px;font-size:15px">第 ${sellY} 年出售試算（房地合一 2.0）</h2>
+    <div class="rep-grid" style="grid-template-columns:repeat(4,1fr)">
+      ${kpi('預估售價',W(sellPrice))}
+      ${kpi('房地合一稅（'+(hlt.rate*100).toFixed(0)+'%）',W(hlt.tax),'var(--danger)')}
+      ${kpi('清償貸款餘額',W(balSell))}
+      ${kpi('全程年化報酬 IRR',irrV===null?'—':(irrV*100).toFixed(2)+'%',irrV!==null&&irrV>=0?'var(--primary)':'var(--danger)')}
+    </div>
+    <p class="hint" style="margin-top:8px">房地合一稅為境內個人一般稅率簡化概算（持有≤2年45%、2–5年35%、5–10年20%、>10年15%），未含自住優惠（滿6年10%、400萬免稅額）與土地漲價總數額減除；出售費用以成交價3%（上限30萬）推計。實際稅負請洽專業人士。</p>
+  </div>
+
+  <div class="disclaimer">本模組為估算工具：所有增值率、報酬率、租金與稅費均為你自行設定的假設，非市場預測、非投資建議，亦不推薦任何區域或物件。稅制採簡化計算，實際以法規與核定為準。資料僅存於你的裝置（localStorage）。</div>`;
+
+  window.re_update=(fields)=>{ Object.assign(re,fields); saveRealestate(); renderRealestate(); };
+  syncFmtPreviews();
 }
 // ── 加購模組商店（重新設計：三個區塊）────────────────────────
 function renderAddonStore(){
