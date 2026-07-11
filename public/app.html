@@ -3964,6 +3964,7 @@ function renderRealestate(){
 
   <div class="card">
     <h2>一、購屋負擔與房貸壓力測試</h2>
+    <p class="hint" style="margin:-6px 0 12px">這房子你負擔得起嗎？算出每月要繳多少、負擔率落在哪一級，以及利率上升時撐不撐得住。</p>
     <div class="cgrid2">
       <div class="cfield"><label>房屋總價 <span style="font-size:11px;color:var(--muted)">(萬)</span></label><input type="number" id="re-price" data-wan="true" value="${re.price_wan}"></div>
       <div class="cfield"><label>頭期款成數（%）</label><input type="number" id="re-down" min="0" max="90" value="${re.down_pct}"></div>
@@ -3998,7 +3999,7 @@ function renderRealestate(){
 
   <div class="card">
     <h2>二、買 vs 租比較 <span class="tip" data-tip="兩方案起點同一筆現金（頭期＋一次性成本）。每年住房支出較低的一方，把省下的差額投入投資。買方淨值＝房價增值－貸款餘額＋投資；租方淨值＝這筆現金複利＋投資差額。">ⓘ</span></h2>
-    <p class="hint" style="margin:-6px 0 12px">沿用上方的房價與貸款設定。增值率與報酬率為你自設的假設，非預測。</p>
+    <p class="hint" style="margin:-6px 0 12px">同樣一筆錢，買房划算還是租房＋把差額拿去投資划算？沿用上方的房價與貸款設定；增值率與報酬率為你自設的假設，非預測。</p>
     <div class="cgrid2">
       <div class="cfield"><label>同條件租金（月）</label><input type="number" id="re-rent" step="1000" value="${re.rent}"></div>
       <div class="cfield"><label>租金年漲幅（%）</label><input type="number" id="re-rg" step="0.5" value="${re.rent_growth_pct}"></div>
@@ -4018,7 +4019,7 @@ function renderRealestate(){
 
   <div class="card">
     <h2>三、收租投報與出售試算</h2>
-    <p class="hint" style="margin:-6px 0 12px">沿用上方的房價、貸款與增值率假設。</p>
+    <p class="hint" style="margin:-6px 0 12px">如果把這間房收租，划算嗎？跟其他投資比起來呢？沿用上方的房價、貸款與增值率假設。</p>
     <div class="cgrid2">
       <div class="cfield"><label>預期租金（月）</label><input type="number" id="re-irent" step="1000" value="${re.inv_rent}"></div>
       <div class="cfield"><label>空置率（%）<span class="tip" data-tip="一年中租不出去的比例。換約空窗、整理期常見抓 5–8%。">ⓘ</span></label><input type="number" id="re-vac" step="1" value="${re.vacancy_pct}"></div>
@@ -4038,7 +4039,7 @@ function renderRealestate(){
       ${kpi('預估售價',W(sellPrice))}
       ${kpi('房地合一稅（'+(hlt.rate*100).toFixed(0)+'%）',W(hlt.tax),'var(--danger)')}
       ${kpi('清償貸款餘額',W(balSell))}
-      ${kpi('全程年化報酬 IRR',irrV===null?'—':(irrV*100).toFixed(2)+'%',irrV!==null&&irrV>=0?'var(--primary)':'var(--danger)')}
+      ${kpi('全程年化報酬 IRR <span class="tip" data-tip="把每年租金現金流＋出售時拿回的錢，換算成一個年化報酬率，方便跟其他投資（例如股票、ETF）比較划不划算。">ⓘ</span>',irrV===null?'—':(irrV*100).toFixed(2)+'%',irrV!==null&&irrV>=0?'var(--primary)':'var(--danger)')}
     </div>
     <p class="hint" style="margin-top:8px">房地合一稅為境內個人一般稅率簡化概算（持有≤2年45%、2–5年35%、5–10年20%、>10年15%），未含自住優惠（滿6年10%、400萬免稅額）與土地漲價總數額減除；出售費用以成交價3%（上限30萬）推計。實際稅負請洽專業人士。</p>
   </div>
