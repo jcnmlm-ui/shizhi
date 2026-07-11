@@ -48,7 +48,7 @@ function makeHtml(post) {
   const title    = esc(post.title);
   const desc     = esc(post.excerpt || post.title);
   const url      = `${SITE_BASE}/story/${post.slug}/`;
-  const dateStr  = fmtDate(post.published_at || post.created_at);
+  const dateStr  = fmtDate(post.published_at || post.scheduled_at || post.created_at);
 
   return `<!doctype html>
 <html lang="zh-Hant">

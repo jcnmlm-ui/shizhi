@@ -36,7 +36,7 @@ function fmtDate(ts: string | null) {
 const cat     = ['case_study','finance_knowledge','finance_concept','creator_note'].includes(post.category) ? post.category : 'story';
 const label   = CAT_LABELS[post.category] || post.category;
 const url     = `${SITE_BASE}/story/${post.slug}/`;
-const dateStr = (post.published_at || post.created_at || '').slice(0, 10);
+const dateStr = (post.published_at || post.scheduled_at || post.created_at || '').slice(0, 10);
 const htmlBody = renderContent(post.content || '');
 
 const isCase = post.category === 'case_study';
@@ -50,8 +50,8 @@ const schema = JSON.stringify({
   headline: post.title,
   description: post.excerpt || '',
   author: { '@type': 'Person', name: post.author || '鄭家弦' },
-  datePublished: post.published_at || post.created_at,
-  dateModified: post.updated_at || post.published_at || post.created_at,
+  datePublished: post.published_at || post.scheduled_at || post.created_at,
+  dateModified: post.updated_at || post.published_at || post.scheduled_at || post.created_at,
   url,
   publisher: { '@type': 'Organization', name: '時值 · 財務地圖', url: `${SITE_BASE}/` },
 });

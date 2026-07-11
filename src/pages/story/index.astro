@@ -6,7 +6,7 @@ const now = new Date().toISOString();
 let posts: any[] = [];
 try {
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/fp_posts?select=id,slug,title,excerpt,category,cover_emoji,author,published_at,created_at&published=eq.true&or=(scheduled_at.is.null,scheduled_at.lte.${now})&order=published_at.desc`,
+    `${SUPABASE_URL}/rest/v1/fp_posts?select=id,slug,title,excerpt,category,cover_emoji,author,published_at,scheduled_at,created_at&published=eq.true&or=(scheduled_at.is.null,scheduled_at.lte.${now})&order=published_at.desc`,
     { headers: supabaseHeaders() }
   );
   if (res.ok) posts = await res.json();
@@ -82,7 +82,7 @@ function fmtDate(ts: string | null) {
               {p.excerpt && <div class="card-excerpt">{p.excerpt}</div>}
               <div class="card-meta">
                 <span>✍️ {p.author || '鄭家弦'}</span>
-                <span>· {fmtDate(p.published_at || p.created_at)}</span>
+                <span>· {fmtDate(p.published_at || p.scheduled_at || p.created_at)}</span>
               </div>
             </a>
           );
