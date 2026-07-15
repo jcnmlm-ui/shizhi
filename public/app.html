@@ -3,6 +3,23 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<!-- Meta Pixel Code -->
+<script>
+!function(f,b,e,v,n,t,s)
+{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];
+s.parentNode.insertBefore(t,s)}(window, document,'script',
+'https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '159704772283423');
+fbq('track', 'PageView');
+</script>
+<noscript><img height="1" width="1" style="display:none"
+src="https://www.facebook.com/tr?id=159704772283423&ev=PageView&noscript=1"
+/></noscript>
+<!-- End Meta Pixel Code -->
 <title>時值 · 財務地圖</title>
 <meta name="description" content="把收支、資產、目標、退休全部算清楚。台灣第一個透明假設、不推銷商品的個人財務試算工具。" />
 <meta property="og:title" content="時值・財務地圖｜財務理清楚，未來不迷路。" />
@@ -3572,6 +3589,7 @@ async function doAuth(kind){
   const { error } = await fn;
   if(error){ msg.className='authmsg err'; msg.textContent=translateAuthError(error.message); return; }
   msg.className='authmsg ok'; msg.textContent= kind==='up' ? '註冊成功！若需 Email 驗證請至信箱確認後登入。' : '登入成功';
+  if(kind==='up' && typeof fbq==='function') fbq('track','CompleteRegistration');
 }
 async function doChangePassword(){
   const p1=document.getElementById('newPass').value, p2=document.getElementById('newPass2').value;

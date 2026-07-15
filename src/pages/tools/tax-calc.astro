@@ -19,6 +19,7 @@ const schema = JSON.stringify({
   <Fragment slot="head">
     <script type="application/ld+json" set:html={schema} />
     <link rel="canonical" href="https://valuelens.tw/tools/tax-calc/" />
+    <script>document.addEventListener('input', function(){ if(typeof fbq==='function') fbq('trackCustom','ToolUsed',{tool:'tax-calc'}); }, {once:true, capture:true});</script>
   </Fragment>
 
   <nav>
