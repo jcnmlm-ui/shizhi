@@ -599,6 +599,10 @@ details[open] summary::after { content: '−'; }
     configs.forEach(row => {
       if (row.key === 'payment.price_full') pFull = Number(row.value) || pFull;
       if (row.key === 'payment.price_sub') pSub = Number(row.value) || pSub;
+      if (row.key === 'contact.email' && row.value) {
+        const el = document.getElementById('footer-contact-email');
+        if (el) { el.textContent = row.value; el.href = 'mailto:' + row.value; el.hidden = false; }
+      }
     });
     set('price-full', pFull.toLocaleString('zh-TW'));
     set('price-sub', pSub);
